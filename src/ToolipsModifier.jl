@@ -28,6 +28,7 @@ mutable struct Modifier <: ServerExtension
     f::Function
     refs::Dict
     active_routes::Vector{String}
+    on::Function
     function Modifier(active_routes::Vector{String} = ["/"])
         f(c::Connection) = begin
             fullpath = ""
@@ -65,7 +66,7 @@ mutable struct Modifier <: ServerExtension
         function onkey(f::Function, s::Symbol)
 
         end
-        new([:connection, :func, :routing], f, Dict(), active_routes)
+        new([:connection, :func, :routing], f, Dict(), active_routes, on)
     end
 end
 
