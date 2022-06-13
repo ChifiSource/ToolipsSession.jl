@@ -30,7 +30,7 @@ mutable struct Modifier <: ServerExtension
     active_routes::Vector{String}
     on::Function
     function Modifier(active_routes::Vector{String} = ["/"])
-        f(c::Connection, active_routes) = begin
+        f(c::Connection, active_routes = active_routes) = begin
             fullpath = ""
             if contains(c.http.message.target, '?')
                 fullpath = split(c.http.message.target, '?')[1]
@@ -57,7 +57,7 @@ mutable struct Modifier <: ServerExtension
             routes["/modifier/linker"] = document_linker
         end
 
-        function on(f::Function, s::Component, event::String, refs)
+        function on(f::Function, s::Component, event::String, refs = refs)
             ref = gen_ref()
             s["on$event"] = "sendpage($ref);"
             refs[Symbol(ref)] = f
