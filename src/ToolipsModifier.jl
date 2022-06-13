@@ -31,11 +31,9 @@ mutable struct Modifier <: ServerExtension
     on::Function
     function Modifier(active_routes::Vector{String} = ["/"])
         f(c::Connection, active_routes = active_routes) = begin
-            fullpath = ""
-            if contains(c.http.message.target, '?')
+            fullpath = c.http.message.target
+            if contains(fullpath, '?')
                 fullpath = split(c.http.message.target, '?')[1]
-            else
-                fullpath = c.http.message.target
             end
             if fullpath in active_routes
                 write!(c, """<script>
@@ -56,6 +54,7 @@ mutable struct Modifier <: ServerExtension
         f(routes::Dict, ext::Dict) = begin
             routes["/modifier/linker"] = document_linker
         end
+        refs = Dict()
 
         function on(f::Function, s::Component, event::String, refs = refs)
             ref = gen_ref()
@@ -66,7 +65,7 @@ mutable struct Modifier <: ServerExtension
         function onkey(f::Function, s::Symbol)
 
         end
-        new([:connection, :func, :routing], f, Dict(), active_routes, on)
+        new([:connection, :func, :routing], f, refs, active_routes, on)
     end
 end
 
