@@ -14,7 +14,8 @@ This module provides the capability to make web-pages interactive using
 module ToolipsModifier
 
 using Toolips
-import Toolips: ServerExtension, Servable
+import Toolips: ServerExtension, Servable, route!
+import Base: setindex!, getindex
 using Random
 function gen_ref()
     Random.seed!( rand(1:100000) )
@@ -53,7 +54,7 @@ mutable struct Modifier <: ServerExtension
 
         function on(f::Function, s::Component, event::String)
             ref = gen_ref()
-            s["on$event"] = "sendpage($ref)"
+            s["on$event"] = "sendpage($ref);"
             refs[Symbol(ref)] = f
         end
 
@@ -171,5 +172,5 @@ function parse_comphtml(s::String)
     return(Dict([s[2].name => s[2] for s in servables]))
 end
 
-
+export on, Modifier
 end # module
