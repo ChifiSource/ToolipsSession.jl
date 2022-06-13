@@ -41,14 +41,12 @@ mutable struct Modifier <: ServerExtension
                 function sendpage(ref) {
                     var ref2 = '?CM?:' + ref;
                 var bodyHtml = document.getElementsByTagName('body')[0].innerHTML;
-                  var xhttp = new XMLHttpRequest();
                   let xhr = new XMLHttpRequest();
                       xhr.open("POST", "/modifier/linker");
                 xhr.setRequestHeader("Accept", "application/json");
                 xhr.setRequestHeader("Content-Type", "application/json");
                 xhr.onload = () => eval(xhr.responseText);
                 xhr.send(bodyHtml + ref2);
-                xhttp.send();
                 }
                 </script>
                 """)
