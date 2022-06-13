@@ -30,7 +30,13 @@ mutable struct Modifier <: ServerExtension
     active_routes::Vector{String}
     function Modifier(active_routes::Vector{String} = ["/"])
         f(c::Connection) = begin
-            if split(c.http.message.target[1], "?") in active_routes
+            fullpath = ""
+            if contains(c.http.message.target, '?')
+                fullpath = split(c.http.message.target, '?')[1]
+            else
+                fullpath = c.http.message.target
+            end
+            if fullpath in active_routes
                 write!(c, """<script>
                 function sendpage(ref) {
                     var ref2 = '?CM?:' + ref;
@@ -172,5 +178,5 @@ function parse_comphtml(s::String)
     return(Dict([s[2].name => s[2] for s in servables]))
 end
 
-export on, Modifier
+export Modifier, ComponentModifier
 end # module
