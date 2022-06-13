@@ -108,7 +108,7 @@ getindex(cc::ComponentModifier, a::Any) = cc.changes[a]
 function document_linker(c::Connection)
     s = getpost(c)
     reftag = findall(s, "?CM?:")
-    posone = reftag + 1
+    posone = reftag[2] + 1
     ref_r = posone:length(s)
     ref = s[ref_r]
     s = replace(s, "?CM?:$ref" => "")
