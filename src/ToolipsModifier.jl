@@ -109,7 +109,7 @@ function document_linker(c::Connection)
     s = getpost(c)
     reftag = findall(s, "?CM?:")
     ref_r = maximum(ref) + 1:length(s)
-    ref = ref[ref_r]
+    ref = s[ref_r]
     s = replace(s, "?CM?:$ref" => "")
     s = parse_comphtml(s)
     vs = Vector{Servable}(values(s))
