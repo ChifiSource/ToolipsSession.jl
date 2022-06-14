@@ -93,28 +93,31 @@ mutable struct ComponentModifier <: Servable
     function ComponentModifier(name::String, tag::String,
          properties::Dict = Dict())
         f(c::Connection) = begin
-    write!(c, "</script>console.log('ComponentModifier was queried.');</script")
+    write!(c, "<script>console.log('ComponentModifier was queried.');</script>")
         end
         changes = Dict()
         new(name, tag, properties, f, changes)
     end
 end
-setindex!(cc::ComponentModifier, a::Any, s::String) = cc.changes[a] = s
+setindex!(cc::ComponentModifier, a::Any, p::Pair) = cc.changes[a] = s
 getindex(cc::ComponentModifier, a::Any) = cc.changes[a]
+function style!(cc::ComponentModifier, a::StyleComponent)
 
+end
+function animate!(cc::ComponentModifier, a::Animation)
 
+end
 """
 """
 function document_linker(c::Connection)
     s = getpost(c)
-
     reftag = findall("?CM?:", s)
     ref_r = reftag[1][2] + 1:length(s)
     ref = s[ref_r]
     s = replace(s, "?CM?:$ref" => "")
     s = parse_comphtml(s)
     vs = Vector{Servable}([v for v in values(s)])
-    c[Modifier].refs[Symbol(ref)](c, vs)
+    c[:mod].refs[Symbol(ref)](c, vs)
 end
 
 """
