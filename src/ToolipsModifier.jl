@@ -87,28 +87,54 @@ ServerExtension, it is set to modify the  base components (not servables, but
 ###### example
 """
 mutable struct ComponentModifier <: Servable
-    name::String
-    tag::String
-    properties::Dict
+    html::String
     f::Function
-    changes::Dict
-    function ComponentModifier(name::String, tag::String,
-         properties::Dict = Dict())
+    changes::Vector{String}
+    extras::Vector{Servable}
+    function ComponentModifier(html)
         f(c::Connection) = begin
-    write!(c, "<script>console.log('ComponentModifier was queried.');</script>")
+
         end
-        changes = Dict()
-        new(name, tag, properties, f, changes)
+        changes = Vector{String}()
+        extras = Vector{Servable}()
+        new(html, f, changes, extras)
     end
 end
-setindex!(cc::ComponentModifier, a::Any, p::Pair) = cc.changes[a] = s
-getindex(cc::ComponentModifier, a::Any) = cc.changes[a]
-function style!(cc::ComponentModifier, a::StyleComponent)
+
+function setindex!(cc::ComponentModifier, s::Component, p::Pair)
+    name = s.name
+    value = p[2]
+    prop = p[1]
+    push!(cc.changes, "document.getElementById('$name').$prop = $value;")
+end
+
+function getindex(cc::ComponentModifier, s::Component)
+    name = s.name
+    tag = s.tag
+    findall("<$tag id")[1]
+end
+
+function style!(cc::ComponentModifier, s::Servable p::Pair ...)
 
 end
-function animate!(cc::ComponentModifier, a::Animation)
+
+function style!(cc::ComponentModifier, s::Servable, p::Pair)
 
 end
+
+
+function style!(cc::ComponentModifier, s::Servable,  p::Style)
+    name = p
+    push!(cc.changes, "document.getElementById('name').className = '$name$animname';")
+end
+
+function animate!(cc::ComponentModifier, s::Commponet, a::Animation)
+    name = s.name
+    animname = a.name
+    s = Style("$name$animname")
+    push!(cc.changes, "document.getElementById('$name').className = '$name$animname';")
+end
+
 """
 """
 function document_linker(c::Connection)
@@ -117,9 +143,9 @@ function document_linker(c::Connection)
     ref_r = reftag[1][2] + 4:length(s)
     ref = s[ref_r]
     s = replace(s, "?CM?:$ref" => "")
-    s = parse_comphtml(s)
-    vs = Vector{Servable}([v for v in values(s)])
-    c[:mod][ref](c, vs)
+    vs = ComponentModifier(s)
+    c[:mod][ref](vs)
+    write!(c, vs)
 end
 
 """
