@@ -113,7 +113,7 @@ function document_linker(c::Connection)
     ref = s[ref_r]
     s = replace(s, "?CM?:$ref" => "")
     s = parse_comphtml(s)
-    vs = Vector{Servable}(values(s))
+    vs = Vector{Servable}([v for v in values(s)])
     c[Modifier].refs[Symbol(ref)](c, vs)
 end
 
