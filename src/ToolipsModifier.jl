@@ -29,8 +29,8 @@ mutable struct Modifier <: ServerExtension
     f::Function
     refs::Dict
     active_routes::Vector{String}
-    on::Function
     function Modifier(active_routes::Vector{String} = ["/"])
+        refs = Dict()
         f(c::Connection, active_routes = active_routes) = begin
             fullpath = c.http.message.target
             if contains(fullpath, '?')
@@ -52,11 +52,10 @@ mutable struct Modifier <: ServerExtension
                 """)
             end
         end
-        refs = Dict()
         f(routes::Dict, ext::Dict) = begin
             routes["/modifier/linker"] = document_linker
         end
-        new([:connection, :func, :routing], f, refs, active_routes, on)
+        new([:connection, :func, :routing], f, refs, active_routes)
     end
 end
 
@@ -65,7 +64,7 @@ function on(f::Function, c::Connection, s::Component,
      event::String)
     ref = gen_ref()
     s["on$event"] = "sendpage('$ref');"
-    push!(c[:mod].refs, Symbol(ref) => f)
+    c[:mod].refs[Symbol(ref)] = f
 end
 
 function onkey(f::Function, s::Symbol)
