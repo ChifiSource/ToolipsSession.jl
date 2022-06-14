@@ -62,12 +62,8 @@ end
 function on(f::Function, c::Connection, s::Component,
      event::String)
     ref = gen_ref()
+    push!(c.extensions[:mod].refs, ref => f)
     s["on$event"] = "sendpage('$ref');"
-    ref!(c[:mod], Symbol(ref) => f)
-end
-
-function ref!(m::Modifier, p::Pair{String, Function})
-    m.refs[p[1]] = p[2]
 end
 """
 """
@@ -117,7 +113,7 @@ function document_linker(c::Connection)
     s = replace(s, "?CM?:$ref" => "")
     s = parse_comphtml(s)
     vs = Vector{Servable}([v for v in values(s)])
-    c[:mod].refs[Symbol(ref)](c, vs)
+    c[:mod].refs[ref](c, vs)
 end
 
 """
