@@ -129,7 +129,7 @@ function style!(cc::ComponentModifier, s::Servable,  p::Style)
     push!(cc.changes, "document.getElementById('name').className = '$name$animname';")
 end
 
-function animate!(cc::ComponentModifier, s::Commponet, a::Animation)
+function animate!(cc::ComponentModifier, s::Component, a::Animation)
     name = s.name
     animname = a.name
     s = Style("$name$animname")
