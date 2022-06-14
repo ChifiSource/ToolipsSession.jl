@@ -113,7 +113,7 @@ end
 function document_linker(c::Connection)
     s = getpost(c)
     reftag = findall("?CM?:", s)
-    ref_r = reftag[1][2] + 1:length(s)
+    ref_r = reftag[1][2] + 4:length(s)
     ref = s[ref_r]
     s = replace(s, "?CM?:$ref" => "")
     s = parse_comphtml(s)
@@ -161,7 +161,7 @@ function parse_comphtml(s::String)
         props["children"] = Vector()
         props["text"] = ""
         c = ComponentModifier(cname, tagname, props)
-        endtag = println(findnext("</$tagname>", s, tagrange[2]))
+        endtag = findnext("</$tagname>", s, tagrange[2])
         if isnothing(endtag)
             push!(servables, tagrange[2]:maximum(tagrange) + 1 => c)
         else
