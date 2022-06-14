@@ -59,16 +59,15 @@ mutable struct Modifier <: ServerExtension
     end
 end
 
-
 function on(f::Function, c::Connection, s::Component,
      event::String)
     ref = gen_ref()
     s["on$event"] = "sendpage('$ref');"
-    c[:mod].refs[Symbol(ref)] = f
+    ref!(c[:mod], Symbol(ref) => f)
 end
 
-function onkey(f::Function, s::Symbol)
-
+function ref!(m::Modifier, p::Pair{String, Function})
+    m.refs[p[1]] = p[2]
 end
 """
 """
@@ -187,5 +186,5 @@ function parse_comphtml(s::String)
     return(Dict([s[2].name => s[2] for s in servables]))
 end
 
-export Modifier, ComponentModifier
+export Modifier, ComponentModifier, on
 end # module
