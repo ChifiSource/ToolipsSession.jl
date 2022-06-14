@@ -60,7 +60,7 @@ mutable struct Modifier <: ServerExtension
         function on(f::Function, s::Component, event::String, refs = refs)
             ref = gen_ref()
             s["on$event"] = "sendpage('$ref');"
-            refs[Symbol(ref)] = f
+            push!(refs, Symbol(ref) => f)
         end
 
         function onkey(f::Function, s::Symbol)
