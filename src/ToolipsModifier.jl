@@ -158,11 +158,11 @@ function parse_comphtml(s::String)
         props["text"] = ""
         c = ComponentModifier(cname, tagname, props)
         println(findnext("</$tagname>", s, tagrange[2]))
-        if typeof(endtag) != nothing
-            push!(servables, tagrange[2]:endtag[1] => c)
-        else
+    #    if typeof(endtag) != nothing
+    #        push!(servables, tagrange[2]:endtag[1] => c)
+    #    else
             push!(servables, tagrange[2]:maximum(tagrange) + 1 => c)
-        end
+#        end
     end
     news = []
     for servable in servables
