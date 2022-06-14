@@ -90,11 +90,9 @@ mutable struct ComponentModifier <: Servable
     html::String
     f::Function
     changes::Vector{String}
-    extras::Vector{Servable}
     function ComponentModifier(html)
         f(c::Connection) = begin
             write!(c, join(changes))
-            write!(c, extras)
         end
         changes = Vector{String}()
         extras = Vector{Servable}()
@@ -102,7 +100,7 @@ mutable struct ComponentModifier <: Servable
     end
 end
 
-function setindex!(cc::ComponentModifier, s::Component, p::Pair)
+function setindex!(cc::ComponentModifier, p::Pair, s::Component)
     name = s.name
     value = p[2]
     prop = p[1]
@@ -125,15 +123,15 @@ end
 
 
 function style!(cc::ComponentModifier, s::Servable,  p::Style)
-    name = p
-    push!(cc.changes, "document.getElementById('name').className = '$name$animname';")
+    name = s.name
+    sname = p.name
+    push!(cc.changes, "document.getElementById('$name').className = '$sname';")
 end
 
 function animate!(cc::ComponentModifier, s::Component, a::Animation)
     name = s.name
     animname = a.name
-    s = Style("$name$animname")
-    push!(cc.changes, "document.getElementById('$name').className = '$name$animname';")
+    push!(cc.changes, "document.getElementById('$name').className = '$animname';")
 end
 
 """
