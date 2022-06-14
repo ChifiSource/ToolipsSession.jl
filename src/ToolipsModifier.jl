@@ -22,6 +22,7 @@ function gen_ref()
     Random.seed!( rand(1:100000) )
     randstring(16)
 end
+
 """
 """
 mutable struct Modifier <: ServerExtension
@@ -30,7 +31,7 @@ mutable struct Modifier <: ServerExtension
     active_routes::Vector{String}
     events::Dict
     function Modifier(active_routes::Vector{String} = ["/"])
-        refs = Dict()
+        events = Dict()
         f(c::Connection, active_routes = active_routes) = begin
             fullpath = c.http.message.target
             if contains(fullpath, '?')
