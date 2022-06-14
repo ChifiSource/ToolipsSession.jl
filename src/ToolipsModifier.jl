@@ -52,24 +52,25 @@ mutable struct Modifier <: ServerExtension
                 """)
             end
         end
+        refs = Dict()
         f(routes::Dict, ext::Dict) = begin
             routes["/modifier/linker"] = document_linker
-        end
-        refs = Dict()
-
-        function on(f::Function, s::Component, event::String, refs = refs)
-            ref = gen_ref()
-            s["on$event"] = "sendpage('$ref');"
-            push!(refs, Symbol(ref) => f)
-        end
-
-        function onkey(f::Function, s::Symbol)
-
         end
         new([:connection, :func, :routing], f, refs, active_routes, on)
     end
 end
 
+
+function on(f::Function, c::Connection, s::Component,
+     event::String)
+    ref = gen_ref()
+    s["on$event"] = "sendpage('$ref');"
+    push!(c[:mod].refs, Symbol(ref) => f)
+end
+
+function onkey(f::Function, s::Symbol)
+
+end
 """
 """
 route!(se::ServerExtension, r::String) = push!(r.active_routes, r)
