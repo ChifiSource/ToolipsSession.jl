@@ -93,7 +93,8 @@ mutable struct ComponentModifier <: Servable
     extras::Vector{Servable}
     function ComponentModifier(html)
         f(c::Connection) = begin
-
+            write!(c, join(changes))
+            write!(c, extras)
         end
         changes = Vector{String}()
         extras = Vector{Servable}()
@@ -114,7 +115,7 @@ function getindex(cc::ComponentModifier, s::Component)
     findall("<$tag id")[1]
 end
 
-function style!(cc::ComponentModifier, s::Servable p::Pair ...)
+function style!(cc::ComponentModifier, s::Servable, p::Pair ...)
 
 end
 
