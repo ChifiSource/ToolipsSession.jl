@@ -14,7 +14,8 @@ This module provides the capability to make web-pages interactive using
 module ToolipsModifier
 
 using Toolips
-import Toolips: ServerExtension, Servable, route!
+import Toolips: ServerExtension, Servable, route!, style!, animate!
+import Toolips: StyleComponent
 import Base: setindex!, getindex
 using Random
 function gen_ref()
