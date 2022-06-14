@@ -60,7 +60,7 @@ mutable struct Modifier <: ServerExtension
     end
 end
 getindex(m::Modifier, s::String) = m.events[s]
-setindex(m::Modifier, a::Function, s::String) = m.events[s] = a
+setindex!(m::Modifier, a::Function, s::String) = m.events[s] = a
 function on(f::Function, c::Connection, s::Component,
      event::String)
      Random.seed!( rand(1:100000) )
