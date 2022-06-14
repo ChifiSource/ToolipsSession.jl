@@ -27,8 +27,8 @@ end
 mutable struct Modifier <: ServerExtension
     type::Vector{Symbol}
     f::Function
-    refs::Dict
     active_routes::Vector{String}
+    events::Dict
     function Modifier(active_routes::Vector{String} = ["/"])
         refs = Dict()
         f(c::Connection, active_routes = active_routes) = begin
@@ -55,16 +55,21 @@ mutable struct Modifier <: ServerExtension
         f(routes::Dict, ext::Dict) = begin
             routes["/modifier/linker"] = document_linker
         end
-        new([:connection, :func, :routing], f, refs, active_routes)
+        new([:connection, :func, :routing], f, active_routes, events)
     end
 end
+getindex(m::Modifier, s::String) = m.events[s]
 
 function on(f::Function, c::Connection, s::Component,
      event::String)
+     Random.seed!( rand(1:100000) )
+     randstring(16)
     ref = gen_ref()
-    push!(c.extensions[:mod].refs, ref => f)
-    s["on$event"] = "sendpage('$ref');"
+    name = s.name
+    s["on$event"] = "sendpage('$event$name');"
+    c[:mod]["$event$name"] = f
 end
+
 """
 """
 route!(se::ServerExtension, r::String) = push!(r.active_routes, r)
