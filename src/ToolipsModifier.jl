@@ -96,7 +96,7 @@ mutable struct ComponentModifier <: Servable
         end
         changes = Vector{String}()
         extras = Vector{Servable}()
-        new(html, f, changes, extras)
+        new(html, f, changes)
     end
 end
 
