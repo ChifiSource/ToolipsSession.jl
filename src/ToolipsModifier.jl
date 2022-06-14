@@ -131,8 +131,6 @@ function parse_comphtml(s::String)
         if contains(s[tagrange], "/")
             continue
         end
-        println(tagrange)
-        println(length(s))
         if tagrange[2] + 1 != length(s)
             tagname_r = tagrange[1] + 1:findnext(" ", s, tagrange[1])[1] - 1
         else
@@ -159,7 +157,7 @@ function parse_comphtml(s::String)
         props["children"] = Vector()
         props["text"] = ""
         c = ComponentModifier(cname, tagname, props)
-        endtag = findnext("</$tagname>", s, tagrange[2])
+        println(findnext("</$tagname>", s, tagrange[2]))
         if typeof(endtag) != nothing
             push!(servables, tagrange[2]:endtag[1] => c)
         else
