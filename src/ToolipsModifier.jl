@@ -119,7 +119,7 @@ function document_linker(c::Connection)
     s = replace(s, "?CM?:$ref" => "")
     s = parse_comphtml(s)
     vs = Vector{Servable}([v for v in values(s)])
-    c[:mod].refs[ref](c, vs)
+    c[:mod][ref](c, vs)
 end
 
 """
