@@ -150,9 +150,12 @@ function parse_comphtml(s::String)
             end
         end
         props = Dict(pairs)
-        println(props)
-        cname = props["id"]
-        props[:name] = cname
+        cname = ""
+        try
+            cname = props["id"]
+        catch
+            cname = "unknown"
+        end
         props["children"] = Vector()
         props["text"] = ""
         c = ComponentModifier(cname, tagname, props)
