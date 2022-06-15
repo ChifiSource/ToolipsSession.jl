@@ -166,7 +166,7 @@ function getindex(cc::ComponentModifier, s::Component)
     tag = s.tag
     s = cc.html
     tagrange = findall("<$tag id=\"$name\"", s)[1]
-    unsplit_props = s[tagrange[2]:findnext(">", s, tagrange[2])]
+    unsplit_props = s[tagrange[2]:findnext(">", s, tagrange[2])[1]]
     ps = split(unsplit_props, " ")
     pairs = Vector{Pair{Any, Any}}()
     for p in 1:length(ps)
