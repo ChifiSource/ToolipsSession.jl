@@ -38,6 +38,8 @@ mutable struct Modifier <: ServerExtension
         transition_duration::AbstractFloat = 0.5,
         transition::AbstractString = "ease-in-out", timeout::Integer = 10)
         events = Dict()
+        timeout = timeout
+        transition = transition
         iptable = Dict{String, Dates.DateTime}()
         f(c::Connection, active_routes = active_routes) = begin
             fullpath = c.http.message.target
