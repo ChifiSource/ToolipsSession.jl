@@ -46,7 +46,7 @@ mutable struct Modifier <: ServerExtension
             end
             if fullpath in active_routes
                 if ~(getip(c) in keys(events))
-                    events[getip(c)] = Dict{String, String}()
+                    events[getip(c)] = Dict{String, Function}()
                 else
                     if minute(iptable[getip(c)]) >= timeout
                         delete!(iptable, getip(c))
