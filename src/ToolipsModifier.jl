@@ -178,7 +178,7 @@ function getindex(cc::ComponentModifier, s::Component)
     end
     props = Dict(pairs)
     cname = ""
-    if "id" in props
+    if "id" in keys(props)
         cname = props["id"]
     else
         cname = "unknown"
