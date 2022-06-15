@@ -306,7 +306,7 @@ function document_linker(c::Connection)
     s = replace(s, "?CM?:$ref" => "")
     cm = ComponentModifier(s)
     c[:mod].iptable[getip(c)] = now()
-    if ref in
+    if ref in c[:mod].events
         c[:mod][getip(c)][ref](cm)
     else
         write!(c, "timeout")
