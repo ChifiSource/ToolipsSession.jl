@@ -36,7 +36,7 @@ mutable struct Modifier <: ServerExtension
     timeout::Integer
     function Modifier(active_routes::Vector{String} = ["/"];
         transition_duration::AbstractFloat = 0.5,
-        transition::String = "ease-in-out", timeout::Integer = 10)
+        transition::AbstractString = "ease-in-out", timeout::Integer = 10)
         events = Dict()
         iptable = Dict{String, String}()
         f(c::Connection, active_routes = active_routes) = begin
@@ -86,11 +86,10 @@ mutable struct Modifier <: ServerExtension
         iptable, timeout)
     end
 end
-getindex(m::Modifier, s::String) = m.events[s]
-setindex!(m::Modifier, a::Function, s::String) = m.events[s] = a
-
+getindex(m::Modifier, s::AbstractString) = m.events[s]
+getindex(m::Modifier, s::AbstractString) = m.events[s]
 function on(f::Function, c::Connection, s::Component,
-     event::String)
+     event::AbstractString)
     ref = gen_ref()
     name = s.name
     s["on$event"] = "sendpage('$event$name');"
@@ -99,7 +98,7 @@ end
 
 """
 """
-route!(se::ServerExtension, r::String) = push!(r.active_routes, r)
+route!(se::ServerExtension, r::AbstractString) = push!(r.active_routes, r)
 
 function observe!(f::Function, c::Connection; signal::Bool = false)
     TimedTrigger(f, time::Integer, signal = false)
@@ -108,7 +107,7 @@ end
 mutable struct TimedTrigger
     time::Integer
     f::Function
-    ref::String
+    ref::AbstractString
     signal::Bool
     function TimedTrigger(time::Integer, signal::Bool = false)
         ref = ""
@@ -139,13 +138,13 @@ A connection Servable is served by the ToolipsModifier.Modifier
 ServerExtension, it is set to modify the  base components (not Servables, but
 **Servables are planned in a future version**.)
 ###### fields
-- name::String
+- name::AbstractString
 - properties**::Dict** - Properties
 - f**::Function**
 ###### example
 """
 mutable struct ComponentModifier <: Servable
-    html::String
+    html::AbstractString
     f::Function
     changes::Vector{String}
     function ComponentModifier(html)
@@ -214,7 +213,7 @@ function getindex(cc::ComponentModifier, s::Component)
     end
 end
 
-function makefrom_string(s::String)
+function makefrom_string(s::AbstractString)
     comps = []
     stap = [start:stop for (start, stop) in zip(findall("<", s), findall(">"))]
     for range in stap
@@ -226,9 +225,9 @@ function makefrom_string(s::String)
     [comps = cc[Component(c[1], c[2])] for c in comps]
 end
 
-alert!(cm::ComponentModifier, s::String) = push!(cc.changes, "alert('$s');")
+alert!(cm::ComponentModifier, s::AbstractString) = push!(cc.changes, "alert('$s');")
 
-function redirect!(cm::ComponentModifier, url::String, delay::Int64 = 0)
+function redirect!(cm::ComponentModifier, url::AbstractString, delay::Int64 = 0)
     push!(cm.changes, """
     setTimeout(function () {
       window.location.href = "$url";
@@ -287,7 +286,7 @@ function style!(cm::ComponentModifier, s::Servable, p::Vector{Pair{String, Strin
     end
 end
 
-function remove!(c::Connection, fname::String, s::Servable)
+function remove!(c::Connection, fname::AbstractString, s::Servable)
     refname = s.name * fname
     delete!(c[Modifier][get_ip()], refname)
 end
@@ -317,7 +316,7 @@ end
 """
 
 """
-function parse_comphtml(s::String)
+function parse_comphtml(s::AbstractString)
     open_tags = findall("<", s)
     close_tags = findall(">", s)
     # for the future, we can zip this and make it one line with one of these
