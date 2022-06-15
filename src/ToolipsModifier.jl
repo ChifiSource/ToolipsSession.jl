@@ -15,7 +15,7 @@ module ToolipsModifier
 
 using Toolips
 import Toolips: ServerExtension, Servable, route!, style!, animate!
-import Toolips: StyleComponent, SpoofConnection
+import Toolips: StyleComponent, SpoofConnection, AbstractConnection
 import Base: setindex!, getindex
 using Random, Dates
 
@@ -54,13 +54,16 @@ mutable struct Modifier <: ServerExtension
                 write!(c, """<script>
                 function sendpage(ref) {
                 var ref2 = '?CM?:' + ref;
-                var bodyHtml = document.getElementsByTagName('body')[0].innerHTML;
+            var bodyHtml = document.getElementsByTagName('body')[0].innerHTML;
+                sendinfo(bodyHtml + ref2);
+                }
+                function sendinfo(txt) {
                 let xhr = new XMLHttpRequest();
                 xhr.open("POST", "/modifier/linker");
                 xhr.setRequestHeader("Accept", "application/json");
                 xhr.setRequestHeader("Content-Type", "application/json");
                 xhr.onload = () => eval(xhr.responseText);
-                xhr.send(bodyHtml + ref2);
+                xhr.send(txt);
                 }
                 </script>
                 <style type="text/css">
@@ -83,10 +86,9 @@ mutable struct Modifier <: ServerExtension
 end
 getindex(m::Modifier, s::String) = m.events[s]
 setindex!(m::Modifier, a::Function, s::String) = m.events[s] = a
+
 function on(f::Function, c::Connection, s::Component,
      event::String)
-     Random.seed!( rand(1:100000) )
-     randstring(16)
     ref = gen_ref()
     name = s.name
     s["on$event"] = "sendpage('$event$name');"
@@ -96,6 +98,39 @@ end
 """
 """
 route!(se::ServerExtension, r::String) = push!(r.active_routes, r)
+
+function observe!(f::Function, c::AbstractConnection; signal::Bool = false)
+    TimedTrigger(f, time::Integer, signal = false)
+    write!(c, TimedTrigger)
+end
+mutable struct TimedTrigger <: Servable
+    time::Integer
+    f::Function
+    ref::String
+    signal::Bool
+    function TimedTrigger(time::Integer, signal::Bool = false)
+        ref = ""
+        f(c::Connection) = begin
+            ref = gen_ref()
+            push!(c[Modifier][get_ip(c)], ref => f)
+            if signal
+                write!(c, """
+                setTimeout(function () {
+                  sendinfo('$ref');
+               }, $time);
+               """)
+            else
+               write!(c, """
+               setTimeout(function () {
+                 sendpage('$ref');
+              }, $time);
+              """)
+            end
+        end
+        new(time, f, ref, signal)
+        end
+    end
+end
 
 """
 ### ComponentModifier <: Servable
@@ -121,12 +156,24 @@ mutable struct ComponentModifier <: Servable
         new(html, f, changes)
     end
 end
-
+mutable struct TimedTrigger <: Servable
+    time::Integer
+    f::Function
+    ref::String
+    function TimedTrigger(f::Function, time::Integer)
+        f(c::Connection) = begin
+            ref = gen_ref()
+            push!(c[Modifier][get_ip(c)], ref => f)
+            write!(c, """
+            setTimeout(function () {
+              sendinfo('$ref');
+           }, $time);
+           """)
+        end
+    end
+end
 function setindex!(cc::ComponentModifier, p::Pair, s::Component)
-    name = s.name
-    value = p[2]
-    prop = p[1]
-    push!(cc.changes, "document.getElementById('$name').$prop = '$value';")
+    modify!(cc, s, p)
 end
 
 function getindex(cc::ComponentModifier, s::Component)
@@ -182,10 +229,13 @@ function getindex(cc::ComponentModifier, s::Component)
 end
 
 function makefrom_string(s::String)
+    comps = []
     stap = [start:stop for (start, stop) in zip(findall("<", s), findall(">"))]
     for range in stap
-        tagrange = range[1]:findnext(" ", s, range[1])[1] - 1
-        name_r = findall("id=", s[range]) + 1:
+        name_start = findall("id=", s[range])[1][2] + 1
+        name_end = findnext(" ", s[range], name_sart)[2] - 1
+        tag = s[range[1] + 1:findnext(" ", s, r[1])]
+        push!(comps, s[name_start:name_end])
     end
     [comps = cc[Component(c[1], c[2])] for c in comps]
 end
@@ -214,20 +264,17 @@ end
 function modify!(cm::ComponentModifier, s::Servable,
     p::Vector{Pair{String, String}})
     name = s.name
-
+    key, val = p[1], p[2]
     push!(cc.changes,
-"document.getElementById('$name').setAttribute('style','$style');")
+"document.getElementById('$name').setAttribute('$key','$val');")
 end
 
-modify!(cm::ComponentModifier, s::Servable, p::Pair)
+modify!(cm::ComponentModifier, s::Servable, p::Pair) = modify!(cm, s, [p])
 
 function add_child!(cm::ComponentModifier, s::Servable, s::Servable, ;
      at::Integer = 0)
      comp = cm[s]
-     if at == 0
-         at = length(comp[:children])
-     end
-
+     inner = ""
 end
 
 function get_inner()
@@ -242,6 +289,7 @@ function style!(cm::ComponentModifier, s::Servable, p::Pair{String, String} ...)
     p = [pair for pair in p]
     style!(cm::ComponentModifier, s::Servable, p::Pair{String, String})
 end
+
 function style!(cm::ComponentModifier, s::Servable, p::Vector{Pair{String, String}})
     name = s.name
     getelement = "var new_element = document.getElementById('$name');"
@@ -252,6 +300,17 @@ function style!(cm::ComponentModifier, s::Servable, p::Vector{Pair{String, Strin
         push!(c.changes, "new_element.style['$key'] = '$value';")
     end
 end
+
+function remove!(c::Connection, fname::String, s::Servable)
+    refname = s.name * fname
+    delete!(c[Modifier][get_ip()], refname)
+end
+
+function kill_session!(c::Connection)
+    delete!(c[Modifier].iptable, getip(c))
+    delete!(c[Modifier].refs, get_ip(c))
+end
+
 """
 """
 function document_linker(c::Connection)
