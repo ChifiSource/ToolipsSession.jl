@@ -185,7 +185,7 @@ function getindex(cc::ComponentModifier, s::Component)
     end
     props["children"] = Vector()
     props["text"] = ""
-    c = ComponentModifier(cname, tag, props)
+    c = Component(cname, tag, props)
     endtag = findnext("</$tag>", s, tagrange[2])
     if ~(contains(s[tagrange[2]:endtag[1]], "<$tag"))
         if ~(contains(s[tagrange[2]:endtag[1] - 1], "<"))
