@@ -38,6 +38,7 @@ mutable struct Modifier <: ServerExtension
         transition_duration::AbstractFloat = 0.5,
         transition::String = "ease-in-out", timeout::Integer = 10)
         events = Dict()
+        iptable = Dict{String, String}()
         f(c::Connection, active_routes = active_routes) = begin
             fullpath = c.http.message.target
             if contains(fullpath, '?')
@@ -82,7 +83,7 @@ mutable struct Modifier <: ServerExtension
             routes["/modifier/linker"] = document_linker
         end
         new([:connection, :func, :routing], f, active_routes, events,
-        Dict{String, String}(), timeout)
+        iptable, timeout)
     end
 end
 getindex(m::Modifier, s::String) = m.events[s]
