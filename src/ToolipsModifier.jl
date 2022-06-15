@@ -48,7 +48,7 @@ mutable struct Modifier <: ServerExtension
                 if ~(getip(c) in keys(events))
                     events[getip(c)] = Dict{String, Function}()
                 else
-                    if minute(iptable[getip(c)]) >= timeout
+                    if minute(now()) - minute(iptable[getip(c)]) >= timeout
                         delete!(iptable, getip(c))
                     end
                 end
@@ -165,7 +165,7 @@ function getindex(cc::ComponentModifier, s::Component)
     name = s.name
     tag = s.tag
     s = cc.html
-    tagrange = findall("<$tag id='$name'", s)[1]
+    tagrange = findall("<$tag id=\"$name\"", s)[1]
     unsplit_props = s[tagrange[2]:findnext(">", s[tagrange], tagrange[2])]
     ps = split(unsplit_props, " ")
     pairs = Vector{Pair{Any, Any}}()
