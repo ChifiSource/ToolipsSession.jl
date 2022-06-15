@@ -32,13 +32,13 @@ mutable struct Modifier <: ServerExtension
     f::Function
     active_routes::Vector{String}
     events::Dict
-    iptable::Dict{String, String}
+    iptable::Dict{String, Dates.DateTime}
     timeout::Integer
     function Modifier(active_routes::Vector{String} = ["/"];
         transition_duration::AbstractFloat = 0.5,
         transition::AbstractString = "ease-in-out", timeout::Integer = 10)
         events = Dict()
-        iptable = Dict{String, String}()
+        iptable = Dict{String, Dates.DateTime}()
         f(c::Connection, active_routes = active_routes) = begin
             fullpath = c.http.message.target
             if contains(fullpath, '?')
@@ -48,7 +48,7 @@ mutable struct Modifier <: ServerExtension
                 if ~(getip(c) in keys(events))
                     events[getip(c)] = Vector{Pair}()
                 else
-                    if iptable[getip(c)].minutes >= timeout
+                    if minute(iptable[getip(c)]) >= timeout
                         delete!(iptable, getip(c))
                     end
                 end
