@@ -14,8 +14,7 @@ This module provides the capability to make web-pages interactive using
 module ToolipsModifier
 
 using Toolips
-using Toolips: Toolips.Servable
-import Toolips: ServerExtension, Toolips.Servable, route!, style!, animate!
+import Toolips: ServerExtension, Servable, route!, style!, animate!
 import Toolips: StyleComponent, SpoofConnection, AbstractConnection
 import Base: setindex!, getindex
 using Random, Dates
@@ -104,7 +103,7 @@ function observe!(f::Function, c::AbstractConnection; signal::Bool = false)
     TimedTrigger(f, time::Integer, signal = false)
     write!(c, TimedTrigger)
 end
-mutable struct TimedTrigger <: Toolips.Servable
+mutable struct TimedTrigger <: Servable
     time::Integer
     f::Function
     ref::String
@@ -134,17 +133,17 @@ mutable struct TimedTrigger <: Toolips.Servable
 end
 
 """
-### ComponentModifier <: Toolips.Servable
-A connection Toolips.Servable is served by the ToolipsModifier.Modifier
-ServerExtension, it is set to modify the  base components (not Toolips.Servables, but
-**Toolips.Servables are planned in a future version**.)
+### ComponentModifier <: Servable
+A connection Servable is served by the ToolipsModifier.Modifier
+ServerExtension, it is set to modify the  base components (not Servables, but
+**Servables are planned in a future version**.)
 ###### fields
 - name::String
 - properties**::Dict** - Properties
 - f**::Function**
 ###### example
 """
-mutable struct ComponentModifier <: Toolips.Servable
+mutable struct ComponentModifier <: Servable
     html::String
     f::Function
     changes::Vector{String}
@@ -153,11 +152,11 @@ mutable struct ComponentModifier <: Toolips.Servable
             write!(c, join(changes))
         end
         changes = Vector{String}()
-        extras = Vector{Toolips.Servable}()
+        extras = Vector{Servable}()
         new(html, f, changes)
     end
 end
-mutable struct TimedTrigger <: Toolips.Servable
+mutable struct TimedTrigger <: Servable
     time::Integer
     f::Function
     ref::String
@@ -251,18 +250,18 @@ function redirect!(cm::ComponentModifier, url::String, delay::Int64 = 0)
    """)
 end
 
-function style!(cc::ComponentModifier, s::Toolips.Servable,  p::Style)
+function style!(cc::ComponentModifier, s::Servable,  p::Style)
     name = s.name
     sname = p.name
     push!(cc.changes, "document.getElementById('$name').className = '$sname';")
 end
 
-function modify!(cm::ComponentModifier, s::Toolips.Servable, p::Pair ...)
+function modify!(cm::ComponentModifier, s::Servable, p::Pair ...)
     p = [pair for pair in p]
     modify!(cm, s, p)
 end
 
-function modify!(cm::ComponentModifier, s::Toolips.Servable,
+function modify!(cm::ComponentModifier, s::Servable,
     p::Vector{Pair{String, String}})
     name = s.name
     key, val = p[1], p[2]
@@ -270,9 +269,9 @@ function modify!(cm::ComponentModifier, s::Toolips.Servable,
 "document.getElementById('$name').setAttribute('$key','$val');")
 end
 
-modify!(cm::ComponentModifier, s::Toolips.Servable, p::Pair) = modify!(cm, s, [p])
+modify!(cm::ComponentModifier, s::Servable, p::Pair) = modify!(cm, s, [p])
 
-function add_child!(cm::ComponentModifier, s::Toolips.Servable, s::Toolips.Servable, ;
+function add_child!(cm::ComponentModifier, s::Servable, s::Servable, ;
      at::Integer = 0)
      comp = cm[s]
      inner = ""
@@ -286,12 +285,12 @@ function get_text()
 
 end
 
-function style!(cm::ComponentModifier, s::Toolips.Servable, p::Pair{String, String} ...)
+function style!(cm::ComponentModifier, s::Servable, p::Pair{String, String} ...)
     p = [pair for pair in p]
-    style!(cm::ComponentModifier, s::Toolips.Servable, p::Pair{String, String})
+    style!(cm::ComponentModifier, s::Servable, p::Pair{String, String})
 end
 
-function style!(cm::ComponentModifier, s::Toolips.Servable, p::Vector{Pair{String, String}})
+function style!(cm::ComponentModifier, s::Servable, p::Vector{Pair{String, String}})
     name = s.name
     getelement = "var new_element = document.getElementById('$name');"
     push!(c.changes, getelement)
@@ -302,7 +301,7 @@ function style!(cm::ComponentModifier, s::Toolips.Servable, p::Vector{Pair{Strin
     end
 end
 
-function remove!(c::Connection, fname::String, s::Toolips.Servable)
+function remove!(c::Connection, fname::String, s::Servable)
     refname = s.name * fname
     delete!(c[Modifier][get_ip()], refname)
 end
@@ -337,33 +336,33 @@ function parse_comphtml(s::String)
     close_tags = findall(">", s)
     # for the future, we can zip this and make it one line with one of these
     open_close = [open_tags[i][1]:close_tags[i][1] for i in 1:length(open_tags)]
-    Toolips.Servables = []
+    Servables = []
     for n in 1:length(open_close)
         tagrange = open_close[n]
 
         if isnothing(endtag)
-            push!(Toolips.Servables, tagrange[2]:maximum(tagrange) + 1 => c)
+            push!(Servables, tagrange[2]:maximum(tagrange) + 1 => c)
         else
-            push!(Toolips.Servables, tagrange[2]:endtag[1] => c)
+            push!(Servables, tagrange[2]:endtag[1] => c)
         end
     end
     news = []
-    for Toolips.Servable in Toolips.Servables
-        if Toolips.Servable[1][2] - 1 == Toolips.Servable[1][1]
-            push!(news, Toolips.Servable[2])
+    for Servable in Servables
+        if Servable[1][2] - 1 == Servable[1][1]
+            push!(news, Servable[2])
             continue
         end
-        for (n, p) in enumerate(Toolips.Servables)
-            if p[1][1] in Toolips.Servable[1]
-                push!(Toolips.Servable[2], p[2])
-                deleteat!(Toolips.Servables, n)
-                push!(news, Toolips.Servable[2])
+        for (n, p) in enumerate(Servables)
+            if p[1][1] in Servable[1]
+                push!(Servable[2], p[2])
+                deleteat!(Servables, n)
+                push!(news, Servable[2])
             else
-                Toolips.Servable[2][:text] = s[Toolips.Servable[1]]
+                Servable[2][:text] = s[Servable[1]]
             end
         end
     end
-    return(Dict([s[2].name => s[2] for s in Toolips.Servables]))
+    return(Dict([s[2].name => s[2] for s in Servables]))
 end
 
 export Modifier, ComponentModifier, on
