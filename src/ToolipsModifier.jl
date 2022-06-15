@@ -213,6 +213,7 @@ function getindex(cc::ComponentModifier, s::Component)
         comps = makefrom_string(s[tagrange[2] + 1:endtag[1] - 1])
         [push!(c, comp) for comp in comps]
     end
+    return(c)
 end
 
 function makefrom_string(s::AbstractString)
