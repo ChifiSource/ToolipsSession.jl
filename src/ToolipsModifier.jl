@@ -14,8 +14,9 @@ This module provides the capability to make web-pages interactive using
 module ToolipsModifier
 
 using Toolips
-import Toolips: ServerExtension, Servable, route!, style!, animate!
-import Toolips: StyleComponent, SpoofConnection, AbstractConnection
+import Toolips: ServerExtension, route!, style!, animate!, Servable, Connection
+import Toolips: StyleComponent
+#import SpoofConnection, AbstractConnection
 import Base: setindex!, getindex
 using Random, Dates
 
@@ -99,11 +100,11 @@ end
 """
 route!(se::ServerExtension, r::String) = push!(r.active_routes, r)
 
-function observe!(f::Function, c::AbstractConnection; signal::Bool = false)
+function observe!(f::Function, c::Connection; signal::Bool = false)
     TimedTrigger(f, time::Integer, signal = false)
     write!(c, TimedTrigger)
 end
-mutable struct TimedTrigger <: Servable
+mutable struct TimedTrigger
     time::Integer
     f::Function
     ref::String
@@ -128,7 +129,6 @@ mutable struct TimedTrigger <: Servable
             end
         end
         new(time, f, ref, signal)
-        end
     end
 end
 
@@ -156,22 +156,7 @@ mutable struct ComponentModifier <: Servable
         new(html, f, changes)
     end
 end
-mutable struct TimedTrigger <: Servable
-    time::Integer
-    f::Function
-    ref::String
-    function TimedTrigger(f::Function, time::Integer)
-        f(c::Connection) = begin
-            ref = gen_ref()
-            push!(c[Modifier][get_ip(c)], ref => f)
-            write!(c, """
-            setTimeout(function () {
-              sendinfo('$ref');
-           }, $time);
-           """)
-        end
-    end
-end
+
 function setindex!(cc::ComponentModifier, p::Pair, s::Component)
     modify!(cc, s, p)
 end
@@ -271,7 +256,7 @@ end
 
 modify!(cm::ComponentModifier, s::Servable, p::Pair) = modify!(cm, s, [p])
 
-function add_child!(cm::ComponentModifier, s::Servable, s::Servable, ;
+function add_child!(cm::ComponentModifier, s::Servable, s2::Servable, ;
      at::Integer = 0)
      comp = cm[s]
      inner = ""
