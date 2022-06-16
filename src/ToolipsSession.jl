@@ -243,7 +243,6 @@ end
 
 alert!(cm::ComponentModifier, s::AbstractString) = push!(cm.changes,
                                                             "alert('$s');")
-end
 
 function redirect!(cm::ComponentModifier, url::AbstractString, delay::Int64 = 0)
     push!(cm.changes, """
