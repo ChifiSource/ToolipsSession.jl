@@ -110,7 +110,6 @@ mutable struct TimedTrigger <: Servable
               </script>
               """)
             end
-        end
         new(time, f, ref, signal)
     end
 end
@@ -264,7 +263,7 @@ end
 function add_child!(cm::ComponentModifier, s::Servable, s2::Servable, ;
      at::Integer = 0)
      comp = cm[s]
-     
+
 end
 """
 """
