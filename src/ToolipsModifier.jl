@@ -311,6 +311,7 @@ function document_linker(c::Connection)
     c[:mod].iptable[getip(c)] = now()
     if getip(c) in keys(c[:mod].events)
         c[:mod][getip(c)][ref](cm)
+        write!(c, cm)
     else
         write!(c, "timeout")
     end
