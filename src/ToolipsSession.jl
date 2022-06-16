@@ -100,7 +100,7 @@ mutable struct TimedTrigger <: Servable
         ref = ""
         f(c::Connection) = begin
             ref = gen_ref()
-            push!(c[:Session][get_ip(c)], ref => f)
+            push!(c[:Session][getip(c)], ref => f)
                write!(c, """
                <script>
                setTimeout(function () {
@@ -312,14 +312,14 @@ end
 """
 function remove!(c::Connection, fname::AbstractString, s::Servable)
     refname = s.name * fname
-    delete!(c[:Session][get_ip()], refname)
+    delete!(c[:Session][getip()], refname)
 end
 
 """
 """
 function kill!(c::Connection)
-    delete!(c[Modifier].iptable, getip(c))
-    delete!(c[Modifier].refs, get_ip(c))
+    delete!(c[:Session].iptable, getip(c))
+    delete!(c[:Session].refs, getip(c))
 end
 
 """
