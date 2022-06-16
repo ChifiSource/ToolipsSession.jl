@@ -15,7 +15,7 @@ module ToolipsSession
 using EzXML
 using Toolips
 import Toolips: ServerExtension, route!, style!, Servable, Connection
-import Toolips: StyleComponent, get
+import Toolips: StyleComponent, get, kill!
 import Base: setindex!, getindex, push!
 using Random, Dates
 
@@ -50,7 +50,7 @@ mutable struct Session <: ServerExtension
                     events[getip(c)] = Dict{String, Function}()
                 else
                     if minute(now()) - minute(iptable[getip(c)]) >= timeout
-                        delete!(iptable, getip(c))
+                        kill!(c)
                     end
                 end
                 durstr = string(transition_duration, "s")
@@ -170,8 +170,7 @@ end
 
 """
 ### ComponentModifier <: Servable
-A connection Servable is served by the Session server extension when used with
-the on() (or other event method).
+A connection Servable is passed as an argument to event functions, such as on.
 ###### fields
 - name::AbstractString
 - properties**::Dict** - Properties
@@ -182,6 +181,7 @@ home = route("/") do c::Connection
     on(c, mytext, "click") do cm::ComponentModifier
         current_text = cm[mytext][:text]
         cm[mytext] = "color" => current_text
+        alert!(cm, "Color has been changed.")
     end
 end
 """
@@ -254,20 +254,37 @@ end
 function modify!(cm::ComponentModifier, s::Servable, p::Pair)
     name = s.name
     key, val = p[1], p[2]
-    push!(cc.changes,
+    push!(cm.changes,
     "document.getElementById('$name').setAttribute('$key','$val');")
 end
 
 """
 """
-function add_child!(cm::ComponentModifier, s::Servable, s2::Servable, ;
-     at::Integer = 0)
-     comp = cm[s]
+function add_child!(cm::ComponentModifier, s::Servable, s2::Servable)
+     name = s.name
+     ctag = s2.tag
+     propities = copy(s2.properties)
+     children = s2[:children]
+     text = s2[:text]
+     for prop in s2
+         key, val = prop[1], prop[2]
+     end
+     """var newelement = document.createElement("div");
+     """
+end
+
+function move!(cm::ComponentModifier, p::Pair{Servable, Servable})
 
 end
+
+function set_text!(c::ComponentModifier, s::Servable, txt::String)
+    push!(c.changes)
+end
+
 """
 """
 get_children(cm::ComponentModifier, s::Component) = cm[s][:children]
+
 """
 """
 get_text(cm::ComponentModifier, s::Component) = cm[s][:text]
@@ -301,7 +318,7 @@ end
 
 """
 """
-function kill_session!(c::Connection)
+function kill!(c::Connection)
     delete!(c[Modifier].iptable, getip(c))
     delete!(c[Modifier].refs, get_ip(c))
 end
@@ -312,7 +329,7 @@ function on(f::Function, c::Connection, s::Component,
      event::AbstractString)
     name = s.name
     s["on$event"] = "sendpage('$event$name');"
-    push!(c[:mod][getip(c)], "$event$name" => f)
+    push!(c[Session][getip(c)], "$event$name" => f)
 end
 
 """
@@ -326,14 +343,15 @@ function document_linker(c::Connection)
     ref = s[ref_r]
     s = replace(s, "?CM?:$ref" => "")
     cm = ComponentModifier(s)
-    c[:mod].iptable[getip(c)] = now()
-    if getip(c) in keys(c[:mod].events)
-        c[:mod][getip(c)][ref](cm)
+    c[Session].iptable[getip(c)] = now()
+    if getip(c) in keys(c[Session].events)
+        c[Session][getip(c)][ref](cm)
         write!(c, cm)
     else
         write!(c, "timeout")
     end
 end
 
-export Modifier, ComponentModifier, on
+export Session, ComponentModifier, on, modify!, redirect!, TimedTrigger
+export alert!, add_child!, move!, remove!, get_text, get_children, observe!
 end # module
