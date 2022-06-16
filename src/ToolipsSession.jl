@@ -96,7 +96,6 @@ mutable struct TimedTrigger <: Servable
     time::Integer
     f::Function
     ref::AbstractString
-    signal::Bool
     function TimedTrigger(func::Function, time::Integer)
         ref = ""
         f(c::Connection) = begin
@@ -110,7 +109,7 @@ mutable struct TimedTrigger <: Servable
               </script>
               """)
             end
-        new(time, f, ref, signal)
+        new(time, f, ref)
     end
 end
 
