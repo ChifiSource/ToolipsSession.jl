@@ -15,7 +15,7 @@ module ToolipsSession
 using EzXML
 using Toolips
 import Toolips: ServerExtension, route!, style!, Servable, Connection
-import Toolips: StyleComponent, get, kill!
+import Toolips: StyleComponent, get, kill!, animate!
 import Base: setindex!, getindex, push!
 using Random, Dates
 
@@ -217,8 +217,30 @@ function get(cc::ComponentModifier, s::String)
     end
 end
 
+function animate!(cm::ComponentModifier, s::Servable, a::Animation;
+     play::Bool = true)
+     playstate = "running"
+     if ~(play)
+         playstate = "paused"
+     end
+    name = s.name
+     "document.getElementById('$name').style.animation = 'name';"
+     push!(cm.changes,
+    "document.getElementById('$name').style.animationPlayState = '$playstate';")
+end
+
+function pauseanim!(cm::ComponentModifier, s::Servable)
+    name = s.name
+    push!(cm.changes,
+    "document.getElementById('$name').style.animationPlayState = 'paused';")
+end
+function playanim!(cm::ComponentModifier, s::Servable)
+    "document.getElementById('$name').style.animationPlayState = 'running';")
+end
+
 alert!(cm::ComponentModifier, s::AbstractString) = push!(cm.changes,
                                                             "alert('$s');")
+end
 
 function redirect!(cm::ComponentModifier, url::AbstractString, delay::Int64 = 0)
     push!(cm.changes, """
@@ -259,7 +281,7 @@ end
 
 """
 """
-function add_child!(cm::ComponentModifier, s::Servable, s2::Servable)
+function insert!(cm::ComponentModifier, s::Servable, s2::Servable)
      name = s.name
      ctag = s2.tag
      propities = copy(s2.properties)
@@ -268,16 +290,34 @@ function add_child!(cm::ComponentModifier, s::Servable, s2::Servable)
      for prop in s2
          key, val = prop[1], prop[2]
      end
+     "insertBefore(newDiv, currentDiv);"
      """var newelement = document.createElement("div");
      """
 end
 
 function move!(cm::ComponentModifier, p::Pair{Servable, Servable})
-
+    firstname = p[1].name
+    secondname = p[2].name
+    push!(cm.changes, "
+    document.getElementById('$firstname').appendChild(
+    document.getElementById('$secondname')
+  );
+  ")
 end
 
+function remove!(cm::ComponentModifier, s::Servable)
+    name = s.name
+    push!(cm.changes, "document.getElementById('$name').remove()")
+end
 function set_text!(c::ComponentModifier, s::Servable, txt::String)
-    push!(c.changes)
+    push!(c.changes, "document.getElementById($name).innerHTML = $txt;")
+end
+
+function set_children!(cm::ComponentModifier, s::Servable, v::Vector{Servable})
+    spoofconn = SpoofConnection()
+    write!(spoofconn, v)
+    txt = spoofconn.http.text
+    set_text!(cm, s, txt)
 end
 
 """
@@ -357,5 +397,6 @@ function document_linker(c::Connection)
 end
 
 export Session, ComponentModifier, on, modify!, redirect!, TimedTrigger
-export alert!, add_child!, move!, remove!, get_text, get_children, observe!
+export alert!, insert!, move!, remove!, get_text, get_children, observe!
+export set_text!, move!, pauseanim!, playanim!, set_children!
 end # module
