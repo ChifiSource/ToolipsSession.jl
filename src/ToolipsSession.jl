@@ -329,7 +329,7 @@ function on(f::Function, c::Connection, s::Component,
      event::AbstractString)
     name = s.name
     s["on$event"] = "sendpage('$event$name');"
-    push!(c[Session][getip(c)], "$event$name" => f)
+    push!(c[:Session][getip(c)], "$event$name" => f)
 end
 
 """
@@ -343,9 +343,9 @@ function document_linker(c::Connection)
     ref = s[ref_r]
     s = replace(s, "?CM?:$ref" => "")
     cm = ComponentModifier(s)
-    c[Session].iptable[getip(c)] = now()
-    if getip(c) in keys(c[Session].events)
-        c[Session][getip(c)][ref](cm)
+    c[:Session].iptable[getip(c)] = now()
+    if getip(c) in keys(c[:Session].events)
+        c[:Session][getip(c)][ref](cm)
         write!(c, cm)
     else
         write!(c, "timeout")
