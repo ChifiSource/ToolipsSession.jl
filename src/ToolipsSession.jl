@@ -226,8 +226,9 @@ function animate!(cm::ComponentModifier, s::Servable, a::Animation;
      end
     name = s.name
     animname = a.name
+    time = string(a.length) * "s"
      push!(cm.changes,
-     "document.getElementById('$name').style.animation = '$animname';")
+     "document.getElementById('$name').style.animation = '$time 1 $animname';")
      push!(cm.changes,
     "document.getElementById('$name').style.animationPlayState = '$playstate';")
 end
@@ -311,7 +312,7 @@ end
 
 function remove!(cm::ComponentModifier, s::Servable)
     name = s.name
-    push!(cm.changes, "document.getElementById('$name').remove()")
+    push!(cm.changes, "document.getElementById('$name').remove();")
 end
 function set_text!(c::ComponentModifier, s::Servable, txt::String)
     push!(c.changes, "document.getElementById($name).innerHTML = $txt;")
