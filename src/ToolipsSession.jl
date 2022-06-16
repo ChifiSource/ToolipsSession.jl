@@ -369,7 +369,7 @@ end
 """
 function kill!(c::Connection)
     delete!(c[:Session].iptable, getip(c))
-    delete!(c[:Session].refs, getip(c))
+    delete!(c[:Session].events, getip(c))
 end
 
 """
