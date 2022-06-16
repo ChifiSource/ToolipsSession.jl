@@ -292,7 +292,7 @@ get_text(cm::ComponentModifier, s::Component) = cm[s][:text]
 """
 function style!(cm::ComponentModifier, s::Servable, p::Pair{String, String} ...)
     p = [pair for pair in p]
-    style!(cm::ComponentModifier, s::Servable, p::Pair{String, String})
+    style!(cm::ComponentModifier, s::Servable, p)
 end
 
 function style!(cm::ComponentModifier, s::Servable, p::Pair)
