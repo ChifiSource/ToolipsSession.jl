@@ -224,7 +224,8 @@ function animate!(cm::ComponentModifier, s::Servable, a::Animation;
          playstate = "paused"
      end
     name = s.name
-     "document.getElementById('$name').style.animation = 'name';"
+    animname = a.name
+     "document.getElementById('$name').style.animation = '$animname';"
      push!(cm.changes,
     "document.getElementById('$name').style.animationPlayState = '$playstate';")
 end
@@ -235,7 +236,9 @@ function pauseanim!(cm::ComponentModifier, s::Servable)
     "document.getElementById('$name').style.animationPlayState = 'paused';")
 end
 function playanim!(cm::ComponentModifier, s::Servable)
-    "document.getElementById('$name').style.animationPlayState = 'running';")
+    name = s.name
+    push!(cm.changes,
+    "document.getElementById('$name').style.animationPlayState = 'paused';")
 end
 
 alert!(cm::ComponentModifier, s::AbstractString) = push!(cm.changes,
