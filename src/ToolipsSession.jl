@@ -217,7 +217,7 @@ function get(cc::ComponentModifier, s::String)
     end
 end
 
-alert!(cm::ComponentModifier, s::AbstractString) = push!(cc.changes,
+alert!(cm::ComponentModifier, s::AbstractString) = push!(cm.changes,
                                                             "alert('$s');")
 
 function redirect!(cm::ComponentModifier, url::AbstractString, delay::Int64 = 0)
@@ -295,16 +295,21 @@ function style!(cm::ComponentModifier, s::Servable, p::Pair{String, String} ...)
     style!(cm::ComponentModifier, s::Servable, p::Pair{String, String})
 end
 
+function style!(cm::ComponentModifier, s::Servable, p::Pair)
+    name = s.name
+    push!(cm.changes,
+        "document.getElementById('$name').style['$key'] = '$value';")
+end
 """
 """
 function style!(cm::ComponentModifier, s::Servable, p::Vector{Pair{String, String}})
     name = s.name
     getelement = "var new_element = document.getElementById('$name');"
-    push!(c.changes, getelement)
+    push!(cm.changes, getelement)
     for pair in p
-        value = p[2]
-        key = p[1]
-        push!(c.changes, "new_element.style['$key'] = '$value';")
+        value = pair[2]
+        key = pair[1]
+        push!(cm.changes, "new_element.style['$key'] = '$value';")
     end
 end
 
