@@ -226,7 +226,8 @@ function animate!(cm::ComponentModifier, s::Servable, a::Animation;
      end
     name = s.name
     animname = a.name
-     "document.getElementById('$name').style.animation = '$animname';"
+     push!(cm.changes,
+     "document.getElementById('$name').style.animation = '$animname';")
      push!(cm.changes,
     "document.getElementById('$name').style.animationPlayState = '$playstate';")
 end
