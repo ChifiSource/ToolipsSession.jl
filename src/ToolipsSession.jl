@@ -46,8 +46,9 @@ mutable struct Session <: ServerExtension
                 fullpath = split(c.http.message.target, '?')[1]
             end
             if fullpath in active_routes
-                if ~(getip(c) in keys(events))
-                    events[getip(c)] = Dict{String, Function}()
+                if ~(getip(c) in keys(iptable))
+                    push!(events, getip(c) => Dict{String, Function}())
+                    iptable[getip(c)] = now()
                 else
                     if minute(now()) - minute(iptable[getip(c)]) >= timeout
                         kill!(c)
