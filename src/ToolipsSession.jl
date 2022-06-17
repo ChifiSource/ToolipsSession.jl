@@ -15,7 +15,7 @@ module ToolipsSession
 using EzXML
 using Toolips
 import Toolips: ServerExtension, route!, style!, Servable, Connection
-import Toolips: StyleComponent, get, kill!, animate!
+import Toolips: StyleComponent, get, kill!, animate!, SpoofConnection
 import Base: setindex!, getindex, push!
 using Random, Dates
 
@@ -88,7 +88,6 @@ mutable struct Session <: ServerExtension
         iptable, timeout)
     end
 end
-getindex(m::Session, s::AbstractString) = m.events[s]
 getindex(m::Session, s::AbstractString) = m.events[s]
 
 """
