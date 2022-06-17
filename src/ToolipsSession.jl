@@ -33,7 +33,7 @@ mutable struct Session <: ServerExtension
     events::Dict
     iptable::Dict{String, Dates.DateTime}
     timeout::Integer
-    function Session(active_routes::Vector{String} = ["/"];
+    function Session(active_routes::Vector{String} = ["/", "/modifier/linker"];
         transition_duration::AbstractFloat = 0.5,
         transition::AbstractString = "ease-in-out", timeout::Integer = 10)
         events = Dict()
