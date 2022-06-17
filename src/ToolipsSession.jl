@@ -314,6 +314,7 @@ function remove!(cm::ComponentModifier, s::Servable)
     push!(cm.changes, "document.getElementById('$name').remove();")
 end
 function set_text!(c::ComponentModifier, s::Servable, txt::String)
+    name = s.name
     push!(c.changes, "document.getElementById($name).innerHTML = $txt;")
 end
 
