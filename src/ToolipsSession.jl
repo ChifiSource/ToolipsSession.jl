@@ -315,7 +315,7 @@ function remove!(cm::ComponentModifier, s::Servable)
 end
 function set_text!(c::ComponentModifier, s::Servable, txt::String)
     name = s.name
-    push!(c.changes, "document.getElementById('$name').innerHTML = '$txt';")
+    push!(c.changes, "document.getElementById('$name').innerHTML = \"$txt\";")
 end
 
 function set_children!(cm::ComponentModifier, s::Servable, v::Vector{Servable})
