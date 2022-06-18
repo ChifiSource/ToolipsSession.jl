@@ -203,16 +203,16 @@ function setindex!(cm::ComponentModifier, p::Pair, s::Component)
 end
 
 function getindex(cc::ComponentModifier, s::Component)
-    return(get(cc, s.name))
+    return(get(cc, s))
 end
 
-function get(cc::ComponentModifier, s::String)
+function get(cc::ComponentModifier, s::Component)
     for child in cc.rootc[:children]
-        if child.name == s
+        if child.name == s.name
             return(child)
         end
-        if has_children(c)
-            get(c, s)
+        if has_children(child)
+            get(cc, child)
         end
     end
 end
