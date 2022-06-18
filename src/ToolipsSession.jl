@@ -202,13 +202,9 @@ function setindex!(cm::ComponentModifier, p::Pair, s::Component)
     modify!(cm, s, p)
 end
 
-function getindex(cc::ComponentModifier, s::Component)
-    return(get(cc, s))
-end
+getindex(cc::ComponentModifier, s::Component) = rec_ns(cc.root, s.name)
 
-function getindex(cc::ComponentModifier, s::String)
-    return(get(cc, s))
-end
+getindex(cc::ComponentModifier, s::String) = rec_ns(cc.root, s)
 """
 rec_ns(c::Component, name::String) -> ::Component || ::Nothing
 ----------------------------------
@@ -221,28 +217,6 @@ function rec_ns(c::Component, name::String)
         end
         if has_children(comp)
             rec_ns(comp, name)
-        end
-    end
-end
-
-function get(cc::ComponentModifier, s::String)
-    for child in cc.rootc[:children]
-        if child.name == s
-            return(child)
-        end
-        if has_children(child)
-            rec_ns(child, s)
-        end
-    end
-end
-
-function get(cc::ComponentModifier, s::Component)
-    for child in cc.rootc[:children]
-        if child.name == s.name
-            return(child)
-        end
-        if has_children(child)
-            rec_ns(child, s.name)
         end
     end
 end
