@@ -215,7 +215,7 @@ rec_ns(c::Component, name::String) -> ::Component || ::Nothing
 Recursive name search
 """
 function rec_ns(c::Component, name::String)
-    for comp in c:children]
+    for comp in c:children
         if comp.name == name
             return(comp)
         end
