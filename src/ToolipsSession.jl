@@ -209,7 +209,7 @@ getindex(cc::ComponentModifier, s::String) = get(cc.rootc, s)
 function get(c::Component, key::String)
     foundks = findall(c -> c.name == key, c[:children])
     if length(foundks) < 1
-        gen_dict_extract(key, c[:children])
+        get(key, c[:children])
     else
         return(c[:children][foundks[1]])
     end
