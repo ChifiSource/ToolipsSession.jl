@@ -209,12 +209,12 @@ getindex(cc::ComponentModifier, s::String) = get(cc.rootc, s)
 function get(c::Component, key::String)
     foundks = findall(c -> c.name == key, c[:children])
     if length(foundks) < 1
-        get(key, c[:children])
+        get(c[:children], key)
     else
         return(c[:children][foundks[1]])
     end
 end
-get(key::String, c::Vector) = [get(c, key) for comp in c][1]
+get(c::Vector{Servable}, s::string) = [get(c, s) for comp in c][1]
 
 function animate!(cm::ComponentModifier, s::Servable, a::Animation;
      play::Bool = true)
