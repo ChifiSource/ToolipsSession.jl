@@ -206,6 +206,26 @@ function getindex(cc::ComponentModifier, s::Component)
     return(get(cc, s))
 end
 
+function getindex(cc::ComponentModifier, s::String)
+    return(get(cc, s))
+end
+
+
+function get(cc::ComponentModifier, s::String)
+    for child in cc.rootc[:children]
+        if child.name == s
+            return(child)
+        end
+        if has_children(child)
+            for comp in child[:children]
+                if comp.name == s
+                    return(comp)
+                end
+            end
+        end
+    end
+end
+
 function get(cc::ComponentModifier, s::Component)
     for child in cc.rootc[:children]
         if child.name == s.name
