@@ -202,23 +202,19 @@ function setindex!(cm::ComponentModifier, p::Pair, s::Component)
     modify!(cm, s, p)
 end
 
-getindex(cc::ComponentModifier, s::Component) = rec_ns(cc.rootc, s.name)
+getindex(cc::ComponentModifier, s::Component) = get(cc.rootc, s.name)
 
-getindex(cc::ComponentModifier, s::String) = rec_ns(cc.rootc, s)
-"""
-rec_ns(c::Component, name::String) -> ::Component || ::Nothing
-----------------------------------
-Recursive name search
-"""
-function rec_ns(c::Component, name::String)
-    for comp in c[:children]
-        if comp.name == name
-            return(comp)
-        end
+getindex(cc::ComponentModifier, s::String) = get(cc.rootc, s)
+
+function get(c::Component, key::String)
+    foundks = findall(c -> c.name == key, c[:children])
+    if length(foundks) < 1
+        gen_dict_extract(key, c[:children])
+    else
+        return(c[:children][foundks[1]])
     end
 end
-
-
+get(key::String, c::Vector) = [get(c, key) for comp in c][1]
 
 function animate!(cm::ComponentModifier, s::Servable, a::Animation;
      play::Bool = true)
