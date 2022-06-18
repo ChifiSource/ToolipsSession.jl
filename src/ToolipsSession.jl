@@ -212,7 +212,11 @@ function get(cc::ComponentModifier, s::Component)
             return(child)
         end
         if has_children(child)
-            get(cc, child)
+            for comp in child[:children]
+                if comp.name == s.name
+                    return(comp)
+                end
+            end
         end
     end
 end
