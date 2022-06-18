@@ -128,7 +128,7 @@ function htmlcomponent(s::String)
         if haselement(n)
             for node in eachelement(n)
                 child = htmlcomponent(string(node))
-                push!(children, child)
+                [push!(children, c) for c in child]
             end
         end
         comp = createcomp(n)
