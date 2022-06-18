@@ -242,9 +242,7 @@ function get(cc::ComponentModifier, s::Component)
             return(child)
         end
         if has_children(child)
-            for comp in child[:children]
-                rec_ns(child, s.name)
-            end
+            rec_ns(child, s.name)
         end
     end
 end
