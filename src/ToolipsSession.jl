@@ -123,7 +123,7 @@ function htmlcomponent(s::String)
     doc = parsehtml(s)
     ro = root(doc)
     rn = firstnode(ro)
-    children = Vector{Servable}()
+    children = Dict()
     for n in eachelement(rn)
         if haselement(n)
             for node in eachelement(n)
@@ -132,8 +132,7 @@ function htmlcomponent(s::String)
             end
         end
         comp = createcomp(n)
-        comp[:children] = children
-        push!(children, comp)
+        push!(children, comp.name => comp)
     end
     properties = Dict()
     for property in eachattribute(ro)
@@ -144,8 +143,8 @@ function htmlcomponent(s::String)
         push!(properties, proppair)
     end
     c = Component("main", string(ro.name), properties)
-    c[:children] = children
-    c
+    push!(children, c.name => c)
+    children
 end
 
 function createcomp(element)
@@ -185,7 +184,7 @@ home = route("/") do c::Connection
 end
 """
 mutable struct ComponentModifier <: Servable
-    rootc::Component
+    rootc::Dict
     f::Function
     changes::Vector{String}
     function ComponentModifier(html::String)
@@ -206,16 +205,7 @@ getindex(cc::ComponentModifier, s::Component) = get(cc.rootc, s.name)
 
 getindex(cc::ComponentModifier, s::String) = get(cc.rootc, s)
 
-function get(c::Component, key::String)
-    foundks = findall(c -> c.name == key, c[:children])
-    if length(foundks) < 1
-        get(c[:children], key)
-    else
-        return(c[:children][foundks[1]])
-    end
-end
-get(c::Vector{Servable}, s::String) = [get(c, s) for comp in c][1]
-
+get(c::Dict, key::String) = c[key]
 function animate!(cm::ComponentModifier, s::Servable, a::Animation;
      play::Bool = true)
      playstate = "running"
