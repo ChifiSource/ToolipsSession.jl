@@ -202,9 +202,9 @@ function setindex!(cm::ComponentModifier, p::Pair, s::Component)
     modify!(cm, s, p)
 end
 
-getindex(cc::ComponentModifier, s::Component) = rec_ns(cc.root, s.name)
+getindex(cc::ComponentModifier, s::Component) = rec_ns(cc.rootc, s.name)
 
-getindex(cc::ComponentModifier, s::String) = rec_ns(cc.root, s)
+getindex(cc::ComponentModifier, s::String) = rec_ns(cc.rootc, s)
 """
 rec_ns(c::Component, name::String) -> ::Component || ::Nothing
 ----------------------------------
