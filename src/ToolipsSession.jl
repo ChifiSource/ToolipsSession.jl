@@ -215,11 +215,10 @@ function rec_ns(c::Component, name::String)
         if comp.name == name
             return(comp)
         end
-        if has_children(comp)
-            rec_ns(comp, name)
-        end
     end
 end
+
+
 
 function animate!(cm::ComponentModifier, s::Servable, a::Animation;
      play::Bool = true)
