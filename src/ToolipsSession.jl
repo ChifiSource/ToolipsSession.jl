@@ -209,7 +209,21 @@ end
 function getindex(cc::ComponentModifier, s::String)
     return(get(cc, s))
 end
-
+"""
+rec_ns(c::Component, name::String) -> ::Component || ::Nothing
+----------------------------------
+Recursive name search
+"""
+function rec_ns(c::Component, name::String)
+    for comp in c:children]
+        if comp.name == name
+            return(comp)
+        end
+        if has_children(comp)
+            rec_ns(comp, name)
+        end
+    end
+end
 
 function get(cc::ComponentModifier, s::String)
     for child in cc.rootc[:children]
@@ -217,11 +231,7 @@ function get(cc::ComponentModifier, s::String)
             return(child)
         end
         if has_children(child)
-            for comp in child[:children]
-                if comp.name == s
-                    return(comp)
-                end
-            end
+            rec_ns(child, s)
         end
     end
 end
@@ -233,9 +243,7 @@ function get(cc::ComponentModifier, s::Component)
         end
         if has_children(child)
             for comp in child[:children]
-                if comp.name == s.name
-                    return(comp)
-                end
+                rec_ns(child, s.name)
             end
         end
     end
