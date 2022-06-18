@@ -214,7 +214,7 @@ function get(c::Component, key::String)
         return(c[:children][foundks[1]])
     end
 end
-get(c::Vector{Servable}, s::string) = [get(c, s) for comp in c][1]
+get(c::Vector{Servable}, s::String) = [get(c, s) for comp in c][1]
 
 function animate!(cm::ComponentModifier, s::Servable, a::Animation;
      play::Bool = true)
