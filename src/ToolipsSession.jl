@@ -7,7 +7,9 @@ This software is MIT-licensed.
 ### ToolipsSession
 **Extension for:**
 - [Toolips](https://github.com/ChifiSource/Toolips.jl) \
-This module provides the capability to make web-pages interactive using
+This module provides the capability to make web-pages interactive by simply
+adding the Session extension to your ServerTemplate before starting. There are
+also methods contained for modifying Servables.
 ##### Module Composition
 - [**ToolipsSession**](https://github.com/ChifiSource/ToolipsSession.jl)
 """
@@ -19,12 +21,56 @@ import Toolips: StyleComponent, get, kill!, animate!, SpoofConnection
 import Base: setindex!, getindex, push!
 using Random, Dates
 
+"""
+**Session**
+### gen_ref() -> ::String
+------------------
+Creates a random string of 16 characters. This is used to map connections
+to specific events by the session.
+#### example
+```
+gen_ref()
+"jfuR2wgprielweh3"
+```
+"""
 function gen_ref()
     Random.seed!( rand(1:100000) )
     randstring(16)
 end
 
 """
+### Session
+- type::Vector{Symbol}
+- f::Function
+- active_routes::Vector{String}
+- events::Dict{String, Pair{String, Function}}
+- iptable::Dict{String, Dates.DateTime}
+- timeout::Integer \
+Provides session capabilities and full-stack interactivity to a toolips server.
+##### example
+```
+exts = [Session()]
+st = ServerTemplate(extensions = exts)
+server = st.start()
+
+route!(server, "/") do c::Connection
+    myp = p("myp", text = "welcome to my site")
+    on(c, myp, "click") do cm::ComponentModifier
+        if cm[myp][:text] == "welcome to my site"
+            set_text!(cm, myp, "unwelcome to my site")
+        else
+            set_text!(cm, myp, "welcome to my site")
+        end
+    end
+    write!(c, myp)
+end
+```
+------------------
+##### field info
+
+------------------
+##### constructors
+
 """
 mutable struct Session <: ServerExtension
     type::Vector{Symbol}
@@ -32,11 +78,13 @@ mutable struct Session <: ServerExtension
     active_routes::Vector{String}
     events::Dict
     iptable::Dict{String, Dates.DateTime}
+    input_map::Dict
     timeout::Integer
     function Session(active_routes::Vector{String} = ["/"];
         transition_duration::AbstractFloat = 0.5,
         transition::AbstractString = "ease-in-out", timeout::Integer = 10)
         events = Dict()
+        input_map = Dict()
         timeout = timeout
         transition = transition
         iptable = Dict{String, Dates.DateTime}()
@@ -48,6 +96,7 @@ mutable struct Session <: ServerExtension
             if fullpath in active_routes
                 if ~(getip(c) in keys(iptable))
                     push!(events, getip(c) => Dict{String, Function}())
+                    push!(input_map, getip(c) => Dict{String, Function}())
                     iptable[getip(c)] = now()
                 else
                     if minute(now()) - minute(iptable[getip(c)]) >= timeout
@@ -85,7 +134,7 @@ mutable struct Session <: ServerExtension
             routes["/modifier/linker"] = document_linker
         end
         new([:connection, :func, :routing], f, active_routes, events,
-        iptable, timeout)
+        iptable, input_map, timeout)
     end
 end
 getindex(m::Session, s::AbstractString) = m.events[s]
@@ -115,8 +164,8 @@ end
 
 """
 """
-function observe!(f::Function, c::Connection)
-    write!(c, TimedTrigger(f, 3000))
+function observe!(f::Function, c::Connection, time::Integer)
+    write!(c, TimedTrigger(f, time))
 end
 
 function htmlcomponent(s::String)
@@ -167,21 +216,19 @@ function createcomp(element)
 end
 
 """
-### ComponentModifier <: Servable
-A connection Servable is passed as an argument to event functions, such as on.
-###### fields
-- name::AbstractString
-- properties**::Dict** - Properties
-- f**::Function**
-###### example
-home = route("/") do c::Connection
-    mytext = p("green", text = "hello world!")
-    on(c, mytext, "click") do cm::ComponentModifier
-        current_text = cm[mytext][:text]
-        cm[mytext] = "color" => current_text
-        alert!(cm, "Color has been changed.")
-    end
-end
+### Name
+- text::String \
+Description
+##### example
+```
+
+```
+------------------
+##### field info
+
+------------------
+##### constructors
+
 """
 mutable struct ComponentModifier <: Servable
     rootc::Dict
@@ -206,6 +253,7 @@ getindex(cc::ComponentModifier, s::Component) = get(cc.rootc, s.name)
 getindex(cc::ComponentModifier, s::String) = get(cc.rootc, s)
 
 get(c::Dict, key::String) = c[key]
+
 function animate!(cm::ComponentModifier, s::Servable, a::Animation;
      play::Bool = true)
      playstate = "running"
@@ -272,22 +320,6 @@ function modify!(cm::ComponentModifier, s::Servable, p::Pair)
     "document.getElementById('$name').setAttribute('$key','$val');")
 end
 
-"""
-"""
-function insert!(cm::ComponentModifier, s::Servable, s2::Servable)
-     name = s.name
-     ctag = s2.tag
-     propities = copy(s2.properties)
-     children = s2[:children]
-     text = s2[:text]
-     for prop in s2
-         key, val = prop[1], prop[2]
-     end
-     "insertBefore(newDiv, currentDiv);"
-     """var newelement = document.createElement("div");
-     """
-end
-
 function move!(cm::ComponentModifier, p::Pair{Servable, Servable})
     firstname = p[1].name
     secondname = p[2].name
@@ -302,21 +334,43 @@ function remove!(cm::ComponentModifier, s::Servable)
     name = s.name
     push!(cm.changes, "document.getElementById('$name').remove();")
 end
+
+function remove!(cm::ComponentModifier, s::Servable, child::Servable)
+    name, cname = s.name, child.name
+    push!(cm.changes, "document.getElementById('$name').removeChild('$cname');")
+end
+
 function set_text!(c::ComponentModifier, s::Servable, txt::String)
     name = s.name
     push!(c.changes, "document.getElementById('$name').innerHTML = `$txt`;")
 end
 
 function set_children!(cm::ComponentModifier, s::Servable, v::Vector{Servable})
-    spoofconn = SpoofConnection()
+    spoofconn::SpoofConnection = SpoofConnection()
     write!(spoofconn, v)
-    txt = spoofconn.http.text
+    txt::String = spoofconn.http.text
     set_text!(cm, s, txt)
 end
 
-"""
-"""
-get_children(cm::ComponentModifier, s::Component) = cm[s][:children]
+function add_child!(cm::ComponentModifier, s::Servable, child::Servable)
+    name = s.name
+    ctag = child.tag
+    exstr = "var element = document.createElement($ctag);"
+    for prop in properties
+        if prop[1] == :children
+            spoofconn::SpoofConnection = SpoofConnection()
+            write!(spoofconn, prop[2])
+            txt = spoofconn.http.text
+            push!(cm.changes, "element.innerHTML = `$txt`;")
+        elseif prop[1] == :text
+            txt = prop[2]
+            push!(cm.changes, "element.innerHTML = `$txt`;")
+        else
+            key, val = prop[1], prop[2]
+            push(cm.changes, "element.setAttribute('$key',`$val`);")
+        end
+    end
+end
 
 """
 """
@@ -336,7 +390,8 @@ function style!(cm::ComponentModifier, s::Servable, p::Pair)
 end
 """
 """
-function style!(cm::ComponentModifier, s::Servable, p::Vector{Pair{String, String}})
+function style!(cm::ComponentModifier, s::Servable,
+    p::Vector{Pair{String, String}})
     name = s.name
     getelement = "var new_element = document.getElementById('$name');"
     push!(cm.changes, getelement)
@@ -367,7 +422,41 @@ function on(f::Function, c::Connection, s::Component,
      event::AbstractString)
     name = s.name
     s["on$event"] = "sendpage('$event$name');"
-    push!(c[:Session][getip(c)], "$event$name" => f)
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][getip(c)], "$event$name" => f)
+    else
+        c[:Session][getip(c)] = Dict("$event$name" => f)
+    end
+end
+
+function on_keydown(f::Function, c::Connection, key::String)
+    write!(c, """<script>
+    document.addEventListener('keydown', function(event) {
+        if (event.name == "$key") {
+        sendpage(event.name);
+        }
+    });</script>
+    """)
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session].input_map[getip(c)], key => f)
+    else
+        c[:Session][getip(c)] = Dict(ref => f)
+    end
+end
+
+function on_keyup(f::Function, c::Connection, key::String)
+    write!(c, """<script>
+    document.addEventListener('keyup', function(event) {
+        if (event.name == "$key") {
+        sendpage(event.name);
+        }
+    });</script>
+    """)
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session].input_map[getip(c)], key => f)
+    else
+        c[:Session][getip(c)] = Dict(ref => f)
+    end
 end
 
 """
@@ -381,10 +470,17 @@ function document_linker(c::Connection)
     ref = s[ref_r]
     s = replace(s, "?CM?:$ref" => "")
     cm = ComponentModifier(s)
-    c[:Session].iptable[getip(c)] = now()
+    if getip(c) in keys(c[:Session].iptable)
+        c[:Session].iptable[getip(c)] = now()
+    end
+
     if getip(c) in keys(c[:Session].events)
-        c[:Session][getip(c)][ref](cm)
-        write!(c, cm)
+        if ref in keys(c[:Session].input_map)
+            c[:Session].input_map[ref](cm)
+        else
+            c[:Session][getip(c)][ref](cm)
+            write!(c, cm)
+        end
     else
         write!(c, "timeout")
     end
