@@ -18,7 +18,7 @@ using EzXML
 using Toolips
 import Toolips: ServerExtension, route!, style!, Servable, Connection
 import Toolips: StyleComponent, get, kill!, animate!, SpoofConnection
-import Base: setindex!, getindex, push!
+import Base: setindex!, getindex, push!, append!
 using Random, Dates
 
 """
@@ -47,6 +47,7 @@ end
 - iptable::Dict{String, Dates.DateTime}
 - timeout::Integer \
 Provides session capabilities and full-stack interactivity to a toolips server.
+Note that the route you want to be interactive **must** be in active_routes!
 ##### example
 ```
 exts = [Session()]
@@ -66,11 +67,12 @@ route!(server, "/") do c::Connection
 end
 ```
 ------------------
-##### field info
-
-------------------
 ##### constructors
-
+Session(active_routes::Vector{String} = ["/"];
+        transition_duration::AbstractFloat = 0.5,
+        transition::String = "ease-in-out",
+        timeout::Integer = 30
+        )
 """
 mutable struct Session <: ServerExtension
     type::Vector{Symbol}
@@ -82,7 +84,7 @@ mutable struct Session <: ServerExtension
     timeout::Integer
     function Session(active_routes::Vector{String} = ["/"];
         transition_duration::AbstractFloat = 0.5,
-        transition::AbstractString = "ease-in-out", timeout::Integer = 10)
+        transition::AbstractString = "ease-in-out", timeout::Integer = 30)
         events = Dict()
         input_map = Dict()
         timeout = timeout
@@ -137,16 +139,47 @@ mutable struct Session <: ServerExtension
         iptable, input_map, timeout)
     end
 end
+
+"""
+**Session Interface**
+### getindex(m::Session, s::AbstractString) -> ::Vector{Pair}
+------------------
+Gets a session's refs by ip.
+#### example
+```
+route("/") do c::Connection
+    c[:Session][getip(c)]
+end
+```
+"""
 getindex(m::Session, s::AbstractString) = m.events[s]
 
 """
+### TimedTrigger
+- time::Integer
+- f::Function \
+Creates a timer which will post to the function f.
+##### example
+```
+route("/") do c::Connection
+    myp = p("hello", text = "wow")
+    timer = TimedTrigger(5000) do cm::ComponentModifier
+        if cm[myp][:text] == "wow"
+            c[:Logger].log("wow.")
+        end
+    end
+    write!(c, myp)
+    write!(c, timer)
+end
+```
+------------------
+##### constructors
+TimedTrigger(func::Function, time::Integer)
 """
 mutable struct TimedTrigger <: Servable
     time::Integer
     f::Function
-    ref::AbstractString
     function TimedTrigger(func::Function, time::Integer)
-        ref = ""
         f(c::Connection) = begin
             ref = gen_ref()
             push!(c[:Session][getip(c)], ref => f)
@@ -158,16 +191,38 @@ mutable struct TimedTrigger <: Servable
               </script>
               """)
             end
-        new(time, f, ref)
+        new(time, f)
     end
 end
 
 """
+**Session Interface**
+### observe!(f::Function, c::Connection, time::Integer) -> _
+------------------
+Creates a TimedTrigger, and then writes it to the connection.
+#### example
+```
+route("/") do c::Connection
+    observe!(c, 1000) do cm::ComponentModifier
+        ...
+    end
+end
+```
 """
 function observe!(f::Function, c::Connection, time::Integer)
     write!(c, TimedTrigger(f, time))
 end
 
+"""
+**Session Internals**
+### htmlcomponent(s::String) -> ::Dict{String, Toolips.Component}
+------------------
+Converts HTML into a dictionary of components.
+#### example
+```
+
+```
+"""
 function htmlcomponent(s::String)
     doc = parsehtml(s)
     ro = root(doc)
@@ -352,11 +407,11 @@ function set_children!(cm::ComponentModifier, s::Servable, v::Vector{Servable})
     set_text!(cm, s, txt)
 end
 
-function add_child!(cm::ComponentModifier, s::Servable, child::Servable)
+function append!(cm::ComponentModifier, s::Servable, child::Servable)
     name = s.name
     ctag = child.tag
     exstr = "var element = document.createElement($ctag);"
-    for prop in properties
+    for prop in child.properties
         if prop[1] == :children
             spoofconn::SpoofConnection = SpoofConnection()
             write!(spoofconn, prop[2])
@@ -370,6 +425,7 @@ function add_child!(cm::ComponentModifier, s::Servable, child::Servable)
             push(cm.changes, "element.setAttribute('$key',`$val`);")
         end
     end
+    push!(cm.changes, "document.getElementById('$name').appendChild(element);"
 end
 
 """
