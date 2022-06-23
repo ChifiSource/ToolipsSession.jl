@@ -96,7 +96,6 @@ mutable struct Session <: ServerExtension
             if fullpath in active_routes
                 if ~(getip(c) in keys(iptable))
                     push!(events, getip(c) => Dict{String, Function}())
-                    push!(input_map, getip(c) => Dict{String, Function}())
                     iptable[getip(c)] = now()
                 else
                     if minute(now()) - minute(iptable[getip(c)]) >= timeout
