@@ -7,7 +7,9 @@ This software is MIT-licensed.
 ### ToolipsSession
 **Extension for:**
 - [Toolips](https://github.com/ChifiSource/Toolips.jl) \
-This module provides the capability to make web-pages interactive using
+This module provides the capability to make web-pages interactive by simply
+adding the Session extension to your ServerTemplate before starting. There are
+also methods contained for modifying Servables.
 ##### Module Composition
 - [**ToolipsSession**](https://github.com/ChifiSource/ToolipsSession.jl)
 """
@@ -16,15 +18,61 @@ using EzXML
 using Toolips
 import Toolips: ServerExtension, route!, style!, Servable, Connection
 import Toolips: StyleComponent, get, kill!, animate!, SpoofConnection
-import Base: setindex!, getindex, push!
+import Base: setindex!, getindex, push!, append!
 using Random, Dates
 
+"""
+**Session**
+### gen_ref() -> ::String
+------------------
+Creates a random string of 16 characters. This is used to map connections
+to specific events by the session.
+#### example
+```
+gen_ref()
+"jfuR2wgprielweh3"
+```
+"""
 function gen_ref()
     Random.seed!( rand(1:100000) )
     randstring(16)
 end
 
 """
+### Session
+- type::Vector{Symbol}
+- f::Function
+- active_routes::Vector{String}
+- events::Dict{String, Pair{String, Function}}
+- iptable::Dict{String, Dates.DateTime}
+- timeout::Integer \
+Provides session capabilities and full-stack interactivity to a toolips server.
+Note that the route you want to be interactive **must** be in active_routes!
+##### example
+```
+exts = [Session()]
+st = ServerTemplate(extensions = exts)
+server = st.start()
+
+route!(server, "/") do c::Connection
+    myp = p("myp", text = "welcome to my site")
+    on(c, myp, "click") do cm::ComponentModifier
+        if cm[myp][:text] == "welcome to my site"
+            set_text!(cm, myp, "unwelcome to my site")
+        else
+            set_text!(cm, myp, "welcome to my site")
+        end
+    end
+    write!(c, myp)
+end
+```
+------------------
+##### constructors
+Session(active_routes::Vector{String} = ["/"];
+        transition_duration::AbstractFloat = 0.5,
+        transition::String = "ease-in-out",
+        timeout::Integer = 30
+        )
 """
 mutable struct Session <: ServerExtension
     type::Vector{Symbol}
@@ -35,7 +83,7 @@ mutable struct Session <: ServerExtension
     timeout::Integer
     function Session(active_routes::Vector{String} = ["/"];
         transition_duration::AbstractFloat = 0.5,
-        transition::AbstractString = "ease-in-out", timeout::Integer = 10)
+        transition::AbstractString = "ease-in-out", timeout::Integer = 30)
         events = Dict()
         timeout = timeout
         transition = transition
@@ -88,16 +136,162 @@ mutable struct Session <: ServerExtension
         iptable, timeout)
     end
 end
+
+"""
+**Session Interface**
+### getindex(m::Session, s::AbstractString) -> ::Vector{Pair}
+------------------
+Gets a session's refs by ip.
+#### example
+```
+route("/") do c::Connection
+    c[:Session][getip(c)]
+end
+```
+"""
 getindex(m::Session, s::AbstractString) = m.events[s]
 
 """
+**Interface**
+### on(f::Function, c::Connection, s::Component, event::AbstractString)
+------------------
+Creates a new event for the current IP in a session. Performs the function on
+    the event. The function should take a ComponentModifier as an argument.
+#### example
+```
+route("/") do c::Connection
+    myp = p("hello", text = "wow")
+    timer = TimedTrigger(5000) do cm::ComponentModifier
+        if cm[myp][:text] == "wow"
+            c[:Logger].log("wow.")
+        end
+    end
+    write!(c, myp)
+    write!(c, timer)
+end
+```
+"""
+function on(f::Function, c::Connection, s::Component,
+     event::AbstractString)
+    name = s.name
+    s["on$event"] = "sendpage('$event$name');"
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][getip(c)], "$event$name" => f)
+    else
+        c[:Session][getip(c)] = Dict("$event$name" => f)
+    end
+end
+
+"""
+**Session Interface**
+### on(f::Function, c::Connection, event::AbstractString)
+------------------
+Creates a new event for the current IP in a session. Performs the function on
+    the event. The function should take a ComponentModifier as an argument.
+#### example
+```
+route("/") do c::Connection
+    myp = p("hello", text = "wow")
+    timer = TimedTrigger(5000) do cm::ComponentModifier
+        if cm[myp][:text] == "wow"
+            c[:Logger].log("wow.")
+        end
+    end
+    write!(c, myp)
+    write!(c, timer)
+end
+```
+"""
+function on(f::Function, c::Connection, event::AbstractString)
+
+end
+
+function on_keydown(f::Function, c::Connection, key::String)
+    write!(c, """<script>
+    document.addEventListener('keydown', function(event) {
+        if (event.key == "$key") {
+        sendpage(event.key);
+        }
+    });</script>
+    """)
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][getip(c)], key => f)
+    else
+        c[:Session][getip(c)] = Dict(ref => f)
+    end
+end
+
+function on_keyup(f::Function, c::Connection, key::String)
+    write!(c, """<script>
+    document.addEventListener('keyup', function(event) {
+        if (event.key == "$key") {
+        sendpage(event.key);
+        }
+    });</script>
+    """)
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][getip(c)], key => f)
+    else
+        c[:Session][getip(c)] = Dict(ref => f)
+    end
+end
+
+"""
+**Session Internals**
+### properties!(::Servable, ::Servable) -> _
+------------------
+Copies properties from s,properties into c.properties.
+#### example
+```
+
+```
+"""
+function document_linker(c::Connection)
+    s = getpost(c)
+    reftag = findall("?CM?:", s)
+    ref_r = reftag[1][2] + 4:length(s)
+    ref = s[ref_r]
+    s = replace(s, "?CM?:$ref" => "")
+    cm = ComponentModifier(s)
+    if getip(c) in keys(c[:Session].iptable)
+        c[:Session].iptable[getip(c)] = now()
+    else
+        write!(c, "timeout"); return
+    end
+    if getip(c) in keys(c[:Session].events)
+        c[:Session][getip(c)][ref](cm)
+        write!(c, cm)
+    else
+        write!(c, "timeout")
+    end
+end
+
+"""
+### TimedTrigger
+- time::Integer
+- f::Function \
+Creates a timer which will post to the function f.
+##### example
+```
+route("/") do c::Connection
+    myp = p("hello", text = "wow")
+    timer = TimedTrigger(5000) do cm::ComponentModifier
+        if cm[myp][:text] == "wow"
+            c[:Logger].log("wow.")
+        end
+    end
+    write!(c, myp)
+    write!(c, timer)
+end
+```
+------------------
+##### constructors
+TimedTrigger(func::Function, time::Integer)
 """
 mutable struct TimedTrigger <: Servable
     time::Integer
     f::Function
-    ref::AbstractString
     function TimedTrigger(func::Function, time::Integer)
-        ref = ""
         f(c::Connection) = begin
             ref = gen_ref()
             push!(c[:Session][getip(c)], ref => f)
@@ -109,16 +303,41 @@ mutable struct TimedTrigger <: Servable
               </script>
               """)
             end
-        new(time, f, ref)
+        new(time, f)
     end
 end
 
 """
+**Session Interface**
+### observe!(f::Function, c::Connection, time::Integer) -> _
+------------------
+Creates a TimedTrigger, and then writes it to the connection.
+#### example
+```
+route("/") do c::Connection
+    observe!(c, 1000) do cm::ComponentModifier
+        ...
+    end
+end
+```
 """
-function observe!(f::Function, c::Connection)
-    write!(c, TimedTrigger(f, 3000))
+function observe!(f::Function, c::Connection, time::Integer)
+    write!(c, TimedTrigger(f, time))
 end
 
+"""
+**Session Internals**
+### htmlcomponent(s::String) -> ::Dict{String, Toolips.Component}
+------------------
+Converts HTML into a dictionary of components.
+#### example
+```
+s = "<div id = 'hello' align = 'center'></div>"
+comp = htmlcomponent(s)
+comp["hello"]["align"]
+    "center"
+```
+"""
 function htmlcomponent(s::String)
     doc = parsehtml(s)
     ro = root(doc)
@@ -167,21 +386,32 @@ function createcomp(element)
 end
 
 """
-### ComponentModifier <: Servable
-A connection Servable is passed as an argument to event functions, such as on.
-###### fields
-- name::AbstractString
-- properties**::Dict** - Properties
-- f**::Function**
-###### example
-home = route("/") do c::Connection
-    mytext = p("green", text = "hello world!")
-    on(c, mytext, "click") do cm::ComponentModifier
-        current_text = cm[mytext][:text]
-        cm[mytext] = "color" => current_text
-        alert!(cm, "Color has been changed.")
+### ComponentModifier
+- rootc::Dict
+- f::Function
+- changes::Vector{String} \
+The ComponentModifier stores a dictionary of components that can be indexed
+using the Components themselves or their names. Methods push strings to the
+changes Dict. This is passed as an argument into the function provided to the
+on functions via the do syntax. Indexing will yield a given Component, setting
+the index to a pair will modify said component.
+##### example
+```
+route("/") do c::Connection
+    mydiv = divider("mydiv", align = "center")
+    on(c, mydiv, "click") do cm::ComponentModifier
+        if cm[mydiv]["align"] == "center"
+            cm[mydiv] = "align" => "left"
+        else
+            cm[mydiv] = "align" => "center"
+        end
     end
+    write!(c, mydiv)
 end
+```
+------------------
+##### constructors
+ComponentModifier(html::String)
 """
 mutable struct ComponentModifier <: Servable
     rootc::Dict
@@ -197,15 +427,66 @@ mutable struct ComponentModifier <: Servable
     end
 end
 
+"""
+**Session Interface**
+### setindex!(cm::ComponentModifier, p::Pair, s::Component) -> _
+------------------
+Sets the property from p[1] to p[2] on the served Component s.
+#### example
+```
+on(c, mydiv, "click") do cm::ComponentModifier
+    if cm[mydiv]["align"] == "center"
+        cm[mydiv] = "align" => "left"
+    else
+        cm[mydiv] = "align" => "center"
+    end
+end
+```
+"""
 function setindex!(cm::ComponentModifier, p::Pair, s::Component)
     modify!(cm, s, p)
 end
 
-getindex(cc::ComponentModifier, s::Component) = get(cc.rootc, s.name)
+"""
+**Session Interface**
+### getindex(cm::ComponentModifier, s::Component) -> ::Component
+------------------
+Gets the Component s from the ComponentModifier cm.
+#### example
+```
+on(c, mydiv, "click") do cm::ComponentModifier
+    mydiv = cm[mydiv]
+    mydivalignment = mydiv["align"]
+end
+```
+"""
+getindex(cc::ComponentModifier, s::Component) = cc.rootc[s.name]
 
-getindex(cc::ComponentModifier, s::String) = get(cc.rootc, s)
+"""
+**Session Interface**
+### getindex(cm::ComponentModifier, s::String) -> ::Component
+------------------
+Gets the a Component by name from cm.
+#### example
+```
+on(c, mydiv, "click") do cm::ComponentModifier
+    mydiv = cm["mydiv"]
+    mydivalignment = mydiv["align"]
+end
+```
+"""
+getindex(cc::ComponentModifier, s::String) = cc.rootc[s]
 
-get(c::Dict, key::String) = c[key]
+"""
+**Interface**
+### properties!(::Servable, ::Servable) -> _
+------------------
+Copies properties from s,properties into c.properties.
+#### example
+```
+
+```
+"""
 function animate!(cm::ComponentModifier, s::Servable, a::Animation;
      play::Bool = true)
      playstate = "running"
@@ -272,22 +553,6 @@ function modify!(cm::ComponentModifier, s::Servable, p::Pair)
     "document.getElementById('$name').setAttribute('$key','$val');")
 end
 
-"""
-"""
-function insert!(cm::ComponentModifier, s::Servable, s2::Servable)
-     name = s.name
-     ctag = s2.tag
-     propities = copy(s2.properties)
-     children = s2[:children]
-     text = s2[:text]
-     for prop in s2
-         key, val = prop[1], prop[2]
-     end
-     "insertBefore(newDiv, currentDiv);"
-     """var newelement = document.createElement("div");
-     """
-end
-
 function move!(cm::ComponentModifier, p::Pair{Servable, Servable})
     firstname = p[1].name
     secondname = p[2].name
@@ -302,21 +567,44 @@ function remove!(cm::ComponentModifier, s::Servable)
     name = s.name
     push!(cm.changes, "document.getElementById('$name').remove();")
 end
+
+function remove!(cm::ComponentModifier, s::Servable, child::Servable)
+    name, cname = s.name, child.name
+    push!(cm.changes, "document.getElementById('$name').removeChild('$cname');")
+end
+
 function set_text!(c::ComponentModifier, s::Servable, txt::String)
     name = s.name
     push!(c.changes, "document.getElementById('$name').innerHTML = `$txt`;")
 end
 
 function set_children!(cm::ComponentModifier, s::Servable, v::Vector{Servable})
-    spoofconn = SpoofConnection()
+    spoofconn::SpoofConnection = SpoofConnection()
     write!(spoofconn, v)
-    txt = spoofconn.http.text
+    txt::String = spoofconn.http.text
     set_text!(cm, s, txt)
 end
 
-"""
-"""
-get_children(cm::ComponentModifier, s::Component) = cm[s][:children]
+function append!(cm::ComponentModifier, s::Servable, child::Servable)
+    name = s.name
+    ctag = child.tag
+    exstr = "var element = document.createElement($ctag);"
+    for prop in child.properties
+        if prop[1] == :children
+            spoofconn::SpoofConnection = SpoofConnection()
+            write!(spoofconn, prop[2])
+            txt = spoofconn.http.text
+            push!(cm.changes, "element.innerHTML = `$txt`;")
+        elseif prop[1] == :text
+            txt = prop[2]
+            push!(cm.changes, "element.innerHTML = `$txt`;")
+        else
+            key, val = prop[1], prop[2]
+            push(cm.changes, "element.setAttribute('$key',`$val`);")
+        end
+    end
+    push!(cm.changes, "document.getElementById('$name').appendChild(element);")
+end
 
 """
 """
@@ -336,7 +624,8 @@ function style!(cm::ComponentModifier, s::Servable, p::Pair)
 end
 """
 """
-function style!(cm::ComponentModifier, s::Servable, p::Vector{Pair{String, String}})
+function style!(cm::ComponentModifier, s::Servable,
+    p::Vector{Pair{String, String}})
     name = s.name
     getelement = "var new_element = document.getElementById('$name');"
     push!(cm.changes, getelement)
@@ -361,36 +650,9 @@ function kill!(c::Connection)
     delete!(c[:Session].events, getip(c))
 end
 
-"""
-"""
-function on(f::Function, c::Connection, s::Component,
-     event::AbstractString)
-    name = s.name
-    s["on$event"] = "sendpage('$event$name');"
-    push!(c[:Session][getip(c)], "$event$name" => f)
-end
-
-"""
-### document_linker(c::Connection) -> _
-
-"""
-function document_linker(c::Connection)
-    s = getpost(c)
-    reftag = findall("?CM?:", s)
-    ref_r = reftag[1][2] + 4:length(s)
-    ref = s[ref_r]
-    s = replace(s, "?CM?:$ref" => "")
-    cm = ComponentModifier(s)
-    c[:Session].iptable[getip(c)] = now()
-    if getip(c) in keys(c[:Session].events)
-        c[:Session][getip(c)][ref](cm)
-        write!(c, cm)
-    else
-        write!(c, "timeout")
-    end
-end
 
 export Session, ComponentModifier, on, modify!, redirect!, TimedTrigger
 export alert!, insert!, move!, remove!, get_text, get_children, observe!
 export set_text!, move!, pauseanim!, playanim!, set_children!
+
 end # module
