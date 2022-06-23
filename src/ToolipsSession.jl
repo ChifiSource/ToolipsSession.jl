@@ -212,8 +212,8 @@ end
 function on_keydown(f::Function, c::Connection, key::String)
     write!(c, """<script>
     document.addEventListener('keydown', function(event) {
-        if (event.name == "$key") {
-        sendpage(event.name);
+        if (event.key == "$key") {
+        sendpage(event.key);
         }
     });</script>
     """)
@@ -227,8 +227,8 @@ end
 function on_keyup(f::Function, c::Connection, key::String)
     write!(c, """<script>
     document.addEventListener('keyup', function(event) {
-        if (event.name == "$key") {
-        sendpage(event.name);
+        if (event.key == "$key") {
+        sendpage(event.key);
         }
     });</script>
     """)
