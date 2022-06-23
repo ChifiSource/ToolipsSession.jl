@@ -80,13 +80,11 @@ mutable struct Session <: ServerExtension
     active_routes::Vector{String}
     events::Dict
     iptable::Dict{String, Dates.DateTime}
-    input_map::Dict
     timeout::Integer
     function Session(active_routes::Vector{String} = ["/"];
         transition_duration::AbstractFloat = 0.5,
         transition::AbstractString = "ease-in-out", timeout::Integer = 30)
         events = Dict()
-        input_map = Dict()
         timeout = timeout
         transition = transition
         iptable = Dict{String, Dates.DateTime}()
@@ -136,7 +134,7 @@ mutable struct Session <: ServerExtension
             routes["/modifier/linker"] = document_linker
         end
         new([:connection, :func, :routing], f, active_routes, events,
-        iptable, input_map, timeout)
+        iptable, timeout)
     end
 end
 
@@ -218,7 +216,7 @@ function on_keydown(f::Function, c::Connection, key::String)
     });</script>
     """)
     if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session].input_map[getip(c)], key => f)
+        push!(c[:Session][getip(c)], key => f)
     else
         c[:Session][getip(c)] = Dict(ref => f)
     end
@@ -233,7 +231,7 @@ function on_keyup(f::Function, c::Connection, key::String)
     });</script>
     """)
     if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session].input_map[getip(c)], key => f)
+        push!(c[:Session][getip(c)], key => f)
     else
         c[:Session][getip(c)] = Dict(ref => f)
     end
@@ -262,12 +260,8 @@ function document_linker(c::Connection)
         write!(c, "timeout"); return
     end
     if getip(c) in keys(c[:Session].events)
-        if ref in keys(c[:Session].input_map)
-            c[:Session].input_map[ref](cm)
-        else
-            c[:Session][getip(c)][ref](cm)
-            write!(c, cm)
-        end
+        c[:Session][getip(c)][ref](cm)
+        write!(c, cm)
     else
         write!(c, "timeout")
     end
