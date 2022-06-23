@@ -258,8 +258,9 @@ function document_linker(c::Connection)
     cm = ComponentModifier(s)
     if getip(c) in keys(c[:Session].iptable)
         c[:Session].iptable[getip(c)] = now()
+    else
+        write!(c, "timeout"); return
     end
-
     if getip(c) in keys(c[:Session].events)
         if ref in keys(c[:Session].input_map)
             c[:Session].input_map[ref](cm)
@@ -609,7 +610,7 @@ function append!(cm::ComponentModifier, s::Servable, child::Servable)
             push(cm.changes, "element.setAttribute('$key',`$val`);")
         end
     end
-    push!(cm.changes, "document.getElementById('$name').appendChild(element);"
+    push!(cm.changes, "document.getElementById('$name').appendChild(element);")
 end
 
 """
