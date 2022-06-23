@@ -155,6 +155,124 @@ end
 getindex(m::Session, s::AbstractString) = m.events[s]
 
 """
+**Interface**
+### on(f::Function, c::Connection, s::Component, event::AbstractString)
+------------------
+Creates a new event for the current IP in a session. Performs the function on
+    the event. The function should take a ComponentModifier as an argument.
+#### example
+```
+route("/") do c::Connection
+    myp = p("hello", text = "wow")
+    timer = TimedTrigger(5000) do cm::ComponentModifier
+        if cm[myp][:text] == "wow"
+            c[:Logger].log("wow.")
+        end
+    end
+    write!(c, myp)
+    write!(c, timer)
+end
+```
+"""
+function on(f::Function, c::Connection, s::Component,
+     event::AbstractString)
+    name = s.name
+    s["on$event"] = "sendpage('$event$name');"
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][getip(c)], "$event$name" => f)
+    else
+        c[:Session][getip(c)] = Dict("$event$name" => f)
+    end
+end
+
+"""
+**Session Interface**
+### on(f::Function, c::Connection, event::AbstractString)
+------------------
+Creates a new event for the current IP in a session. Performs the function on
+    the event. The function should take a ComponentModifier as an argument.
+#### example
+```
+route("/") do c::Connection
+    myp = p("hello", text = "wow")
+    timer = TimedTrigger(5000) do cm::ComponentModifier
+        if cm[myp][:text] == "wow"
+            c[:Logger].log("wow.")
+        end
+    end
+    write!(c, myp)
+    write!(c, timer)
+end
+```
+"""
+function on(f::Function, c::Connection, event::AbstractString)
+
+end
+
+function on_keydown(f::Function, c::Connection, key::String)
+    write!(c, """<script>
+    document.addEventListener('keydown', function(event) {
+        if (event.name == "$key") {
+        sendpage(event.name);
+        }
+    });</script>
+    """)
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session].input_map[getip(c)], key => f)
+    else
+        c[:Session][getip(c)] = Dict(ref => f)
+    end
+end
+
+function on_keyup(f::Function, c::Connection, key::String)
+    write!(c, """<script>
+    document.addEventListener('keyup', function(event) {
+        if (event.name == "$key") {
+        sendpage(event.name);
+        }
+    });</script>
+    """)
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session].input_map[getip(c)], key => f)
+    else
+        c[:Session][getip(c)] = Dict(ref => f)
+    end
+end
+
+"""
+**Session Internals**
+### properties!(::Servable, ::Servable) -> _
+------------------
+Copies properties from s,properties into c.properties.
+#### example
+```
+
+```
+"""
+function document_linker(c::Connection)
+    s = getpost(c)
+    reftag = findall("?CM?:", s)
+    ref_r = reftag[1][2] + 4:length(s)
+    ref = s[ref_r]
+    s = replace(s, "?CM?:$ref" => "")
+    cm = ComponentModifier(s)
+    if getip(c) in keys(c[:Session].iptable)
+        c[:Session].iptable[getip(c)] = now()
+    end
+
+    if getip(c) in keys(c[:Session].events)
+        if ref in keys(c[:Session].input_map)
+            c[:Session].input_map[ref](cm)
+        else
+            c[:Session][getip(c)][ref](cm)
+            write!(c, cm)
+        end
+    else
+        write!(c, "timeout")
+    end
+end
+
+"""
 ### TimedTrigger
 - time::Integer
 - f::Function \
@@ -220,7 +338,10 @@ end
 Converts HTML into a dictionary of components.
 #### example
 ```
-
+s = "<div id = 'hello' align = 'center'></div>"
+comp = htmlcomponent(s)
+comp["hello"]["align"]
+    "center"
 ```
 """
 function htmlcomponent(s::String)
@@ -271,19 +392,32 @@ function createcomp(element)
 end
 
 """
-### Name
-- text::String \
-Description
+### ComponentModifier
+- rootc::Dict
+- f::Function
+- changes::Vector{String} \
+The ComponentModifier stores a dictionary of components that can be indexed
+using the Components themselves or their names. Methods push strings to the
+changes Dict. This is passed as an argument into the function provided to the
+on functions via the do syntax. Indexing will yield a given Component, setting
+the index to a pair will modify said component.
 ##### example
 ```
-
+route("/") do c::Connection
+    mydiv = divider("mydiv", align = "center")
+    on(c, mydiv, "click") do cm::ComponentModifier
+        if cm[mydiv]["align"] == "center"
+            cm[mydiv] = "align" => "left"
+        else
+            cm[mydiv] = "align" => "center"
+        end
+    end
+    write!(c, mydiv)
+end
 ```
 ------------------
-##### field info
-
-------------------
 ##### constructors
-
+ComponentModifier(html::String)
 """
 mutable struct ComponentModifier <: Servable
     rootc::Dict
@@ -299,16 +433,66 @@ mutable struct ComponentModifier <: Servable
     end
 end
 
+"""
+**Session Interface**
+### setindex!(cm::ComponentModifier, p::Pair, s::Component) -> _
+------------------
+Sets the property from p[1] to p[2] on the served Component s.
+#### example
+```
+on(c, mydiv, "click") do cm::ComponentModifier
+    if cm[mydiv]["align"] == "center"
+        cm[mydiv] = "align" => "left"
+    else
+        cm[mydiv] = "align" => "center"
+    end
+end
+```
+"""
 function setindex!(cm::ComponentModifier, p::Pair, s::Component)
     modify!(cm, s, p)
 end
 
-getindex(cc::ComponentModifier, s::Component) = get(cc.rootc, s.name)
+"""
+**Session Interface**
+### getindex(cm::ComponentModifier, s::Component) -> ::Component
+------------------
+Gets the Component s from the ComponentModifier cm.
+#### example
+```
+on(c, mydiv, "click") do cm::ComponentModifier
+    mydiv = cm[mydiv]
+    mydivalignment = mydiv["align"]
+end
+```
+"""
+getindex(cc::ComponentModifier, s::Component) = cc.rootc[s.name]
 
-getindex(cc::ComponentModifier, s::String) = get(cc.rootc, s)
+"""
+**Session Interface**
+### getindex(cm::ComponentModifier, s::String) -> ::Component
+------------------
+Gets the a Component by name from cm.
+#### example
+```
+on(c, mydiv, "click") do cm::ComponentModifier
+    mydiv = cm["mydiv"]
+    mydivalignment = mydiv["align"]
+end
+```
+"""
+getindex(cc::ComponentModifier, s::String) = cc.rootc[s]
 
-get(c::Dict, key::String) = c[key]
+"""
+**Interface**
+### properties!(::Servable, ::Servable) -> _
+------------------
+Copies properties from s,properties into c.properties.
+#### example
+```
 
+```
+"""
 function animate!(cm::ComponentModifier, s::Servable, a::Animation;
      play::Bool = true)
      playstate = "running"
@@ -472,75 +656,6 @@ function kill!(c::Connection)
     delete!(c[:Session].events, getip(c))
 end
 
-"""
-"""
-function on(f::Function, c::Connection, s::Component,
-     event::AbstractString)
-    name = s.name
-    s["on$event"] = "sendpage('$event$name');"
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], "$event$name" => f)
-    else
-        c[:Session][getip(c)] = Dict("$event$name" => f)
-    end
-end
-
-function on_keydown(f::Function, c::Connection, key::String)
-    write!(c, """<script>
-    document.addEventListener('keydown', function(event) {
-        if (event.name == "$key") {
-        sendpage(event.name);
-        }
-    });</script>
-    """)
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session].input_map[getip(c)], key => f)
-    else
-        c[:Session][getip(c)] = Dict(ref => f)
-    end
-end
-
-function on_keyup(f::Function, c::Connection, key::String)
-    write!(c, """<script>
-    document.addEventListener('keyup', function(event) {
-        if (event.name == "$key") {
-        sendpage(event.name);
-        }
-    });</script>
-    """)
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session].input_map[getip(c)], key => f)
-    else
-        c[:Session][getip(c)] = Dict(ref => f)
-    end
-end
-
-"""
-### document_linker(c::Connection) -> _
-
-"""
-function document_linker(c::Connection)
-    s = getpost(c)
-    reftag = findall("?CM?:", s)
-    ref_r = reftag[1][2] + 4:length(s)
-    ref = s[ref_r]
-    s = replace(s, "?CM?:$ref" => "")
-    cm = ComponentModifier(s)
-    if getip(c) in keys(c[:Session].iptable)
-        c[:Session].iptable[getip(c)] = now()
-    end
-
-    if getip(c) in keys(c[:Session].events)
-        if ref in keys(c[:Session].input_map)
-            c[:Session].input_map[ref](cm)
-        else
-            c[:Session][getip(c)][ref](cm)
-            write!(c, cm)
-        end
-    else
-        write!(c, "timeout")
-    end
-end
 
 export Session, ComponentModifier, on, modify!, redirect!, TimedTrigger
 export alert!, insert!, move!, remove!, get_text, get_children, observe!
