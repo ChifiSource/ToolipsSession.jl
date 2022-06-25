@@ -192,10 +192,8 @@ Creates a new event for the current IP in a session. Performs the function on
 ```
 route("/") do c::Connection
     myp = p("hello", text = "wow")
-    timer = TimedTrigger(5000) do cm::ComponentModifier
-        if cm[myp][:text] == "wow"
-            c[:Logger].log("wow.")
-        end
+    on(c, "load") do c::ComponentModifier
+
     end
     write!(c, myp)
     write!(c, timer)
@@ -206,6 +204,17 @@ function on(f::Function, c::Connection, event::AbstractString)
 
 end
 
+"""
+**Session Interface**
+### on_keydown(f::Function, c::Connection, key::AbstractString)
+------------------
+Creates a new event for the current IP in a session. Performs f when the key
+    is pressed.
+#### example
+```
+
+```
+"""
 function on_keydown(f::Function, c::Connection, key::String)
     write!(c, """<script>
     document.addEventListener('keydown', function(event) {
@@ -221,6 +230,17 @@ function on_keydown(f::Function, c::Connection, key::String)
     end
 end
 
+"""
+**Session Interface**
+### on_keyup(f::Function, c::Connection, key::AbstractString)
+------------------
+Creates a new event for the current IP in a session. Performs f when the key
+    is brought up.
+#### example
+```
+
+```
+"""
 function on_keyup(f::Function, c::Connection, key::String)
     write!(c, """<script>
     document.addEventListener('keyup', function(event) {
@@ -238,9 +258,10 @@ end
 
 """
 **Session Internals**
-### properties!(::Servable, ::Servable) -> _
+### document_linker(c::Connection) -> _
 ------------------
-Copies properties from s,properties into c.properties.
+Served to /modifier/linker by the Session extension. This is where incoming
+data is posted to for a response.
 #### example
 ```
 
@@ -443,9 +464,9 @@ on(c, mydiv, "click") do cm::ComponentModifier
 end
 ```
 """
-function setindex!(cm::ComponentModifier, p::Pair, s::Component)
-    modify!(cm, s, p)
-end
+setindex!(cm::ComponentModifier, p::Pair, s::Component) = modify!(cm, s, p)
+
+setindex!(cm::ComponentModifier, p::Pair, s::String) = modify!(cm, s, p)
 
 """
 **Session Interface**
@@ -546,12 +567,14 @@ end
 
 """
 """
-function modify!(cm::ComponentModifier, s::Servable, p::Pair)
-    name = s.name
+modify!(cm::ComponentModifier, s::Servable, p::Pair) = modify!(cm, s.name, p)
+
+function modify!(cm::ComponentModifier, s::String, p::Pair)
     key, val = p[1], p[2]
     push!(cm.changes,
-    "document.getElementById('$name').setAttribute('$key','$val');")
+    "document.getElementById('$s').setAttribute('$key','$val');")
 end
+
 
 function move!(cm::ComponentModifier, p::Pair{Servable, Servable})
     firstname = p[1].name
