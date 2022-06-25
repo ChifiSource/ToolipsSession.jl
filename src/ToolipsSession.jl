@@ -466,6 +466,22 @@ end
 """
 setindex!(cm::ComponentModifier, p::Pair, s::Component) = modify!(cm, s, p)
 
+"""
+**Session Interface**
+### setindex!(cm::ComponentModifier, p::Pair, s::String) -> _
+------------------
+Sets the property from p[1] to p[2] on the served with name s.
+#### example
+```
+on(c, mydiv, "click") do cm::ComponentModifier
+    if cm["mydiv"]["align"] == "center"
+        cm["mydiv"] = "align" => "left"
+    else
+        cm["mydiv"] = "align" => "center"
+    end
+end
+```
+"""
 setindex!(cm::ComponentModifier, p::Pair, s::String) = modify!(cm, s, p)
 
 """
@@ -499,56 +515,139 @@ end
 getindex(cc::ComponentModifier, s::String) = cc.rootc[s]
 
 """
-**Interface**
-### properties!(::Servable, ::Servable) -> _
+**Session Interface**
+### animate!(cm::ComponentModifier, s::Servable, a::Animation; play::Bool) -> _
 ------------------
-Copies properties from s,properties into c.properties.
+Updates the servable s's animation with the animation a.
+#### example
+```
+s = divider("mydiv")
+a = Animation("fade")
+a[:from] = "opacity" => "0%"
+a[:to] = "opacity" => "100%"
+# where c is the Connection.
+on(c, s, "click") do cm::ComponentModifier
+    animate!(cm, s, a)
+end
+```
+"""
+animate!(cm::ComponentModifier, s::Servable, a::Animation;
+     play::Bool = true) = animate!(cm, s.name, a; play = play)
+
+"""
+**Session Interface**
+### animate!(cm::ComponentModifier, s::String, a::Animation; play::Bool) -> _
+------------------
+Updates the servable with name s's animation with the animation a.
+#### example
+```
+s = divider("mydiv")
+a = Animation("fade")
+a[:from] = "opacity" => "0%"
+a[:to] = "opacity" => "100%"
+# where c is the Connection.
+on(c, s, "click") do cm::ComponentModifier
+    animate!(cm, s, a)
+end
+     ```
+     """
+function animate!(cm::ComponentModifier, s::String, a::Animation;
+    play::Bool = true)
+    playstate = "running"
+    if ~(play)
+        playstate = "paused"
+    end
+    animname = a.name
+    time = string(a.length) * "s"
+     push!(cm.changes,
+     "document.getElementById('$s').style.animation = '$time 1 $animname';")
+     push!(cm.changes,
+    "document.getElementById('$s').style.animationPlayState = '$playstate';")
+end
+
+"""
+**Session Interface**
+### pauseanim!(cm::ComponentModifier, s::Servable) -> _
+------------------
+Pauses the servable's animation.
 #### example
 ```
 
 ```
 """
-function animate!(cm::ComponentModifier, s::Servable, a::Animation;
-     play::Bool = true)
-     playstate = "running"
-     if ~(play)
-         playstate = "paused"
-     end
-    name = s.name
-    animname = a.name
-    time = string(a.length) * "s"
-     push!(cm.changes,
-     "document.getElementById('$name').style.animation = '$time 1 $animname';")
-     push!(cm.changes,
-    "document.getElementById('$name').style.animationPlayState = '$playstate';")
-end
+pauseanim!(cm::ComponentModifier, s::Servable) = pauseanim!(cm, s.name)
 
-function pauseanim!(cm::ComponentModifier, s::Servable)
-    name = s.name
+"""
+**Session Interface**
+### playanim!(cm::ComponentModifier, s::Servable) -> _
+------------------
+Plays the servable's animation.
+#### example
+```
+
+```
+"""
+playanim!(cm::ComponentModifier, s::Servable) = playanim!(cm, s.name)
+
+"""
+**Session Interface**
+### pauseanim!(cm::ComponentModifier, name::String) -> _
+------------------
+Pauses a servable's animation by name.
+#### example
+```
+
+```
+"""
+function pauseanim!(cm::ComponentModifier, name::String)
     push!(cm.changes,
     "document.getElementById('$name').style.animationPlayState = 'paused';")
 end
-function playanim!(cm::ComponentModifier, s::Servable)
-    name = s.name
+
+"""
+**Session Interface**
+### playanim!(cm::ComponentModifier, name::String) -> _
+------------------
+Plays a servable's animation by name.
+#### example
+```
+
+```
+"""
+function playanim!(cm::ComponentModifier, name::String)
     push!(cm.changes,
-    "document.getElementById('$name').style.animationPlayState = 'paused';")
+    "document.getElementById('$name').style.animationPlayState = 'running';")
 end
 
+"""
+**Session Interface**
+### alert!(cm::ComponentModifier, s::String) -> _
+------------------
+Sends an alert to the current session.
+#### example
+```
+
+```
+"""
 alert!(cm::ComponentModifier, s::AbstractString) = push!(cm.changes,
-                                                            "alert('$s');")
+        "alert('$s');")
 
+"""
+**Session Interface**
+### redirect!(cm::ComponentModifier, url::AbstractString, delay::Int64 = 0) -> _
+------------------
+Redirects the session to **url**. Can be given delay with **delay**.
+#### example
+```
+
+```
+"""
 function redirect!(cm::ComponentModifier, url::AbstractString, delay::Int64 = 0)
     push!(cm.changes, """
     setTimeout(function () {
       window.location.href = "$url";
    }, $delay);
    """)
-end
-
-function style!(cc::ComponentModifier, s::Servable,  p::Style)
-    name = s.name
-    sname = p.name
-    push!(cc.changes, "document.getElementById('$name').className = '$sname';")
 end
 
 """
@@ -632,6 +731,12 @@ end
 """
 """
 get_text(cm::ComponentModifier, s::Component) = cm[s][:text]
+
+function style!(cc::ComponentModifier, s::Servable,  p::Style)
+    name = s.name
+    sname = p.name
+    push!(cc.changes, "document.getElementById('$name').className = '$sname';")
+end
 
 """
 """
