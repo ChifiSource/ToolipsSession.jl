@@ -651,6 +651,14 @@ function redirect!(cm::ComponentModifier, url::AbstractString, delay::Int64 = 0)
 end
 
 """
+**Session Interface**
+### modify!(cm::ComponentModifier, s::Servable, p::Pair ...) -> _
+------------------
+Modifies the key properties of p[1] to the value of p[2] on s.
+#### example
+```
+
+```
 """
 function modify!(cm::ComponentModifier, s::Servable, p::Pair ...)
     p = [pair for pair in p]
@@ -658,6 +666,14 @@ function modify!(cm::ComponentModifier, s::Servable, p::Pair ...)
 end
 
 """
+**Session Interface**
+### modify!(cm::ComponentModifier, s::Servable, p::Vector{Pair{String, String}}) -> _
+------------------
+Modifies the key properties of i[1] => i[2] for i in p on s.
+#### example
+```
+
+```
 """
 function modify!(cm::ComponentModifier, s::Servable,
     p::Vector{Pair{String, String}})
@@ -665,9 +681,27 @@ function modify!(cm::ComponentModifier, s::Servable,
 end
 
 """
+**Session Interface**
+### modify!(cm::ComponentModifier, s::Servable, p::Pair) -> _
+------------------
+Modifies the key property p[1] to p[2] on s
+#### example
+```
+
+```
 """
 modify!(cm::ComponentModifier, s::Servable, p::Pair) = modify!(cm, s.name, p)
 
+"""
+**Session Interface**
+### modify!(cm::ComponentModifier, s::Servable, p::Pair) -> _
+------------------
+Modifies the key property p[1] to p[2] on s
+#### example
+```
+
+```
+"""
 function modify!(cm::ComponentModifier, s::String, p::Pair)
     key, val = p[1], p[2]
     push!(cm.changes,
@@ -675,9 +709,32 @@ function modify!(cm::ComponentModifier, s::String, p::Pair)
 end
 
 
-function move!(cm::ComponentModifier, p::Pair{Servable, Servable})
-    firstname = p[1].name
-    secondname = p[2].name
+"""
+**Session Interface**
+### move!(cm::ComponentModifier, p::Pair{Servable, Servable}) -> _
+------------------
+Moves the servable p[2] to be a child of p[1]
+#### example
+```
+
+```
+"""
+move!(cm::ComponentModifier, p::Pair{Servable, Servable}) = move!(cm,
+                                                        p[1].name => p[2].name)
+
+"""
+**Session Interface**
+### move!(cm::ComponentModifier, p::Pair{String, String}) -> _
+------------------
+Moves the servable p[2] to be a child of p[1] by name.
+#### example
+```
+
+```
+"""
+function move!(cm::ComponentModifier, p::Pair{String, String})
+    firstname = p[1]
+    secondname = p[2]
     push!(cm.changes, "
     document.getElementById('$firstname').appendChild(
     document.getElementById('$secondname')
@@ -685,19 +742,57 @@ function move!(cm::ComponentModifier, p::Pair{Servable, Servable})
   ")
 end
 
-function remove!(cm::ComponentModifier, s::Servable)
-    name = s.name
-    push!(cm.changes, "document.getElementById('$name').remove();")
+"""
+**Session Interface**
+### remove!(cm::ComponentModifier, s::Servable) -> _
+------------------
+Removes the servable s.
+#### example
+```
+
+```
+"""
+remove!(cm::ComponentModifier, s::Servable) = remove!(cm, s.name)
+
+"""
+**Session Interface**
+### remove!(cm::ComponentModifier, s::String) -> _
+------------------
+Removes the servable s by name.
+#### example
+```
+
+```
+"""
+function remove!(cm::ComponentModifier, s::String)
+    push!(cm.changes, "document.getElementById('$s').remove();")
 end
 
-function remove!(cm::ComponentModifier, s::Servable, child::Servable)
-    name, cname = s.name, child.name
-    push!(cm.changes, "document.getElementById('$name').removeChild('$cname');")
-end
+"""
+**Session Interface**
+### set_text!(cm::ComponentModifier, s::Servable, txt::String) -> _
+------------------
+Sets the inner HTML of a Servable.
+#### example
+```
 
-function set_text!(c::ComponentModifier, s::Servable, txt::String)
-    name = s.name
-    push!(c.changes, "document.getElementById('$name').innerHTML = `$txt`;")
+```
+"""
+set_text!(c::ComponentModifier, s::Servable, txt::String) = set_text!(cm,
+                                                                    s.name, txt)
+
+"""
+**Session Interface**
+### set_text!(cm::ComponentModifier, s::String, txt::String) -> _
+------------------
+Sets the inner HTML of a Servable by name
+#### example
+```
+
+```
+"""
+function set_text!(c::ComponentModifier, s::String, txt::String)
+    push!(c.changes, "document.getElementById('$s').innerHTML = `$txt`;")
 end
 
 function set_children!(cm::ComponentModifier, s::Servable, v::Vector{Servable})
