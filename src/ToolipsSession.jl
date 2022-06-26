@@ -795,15 +795,62 @@ function set_text!(c::ComponentModifier, s::String, txt::String)
     push!(c.changes, "document.getElementById('$s').innerHTML = `$txt`;")
 end
 
+"""
+**Session Interface**
+### set_children!(cm::ComponentModifier, s::Servable, v::Vector{Servable}) -> _
+------------------
+Sets the children of a given component.
+#### example
+```
+
+```
+"""
 function set_children!(cm::ComponentModifier, s::Servable, v::Vector{Servable})
+    set_children!(cm, s.name, v)
+end
+
+"""
+**Session Interface**
+### set_children!(cm::ComponentModifier, s::String, v::Vector{Servable}) -> _
+------------------
+Sets the children of a given component by name.
+#### example
+```
+
+```
+"""
+function set_children!(cm::ComponentModifier, s::String, v::Vector{Servable})
     spoofconn::SpoofConnection = SpoofConnection()
     write!(spoofconn, v)
     txt::String = spoofconn.http.text
     set_text!(cm, s, txt)
 end
 
+"""
+**Session Interface**
+### append!(cm::ComponentModifier, s::Servable, child::Servable) -> _
+------------------
+Appends child to the servable s.
+#### example
+```
+
+```
+"""
 function append!(cm::ComponentModifier, s::Servable, child::Servable)
-    name = s.name
+    append!(cm, s.name, child)
+end
+
+"""
+**Session Interface**
+### append!(cm::ComponentModifier, name::String, child::Servable) -> _
+------------------
+Appends child to the servable s by name.
+#### example
+```
+
+```
+"""
+function append!(cm::ComponentModifier, name::String, child::Servable)
     ctag = child.tag
     exstr = "var element = document.createElement($ctag);"
     for prop in child.properties
@@ -824,12 +871,56 @@ function append!(cm::ComponentModifier, s::Servable, child::Servable)
 end
 
 """
+**Session Interface**
+### get_text(cm::ComponentModifier, s::Component) -> ::String
+------------------
+Retrieves the text of a given Component.
+#### example
+```
+
+```
 """
 get_text(cm::ComponentModifier, s::Component) = cm[s][:text]
 
-function style!(cc::ComponentModifier, s::Servable,  p::Style)
-    name = s.name
-    sname = p.name
+"""
+**Session Interface**
+### get_text(cm::ComponentModifier, s::String) -> ::String
+------------------
+Retrieves the text of a given Component by name
+#### example
+```
+
+```
+"""
+get_text(cm::ComponentModifier, s::String) = cm[s][:text]
+
+"""
+**Session Interface**
+### style!(cm::ComponentModifier, s::Servable, style::Style) -> _
+------------------
+Changes the style class of s to the style p. Note -- **styles must be already
+written to the Connection** prior.
+#### example
+```
+
+```
+"""
+function style!(cm::ComponentModifier, s::Servable,  style::Style)
+    style!(cm, s.name, style.name)
+end
+
+"""
+**Session Interface**
+### style!(cm::ComponentModifier, name::String, sname::String) -> _
+------------------
+Changes the style class of a Servable by name to the style p by name.
+Note -- **styles must be already written to the Connection** prior.
+#### example
+```
+
+```
+"""
+function style!(cc::ComponentModifier, name::String,  sname::String)
     push!(cc.changes, "document.getElementById('$name').className = '$sname';")
 end
 
@@ -837,13 +928,15 @@ end
 """
 function style!(cm::ComponentModifier, s::Servable, p::Pair{String, String} ...)
     p = [pair for pair in p]
-    style!(cm::ComponentModifier, s::Servable, p)
+    style!(cm, s, p)
 end
 
-function style!(cm::ComponentModifier, s::Servable, p::Pair)
-    name = s.name
+style!(cm::ComponentModifier, s::Servable, p::Pair) = style!(cm, s.name, p)
+
+function style!(cm::ComponentModifier, name::String, p::Pair)
+    key, value = p[1], p[2]
     push!(cm.changes,
-        "document.getElementById('$name').style['$key'] = '$value';")
+        "document.getElementById('$name').style['$key'] = `$value`;")
 end
 """
 """
