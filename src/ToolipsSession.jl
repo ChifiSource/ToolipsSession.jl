@@ -752,8 +752,7 @@ Removes the servable s.
 
 ```
 """
-remove!(cm::ComponentModifier, s::Servable;
-                    delay::Float64 = 0.0) = remove!(cm, s.name, delay = delay)
+remove!(cm::ComponentModifier, s::Servable) = remove!(cm, s.name)
 
 """
 **Session Interface**
@@ -765,12 +764,8 @@ Removes the servable s by name.
 
 ```
 """
-function remove!(cm::ComponentModifier, s::String; delay::Float64 = 0.0)
-    push!(cm.changes, """
-    setTimeout(function () {
-      document.getElementById('$s').remove();
-   }, $delay);
-    """)
+function remove!(cm::ComponentModifier, s::String)
+    push!(cm.changes, "document.getElementById('$s').remove();")
 end
 
 """
