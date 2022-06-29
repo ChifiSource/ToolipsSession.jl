@@ -87,7 +87,7 @@ function htmlcomponent(s::String)
     properties::Dict = Dict()
     for property in eachattribute(ro)
         sc::String = replace(string(property), "\"" => "")
-        sc::String = replace(sc, " " => "")
+        sc = replace(sc, " " => "")
         scspl::String = split(sc, "=")
         push!(properties, string(scspl[1]) => string(scspl[2]))
     end
