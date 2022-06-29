@@ -79,32 +79,40 @@ function htmlcomponent(s::String)
     doc = parsehtml(s)
     ro = root(doc)
     rn = firstnode(ro)
-    children = Dict()
+    children::Dict = Dict()
     for n in eachelement(rn)
-        if haselement(n)
-            for node in eachelement(n)
-                child = htmlcomponent(string(node))
-                [push!(children, c) for c in child]
-            end
-        end
-        comp = createcomp(n)
+        comp::Component = createcomp(n)
         push!(children, comp.name => comp)
     end
-    properties = Dict()
+    properties::Dict = Dict()
     for property in eachattribute(ro)
-        sc = replace(string(property), "\"" => "")
+        sc::String = replace(string(property), "\"" => "")
         sc = replace(sc, " " => "")
-        scspl = split(sc, "=")
-        proppair = string(scspl[1]) => string(scspl[2])
-        push!(properties, proppair)
+        scspl::String = split(sc, "=")
+        push!(properties, string(scspl[1]) => string(scspl[2]))
     end
     c = Component("main", string(ro.name), properties)
     push!(children, c.name => c)
     children
 end
 
+"""
+**Session Internals**
+### createcomp(element::Any) -> ::Component
+------------------
+Converts HTML node into a component, used by htmlcomponent(::String).
+#### example
+```
+rn = firstnode(ro)
+children::Dict = Dict()
+for n in eachelement(rn)
+    comp::Component = createcomp(n)
+    push!(children, comp.name => comp)
+end
+```
+"""
 function createcomp(element)
-    properties = Dict()
+    properties::Dict = Dict()
     for property in eachattribute(element)
         sc = replace(string(property), "\"" => "")
         sc = replace(sc, " " => "")
@@ -112,14 +120,13 @@ function createcomp(element)
         proppair = string(scspl[1]) => string(scspl[2])
         push!(properties, proppair)
     end
-    children = Dict()
-        tag = string(element.name)
-        properties[:text] = string(element.content)
-        name = "undefined $tag"
-        if "id" in keys(properties)
-            name = properties["id"]
-        end
-    Component(name, tag, properties)
+    tag::String = string(element.name)
+    properties[:text] = string(element.content)
+    name::String = "undefined $tag"
+    if "id" in keys(properties)
+        name = properties["id"]
+    end
+    Component(name, tag, properties)::Component
 end
 
 """
@@ -288,7 +295,9 @@ end
 Pauses the servable's animation.
 #### example
 ```
-
+on(c, s, "click") do cm::ComponentModifier
+    pauseanim!(cm, s)
+end
 ```
 """
 pauseanim!(cm::ComponentModifier, s::Servable) = pauseanim!(cm, s.name)
@@ -300,7 +309,9 @@ pauseanim!(cm::ComponentModifier, s::Servable) = pauseanim!(cm, s.name)
 Plays the servable's animation.
 #### example
 ```
-
+on(c, s, "click") do cm::ComponentModifier
+    playanim!(cm, s)
+end
 ```
 """
 playanim!(cm::ComponentModifier, s::Servable) = playanim!(cm, s.name)
@@ -312,7 +323,9 @@ playanim!(cm::ComponentModifier, s::Servable) = playanim!(cm, s.name)
 Pauses a servable's animation by name.
 #### example
 ```
-
+on(c, s, "click") do cm::ComponentModifier
+    pauseanim!(cm, s.name)
+end
 ```
 """
 function pauseanim!(cm::ComponentModifier, name::String)
@@ -327,7 +340,9 @@ end
 Plays a servable's animation by name.
 #### example
 ```
-
+on(c, s, "click") do cm::ComponentModifier
+    playanim!(cm, s.name)
+end
 ```
 """
 function playanim!(cm::ComponentModifier, name::String)
@@ -342,7 +357,9 @@ end
 Sends an alert to the current session.
 #### example
 ```
-
+on(c, s, "click") do cm::ComponentModifier
+    alert!(cm, "oh no!")
+end
 ```
 """
 alert!(cm::ComponentModifier, s::AbstractString) = push!(cm.changes,
@@ -494,7 +511,7 @@ Sets the inner HTML of a Servable.
 
 ```
 """
-set_text!(c::ComponentModifier, s::Servable, txt::String) = set_text!(cm,
+set_text!(cm::ComponentModifier, s::Servable, txt::String) = set_text!(cm,
                                                                     s.name, txt)
 
 """
