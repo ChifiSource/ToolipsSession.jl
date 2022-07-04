@@ -274,8 +274,8 @@ data is posted to for a response.
 """
 function document_linker(c::Connection)
     s::String = getpost(c)
-    reftag::UnitRange = findall("?CM?:", s)
-    ref_r::UnitRange = reftag[1][2] + 4:length(s)
+    reftag = findall("?CM?:", s)
+    ref_r = reftag[1][2] + 4:length(s)
     ref::String = s[ref_r]
     s = replace(s, "?CM?:$ref" => "")
     cm::ComponentModifier = ComponentModifier(s)
