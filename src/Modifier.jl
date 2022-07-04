@@ -3,6 +3,7 @@ using Toolips
 import Toolips: StyleComponent, get, kill!, animate!, SpoofConnection
 import Toolips: style!, Servable, Connection
 import Base: setindex!, getindex, push!, append!
+
 """
 ### TimedTrigger
 - time::Integer
@@ -81,6 +82,13 @@ function htmlcomponent(s::String)
     rn = firstnode(ro)
     children::Dict = Dict()
     for n in eachelement(rn)
+        if haselement(n)
+            for node in eachelement(n)
+                child::Component = htmlcomponent(string(node))
+                [push!(children, c) for c in child]
+            end
+        end
+        comp = createcomp(n)
         comp::Component = createcomp(n)
         push!(children, comp.name => comp)
     end

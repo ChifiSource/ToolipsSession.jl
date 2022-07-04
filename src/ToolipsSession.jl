@@ -191,16 +191,22 @@ Creates a new event for the current IP in a session. Performs the function on
 ```
 route("/") do c::Connection
     myp = p("hello", text = "wow")
-    on(c, "load") do c::ComponentModifier
-
+    on(c, "load") do cm::ComponentModifier
+        set_text!(cm, myp, "not so wow")
     end
     write!(c, myp)
-    write!(c, timer)
 end
 ```
 """
 function on(f::Function, c::Connection, event::AbstractString)
-
+    ref = gen_ref()
+    write!(c,
+        "<script>document.addEventListener('$event', sendpage($ref));</script>")
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][getip(c)], "$ref" => f)
+    else
+        c[:Session][getip(c)] = Dict("$ref" => f)
+    end
 end
 
 """
@@ -267,12 +273,12 @@ data is posted to for a response.
 ```
 """
 function document_linker(c::Connection)
-    s = getpost(c)
-    reftag = findall("?CM?:", s)
-    ref_r = reftag[1][2] + 4:length(s)
-    ref = s[ref_r]
+    s::String = getpost(c)
+    reftag::String = findall("?CM?:", s)
+    ref_r::UnitRange = reftag[1][2] + 4:length(s)
+    ref::String = s[ref_r]
     s = replace(s, "?CM?:$ref" => "")
-    cm = ComponentModifier(s)
+    cm::ComponentModifier = ComponentModifier(s)
     if getip(c) in keys(c[:Session].iptable)
         c[:Session].iptable[getip(c)] = now()
     else
@@ -280,6 +286,7 @@ function document_linker(c::Connection)
     end
     if getip(c) in keys(c[:Session].events)
         c[:Session][getip(c)][ref](cm)
+        write!(c, " ")
         write!(c, cm)
     else
         write!(c, "timeout")
