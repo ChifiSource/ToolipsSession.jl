@@ -84,7 +84,7 @@ function htmlcomponent(s::String)
     for n in eachelement(rn)
         if haselement(n)
             for node in eachelement(n)
-                child::Component = htmlcomponent(string(node))
+                child::Dict{Any, Any} = htmlcomponent(string(node))
                 [push!(children, c) for c in child]
             end
         end
@@ -101,7 +101,7 @@ function htmlcomponent(s::String)
     end
     c = Component("main", string(ro.name), properties)
     push!(children, c.name => c)
-    children
+    children::Dict{Any, Any}
 end
 
 """
