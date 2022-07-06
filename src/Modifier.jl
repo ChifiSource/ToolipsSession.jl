@@ -95,9 +95,9 @@ function htmlcomponent(s::String)
             continue
         end
         properties["text"] = tagtext
-        comp = Component(nametag, name, properties)
+        comp::Component = Component(nametag, name, properties)
         delete!(c.properties, "id")
-        push!(comps, string(name) => )
+        push!(comps, name => comp)
     end
     return(comps)::Vector{Servable}
 end
