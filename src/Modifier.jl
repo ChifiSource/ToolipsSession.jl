@@ -84,8 +84,13 @@ function htmlcomponent(s::String)
         end
         tagr::UnitRange = findnext(" ", s, tag[1])
         nametag::String = s[minimum(tag) + 1:maximum(tagr) - 1]
-        textr::UnitRange = maximum(tag) + 1:minimum(findnext("</$nametag>", s, tag[1])[1]) - 1
-        tagtext::String = s[textr]
+        tagtext::String = ""
+        try
+            textr::UnitRange = maximum(tag) + 1:minimum(findnext("</$nametag", s, tag[1])[1]) - 1
+            tagtext = s[textr]
+        catch
+            tagtext = ""
+        end
         propvec = split(s[maximum(tagr) + 1:maximum(tag) - 1], " ")
         properties::Dict{Any, Any} = Dict{Any, Any}()
         for segment in propvec
