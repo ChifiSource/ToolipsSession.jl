@@ -79,7 +79,7 @@ function htmlcomponent(s::String)
     tagpos::Vector{UnitRange{Int64}} = [f[1]:e[1] for (f, e) in zip(findall("<", s), findall(">", s))]
     comps = Vector{Servable}()
     for tag::UnitRange in tagpos
-       if contains(s[tag], "/") || ~(contains(s[tag], "id ="))
+       if contains(s[tag], "/") || ~(contains(s[tag], " id="))
             continue
         end
         tagr::UnitRange = findnext(" ", s, tag[1])
