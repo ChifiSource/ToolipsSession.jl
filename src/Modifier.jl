@@ -86,22 +86,14 @@ function htmlcomponent(s::String)
         nametag::String = s[minimum(tagr):maximum(tagr)]
         textr::UnitRange = maximum(tag) + 1:findnext("<", s, maximum(tag))[1] - 1
         tagtext::String = s[textr]
-        propvec::Vector{UnitRange{Int64}} = findall("=", s[tag])
+        propvec = split(s[maximum(tagr) + 1:maximum(tag) - 1], " ")
         properties = Dict()
-        for property in propvec
-            if isnothing(property)
+        for segment in propvec
+            ppair = split(segment, "=")
+            if length(ppair) != 2
                 continue
             end
-            if findnext(" ", s, property[1])[1] > maximum(tag)
-                proprange = findprev(" ", s[tag], property[1])[1] + 1:findnext(">", s, property[1])[1] - 1
-            else
-                proprange = findprev(" ", s[tag], property[1])[1] + 1:findnext(" ", s[tag], property[1])[1] - 1
-            end
-            proppair = split(s[tag][proprange], "=")
-             if isnothing(proppair)
-                continue
-            end
-            push!(properties, string(proppair[1]) => string(proppair[2]))
+            push!(properties, string(ppair[1]) => string(ppair[2]))
         end
         name::String = properties["id"]
         delete!(properties, "id")
