@@ -83,7 +83,7 @@ function htmlcomponent(s::String)
             continue
         end
         tagr::UnitRange = findnext(" ", s, tag[1])
-        nametag::String = s[minimum(tagr):maximum(tagr)]
+        nametag::String = s[minimum(tag) + 1:maximum(tagr)]
         textr::UnitRange = maximum(tag) + 1:findnext("</$nametag", s, maximum(tag))[1] - 1
         tagtext::String = s[textr]
         propvec = split(s[maximum(tagr) + 1:maximum(tag) - 1], " ")
