@@ -93,7 +93,7 @@ function htmlcomponent(s::String)
             if length(ppair) != 2
                 continue
             end
-            push!(properties, string(ppair[1]) => string(ppair[2]))
+            push!(properties, string(ppair[1]) => replace(string(ppair[2]), "\"" => ""))
         end
         name::String = properties["id"]
         delete!(properties, "id")
