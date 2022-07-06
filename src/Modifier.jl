@@ -86,18 +86,24 @@ function htmlcomponent(s::String)
         nametag::String = s[minimum(tagr):maximum(tagr)]
         textr::UnitRange = maximum(tag) + 1:findnext("<", s, maximum(tag))[1] - 1
         tagtext::String = s[textr]
-        props::String = replace(s[maximum(tagr):maximum(tag) - 1], " " => "")
-        propvec::Vector{SubString} = split(props, "=")
-        properties::Dict = Dict{Any, Any}([propvec[i - 1] => propvec[i] for i in range(2, length(propvec), step = 2)])
-        name::String = string(properties["id"])
-        println(name)
-        if name == " "
-            continue
+        propvec::Vector{UnitRange{Int64}} = findall("=", s[tag])
+        properties = Dict()
+        for property in propvec
+            if findnext(" ", s, property[1])[1] > maximum(tag)
+                proprange = findprev(" ", s[tag], property[1])[1] + 1:findnext(">", s, property[1])[1] - 1
+            else
+                proprange = findprev(" ", s[tag], property[1])[1] + 1:findnext(" ", s[tag], property[1])[1] - 1
+            end
+            proppair = split(s[tag][proprange], "=")
+             if isnothing(proppair)
+                continue
+            end
+            push!(properties, string(proppair[1]) => string(proppair[2]))
         end
+        name::String = properties["id"]
+        delete!(properties, "id")
         properties["text"] = tagtext
-        comp::Component = Component(nametag, name, properties)
-        delete!(comp.properties, "id")
-        push!(comps, comp)
+        push!(comps, Component(name, string(name), properties))
     end
     return(comps)::Vector{Servable}
 end
