@@ -89,6 +89,9 @@ function htmlcomponent(s::String)
         propvec::Vector{UnitRange{Int64}} = findall("=", s[tag])
         properties = Dict()
         for property in propvec
+            if isnothing(property)
+                continue
+            end
             if findnext(" ", s, property[1])[1] > maximum(tag)
                 proprange = findprev(" ", s[tag], property[1])[1] + 1:findnext(">", s, property[1])[1] - 1
             else
