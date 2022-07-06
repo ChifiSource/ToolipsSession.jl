@@ -132,7 +132,7 @@ end
 ComponentModifier(html::String)
 """
 mutable struct ComponentModifier <: Servable
-    rootc::Vector{Servable}
+    rootc::Dict{String, Component}
     f::Function
     changes::Vector{String}
     function ComponentModifier(html::String)
