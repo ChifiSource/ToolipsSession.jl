@@ -97,7 +97,7 @@ function htmlcomponent(s::String)
         end
         name::String = properties["id"]
         delete!(properties, "id")
-        properties["text"]::String = tagtext
+        push!(properties, "text" => tagtext)
         push!(comps, name => Component(name, string(nametag), properties))
     end
     return(comps)::Dict{String, Component}
