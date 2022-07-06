@@ -77,24 +77,30 @@ comp["hello"]["align"]
 """
 function htmlcomponent(s::String)
     tagpos::Vector{UnitRange{Int64}} = [f[1]:e[1] for (f, e) in zip(findall("<", s), findall(">", s))]
-    comps = Vector{Servable}()
+    comps::Dict{String, Component} = Dict{String, Component}()
     for tag::UnitRange in tagpos
-       if contains(s[tag], "/") || ~(contains(s[tag], "id"))
+       if contains(s[tag], "/") || ~(contains(s[tag], " id="))
             continue
         end
         tagr::UnitRange = findnext(" ", s, tag[1])
         nametag::String = s[minimum(tagr):maximum(tagr)]
         textr::UnitRange = maximum(tag) + 1:findnext("<", s, maximum(tag))[1] - 1
         tagtext::String = s[textr]
-        props::String = replace(s[maximum(tagr):maximum(tag) - 1], " " => "")
-        propvec::Vector{SubString} = split(props, "=")
-        properties::Dict = Dict{Any, Any}([propvec[i - 1] => propvec[i] for i in range(2, length(propvec), step = 2)])
+        propvec = split(s[maximum(tagr) + 1:maximum(tag) - 1], " ")
+        properties::Dict{Any, Any} = Dict{Any, Any}()
+        for segment in propvec
+            ppair = split(segment, "=")
+            if length(ppair) != 2
+                continue
+            end
+            push!(properties, string(ppair[1]) => replace(string(ppair[2]), "\"" => ""))
+        end
         name::String = properties["id"]
-        properties["text"] = tagtext
         delete!(properties, "id")
-        push!(comps, Component(nametag, string(name), properties))
+        properties["text"] = tagtext
+        push!(comps, name => Component(name, string(name), properties))
     end
-    return(comps)::Vector{Servable}
+    return(comps)::Dict{String, Component}
 end
 
 """
@@ -126,7 +132,7 @@ end
 ComponentModifier(html::String)
 """
 mutable struct ComponentModifier <: Servable
-    rootc::Vector{Servable}
+    rootc::Dict{String, Component}
     f::Function
     changes::Vector{String}
     function ComponentModifier(html::String)
