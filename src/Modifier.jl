@@ -1,4 +1,3 @@
-using EzXML
 using Toolips
 import Toolips: StyleComponent, get, kill!, animate!, SpoofConnection
 import Toolips: style!, Servable, Connection
@@ -77,64 +76,25 @@ comp["hello"]["align"]
 ```
 """
 function htmlcomponent(s::String)
-    doc = parsehtml(s)
-    ro = root(doc)
-    rn = firstnode(ro)
-    children::Dict = Dict()
-    for n in eachelement(rn)
-        if haselement(n)
-            for node in eachelement(n)
-                child::Dict{Any, Any} = htmlcomponent(string(node))
-                [push!(children, c) for c in child]
-            end
+    tagpos::Vector{UnitRange{Int64}} = [f[1]:e[1] for (f, e) in zip(findall("<", s), findall(">", s))]
+    comps = Vector{Servable}()
+    for tag::UnitRange in tagpos
+       if contains(s[tag], "/") || ~(contains(s[tag], "id"))
+            continue
         end
-        comp = createcomp(n)
-        comp::Component = createcomp(n)
-        push!(children, comp.name => comp)
+        tagr::UnitRange = findnext(" ", s, tag[1])
+        nametag::String = s[minimum(tagr):maximum(tagr)]
+        textr::UnitRange = maximum(tag) + 1:findnext("<", s, maximum(tag))[1] - 1
+        tagtext::String = s[textr]
+        props::String = replace(s[maximum(tagr):maximum(tag) - 1], " " => "")
+        propvec::Vector{SubString} = split(props, "=")
+        properties::Dict = Dict{Any, Any}([propvec[i - 1] => propvec[i] for i in range(2, length(propvec), step = 2)])
+        name::String = properties["id"]
+        properties["text"] = tagtext
+        delete!(properties, "id")
+        push!(comps, Component(nametag, string(name), properties))
     end
-    properties::Dict = Dict()
-    for property in eachattribute(ro)
-        sc::String = replace(string(property), "\"" => "")
-        sc = replace(sc, " " => "")
-        scspl::String = split(sc, "=")
-        push!(properties, string(scspl[1]) => string(scspl[2]))
-    end
-    c = Component("main", string(ro.name), properties)
-    push!(children, c.name => c)
-    children::Dict{Any, Any}
-end
-
-"""
-**Session Internals**
-### createcomp(element::Any) -> ::Component
-------------------
-Converts HTML node into a component, used by htmlcomponent(::String).
-#### example
-```
-rn = firstnode(ro)
-children::Dict = Dict()
-for n in eachelement(rn)
-    comp::Component = createcomp(n)
-    push!(children, comp.name => comp)
-end
-```
-"""
-function createcomp(element)
-    properties::Dict = Dict()
-    for property in eachattribute(element)
-        sc = replace(string(property), "\"" => "")
-        sc = replace(sc, " " => "")
-        scspl = split(sc, "=")
-        proppair = string(scspl[1]) => string(scspl[2])
-        push!(properties, proppair)
-    end
-    tag::String = string(element.name)
-    properties[:text] = string(element.content)
-    name::String = "undefined $tag"
-    if "id" in keys(properties)
-        name = properties["id"]
-    end
-    Component(name, tag, properties)::Component
+    return(comps)::Vector{Servable}
 end
 
 """
@@ -166,7 +126,7 @@ end
 ComponentModifier(html::String)
 """
 mutable struct ComponentModifier <: Servable
-    rootc::Dict
+    rootc::Vector{Servable}
     f::Function
     changes::Vector{String}
     function ComponentModifier(html::String)
