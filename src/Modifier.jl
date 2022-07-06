@@ -87,7 +87,7 @@ function htmlcomponent(s::String)
         textr::UnitRange = maximum(tag) + 1:findnext("<", s, maximum(tag))[1] - 1
         tagtext::String = s[textr]
         propvec = split(s[maximum(tagr) + 1:maximum(tag) - 1], " ")
-        properties::Dict{String, String} = Dict{String, String}()
+        properties::Dict{Any, Any} = Dict{Any, Any}()
         for segment in propvec
             ppair = split(segment, "=")
             if length(ppair) != 2
