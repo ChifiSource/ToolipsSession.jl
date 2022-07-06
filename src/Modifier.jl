@@ -89,13 +89,15 @@ function htmlcomponent(s::String)
         props::String = replace(s[maximum(tagr):maximum(tag) - 1], " " => "")
         propvec::Vector{SubString} = split(props, "=")
         properties::Dict = Dict{Any, Any}([propvec[i - 1] => propvec[i] for i in range(2, length(propvec), step = 2)])
-        name::String = copy(properties["id"])
+        name::String = string(properties["id"])
+        println(name)
         if name == " "
             continue
         end
         properties["text"] = tagtext
-        delete!(properties, "id")
-        push!(comps, string(name) => Component(nametag, string(name), properties))
+        comp = Component(nametag, name, properties)
+        delete!(c.properties, "id")
+        push!(comps, string(name) => )
     end
     return(comps)::Vector{Servable}
 end
