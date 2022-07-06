@@ -88,6 +88,7 @@ function htmlcomponent(s::String)
         try
             textr::UnitRange = maximum(tag) + 1:minimum(findnext("</$nametag", s, tag[1])[1]) - 1
             tagtext = s[textr]
+            tagtext = replace(tagtext, "<br>" => "\n")
         catch
             tagtext = ""
         end
