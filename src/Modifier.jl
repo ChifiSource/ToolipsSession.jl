@@ -77,7 +77,7 @@ comp["hello"]["align"]
 """
 function htmlcomponent(s::String)
     tagpos::Vector{UnitRange{Int64}} = [f[1]:e[1] for (f, e) in zip(findall("<", s), findall(">", s))]
-    comps = Vector{Servable}()
+    comps::Dict{String, Component} = Dict{String, Component}()
     for tag::UnitRange in tagpos
        if contains(s[tag], "/") || ~(contains(s[tag], " id="))
             continue
@@ -87,7 +87,7 @@ function htmlcomponent(s::String)
         textr::UnitRange = maximum(tag) + 1:findnext("<", s, maximum(tag))[1] - 1
         tagtext::String = s[textr]
         propvec = split(s[maximum(tagr) + 1:maximum(tag) - 1], " ")
-        properties = Dict()
+        properties::Dict{String, String} = Dict{String, String}()
         for segment in propvec
             ppair = split(segment, "=")
             if length(ppair) != 2
@@ -98,9 +98,9 @@ function htmlcomponent(s::String)
         name::String = properties["id"]
         delete!(properties, "id")
         properties["text"] = tagtext
-        push!(comps, Component(name, string(name), properties))
+        push!(comps, name => Component(name, string(name), properties))
     end
-    return(comps)::Vector{Servable}
+    return(comps)::Dict{String, Component}
 end
 
 """
