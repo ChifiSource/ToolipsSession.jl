@@ -83,9 +83,18 @@ function htmlcomponent(s::String)
             continue
         end
         tagr::UnitRange = findnext(" ", s, tag[1])
-        nametag::String = s[minimum(tagr):maximum(tagr)]
-        textr::UnitRange = maximum(tag) + 1:findnext("<", s, maximum(tag))[1] - 1
-        tagtext::String = s[textr]
+        nametag::String = s[minimum(tag) + 1:maximum(tagr) - 1]
+        tagtext::String = ""
+        try
+            textr::UnitRange = maximum(tag) + 1:minimum(findnext("</$nametag", s, tag[1])[1]) - 1
+            tagtext = s[textr]
+            tagtext = replace(tagtext, "<br>" => "\n")
+            tagtext = replace(tagtext, "&nbsp" => " ")
+            tagtext = replace(tagtext, "&ensp" => "  ")
+            tagtext = replace(tagtext, "&emsp" => "    ")
+        catch
+            tagtext = ""
+        end
         propvec = split(s[maximum(tagr) + 1:maximum(tag) - 1], " ")
         properties::Dict{Any, Any} = Dict{Any, Any}()
         for segment in propvec
@@ -97,8 +106,8 @@ function htmlcomponent(s::String)
         end
         name::String = properties["id"]
         delete!(properties, "id")
-        properties["text"] = tagtext
-        push!(comps, name => Component(name, string(name), properties))
+        push!(properties, "text" => tagtext)
+        push!(comps, name => Component(name, string(nametag), properties))
     end
     return(comps)::Dict{String, Component}
 end
