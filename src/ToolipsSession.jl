@@ -182,6 +182,31 @@ function on(f::Function, c::Connection, s::Component,
 end
 
 """
+**Toolips Defaults**
+### observer(f::Function, c::Connection, time::Integer) -> _
+------------------
+Creates an observer.
+#### example
+```
+example_observer = observer("name")
+```
+"""
+function observer(f::Function, c::Connnection, event::String; time::Integer = 1000)
+    name = s.name
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][getip(c)], "$event$name" => f)
+    else
+        c[:Session][getip(c)] = Dict("$event$name" => f)
+    end
+    obsscript = script("observe$event", text = """
+    setTimeout(function () {
+      sendpage('event$name');
+   }, $time);
+   """)
+   return(obsscript)
+end
+
+"""
 **Session Interface**
 ### on(f::Function, c::Connection, event::AbstractString)
 ------------------
