@@ -3,6 +3,7 @@ import Toolips: StyleComponent, get, kill!, animate!, SpoofConnection
 import Toolips: style!, Servable, Connection
 import Base: setindex!, getindex, push!, append!
 
+abstract type Modifier <: Servable end
 """
 **Session Internals**
 ### htmlcomponent(s::String) -> ::Dict{String, Toolips.Component}
@@ -81,7 +82,7 @@ end
 ##### constructors
 ComponentModifier(html::String)
 """
-mutable struct ComponentModifier <: Servable
+mutable struct ComponentModifier <: Modifier
     rootc::Dict{String, Component}
     f::Function
     changes::Vector{String}

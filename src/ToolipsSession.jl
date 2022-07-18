@@ -128,7 +128,7 @@ mutable struct Session <: ServerExtension
                 """)
             end
         end
-        f(routes::Dict, ext::Dict) = begin
+        f(routes::Vector{Route}, ext::Vector{ServerExtension}) = begin
             routes["/modifier/linker"] = document_linker
         end
         new([:connection, :func, :routing], f, active_routes, events,
@@ -259,7 +259,6 @@ function on_keydown(f::Function, c::Connection, key::String)
         c[:Session][getip(c)] = Dict(ref => f)
     end
 end
-
 """
 **Session Interface**
 ### on_keyup(f::Function, c::Connection, key::AbstractString)
