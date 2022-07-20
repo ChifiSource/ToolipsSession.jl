@@ -77,15 +77,14 @@ mutable struct Session <: ServerExtension
     type::Vector{Symbol}
     f::Function
     active_routes::Vector{String}
-    events::Dict
+    events::Dict{String, Function}
     iptable::Dict{String, Dates.DateTime}
     timeout::Integer
     function Session(active_routes::Vector{String} = ["/"];
         transition_duration::AbstractFloat = 0.5,
-        transition::AbstractString = "ease-in-out", timeout::Integer = 30)
-        events = Dict()
-        timeout = timeout
-        transition = transition
+        transition::AbstractString = "ease-in-out", timeout::Integer = 30,
+        path::AbstractRoute = Route("/modifier/linker", x -> 5))
+        events = Dict{String, Function}()
         iptable = Dict{String, Dates.DateTime}()
         f(c::Connection, active_routes = active_routes) = begin
             fullpath = c.http.message.target
@@ -128,8 +127,9 @@ mutable struct Session <: ServerExtension
                 """)
             end
         end
-        f(routes::Vector{Route}, ext::Vector{ServerExtension}) = begin
-            routes["/modifier/linker"] = document_linker
+        f(routes::Vector{AbstractRoute}, ext::Vector{ServerExtension}) = begin
+            path.page = document_linker
+            push!(routes, path)
         end
         new([:connection, :func, :routing], f, active_routes, events,
         iptable, timeout)
@@ -327,7 +327,7 @@ Removes a given function call from a connection's Session.
 
 ```
 """
-function remove!(c::Connection, fname::AbstractString, s::Servable)
+function kill!(c::Connection, fname::AbstractString, s::Servable)
     refname = s.name * fname
     delete!(c[:Session][getip()], refname)
 end

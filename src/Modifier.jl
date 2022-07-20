@@ -678,3 +678,50 @@ function confirm_redirects!(cm::ComponentModifier)
     return true;
 };""")
 end
+
+"""
+**Session Interface**
+### free_redirects!(cm::ComponentModifier) -> _
+------------------
+Adds an "are you sure you want to leave this page... unsaved changes" pop-up
+ when trying to leave the page. Can be undone with free_redirects!
+#### example
+```
+
+```
+"""
+function confirm_redirects!(cm::ComponentModifier)
+    push!(cm.changes, """window.onbeforeunload = function() {
+    return true;
+};""")
+end
+
+function scroll_to!(cm::ComponentModifier, xy::Tuple{Int64, Int64})
+    push!(cm.changes, """window.scrollTo($(xy[1]), $(xy[2]))""")
+end
+
+function scroll_by!(cm::ComponentModifier, xy::Tuple{Int64, Int64})
+    push!(cm.changes, """window.scrollBy($(xy[1]), $(xy[2]))""")
+end
+
+function scroll_to!(cm::ComponentModifier, s::AbstractComponent,
+     xy::Tuple{Int64, Int64})
+     scroll_to!(cm, s, xy)
+end
+
+function scroll_by!(cm::ComponentModifier, s::AbstractComponent,
+    xy::Tuple{Int64, Int64})
+    scroll_by!(cm, s, xy)
+end
+
+function scroll_to!(cm::ComponentModifier, s::String,
+     xy::Tuple{Int64, Int64})
+     push!(cm.changes,
+     """document.getElementById('$s').scrollTo($(xy[1]), $(xy[2]))""")
+end
+
+function scroll_by!(cm::ComponentModifier, s::String,
+    xy::Tuple{Int64, Int64})
+    push!(cm.changes,
+    """document.getElementById('$s').scrollBy($(xy[1]), $(xy[2]))""")
+end
