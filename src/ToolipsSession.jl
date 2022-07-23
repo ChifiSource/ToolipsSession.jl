@@ -78,7 +78,7 @@ mutable struct Session <: ServerExtension
     type::Vector{Symbol}
     f::Function
     active_routes::Vector{String}
-    events::Dict{String, Function}
+    events::Dict{String, Dict{String, Function}}
     iptable::Dict{String, Dates.DateTime}
     timeout::Integer
     function Session(active_routes::Vector{String} = ["/"];
