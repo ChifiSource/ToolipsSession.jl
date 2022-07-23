@@ -16,6 +16,7 @@ also methods contained for modifying Servables.
 module ToolipsSession
 using Toolips
 import Toolips: ServerExtension, Servable, Connection, AbstractComponent
+import Toolips: AbstractRoute
 import Base: setindex!, getindex, push!
 using Random, Dates
 include("Modifier.jl")
