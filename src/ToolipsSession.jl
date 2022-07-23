@@ -85,9 +85,9 @@ mutable struct Session <: ServerExtension
         transition_duration::AbstractFloat = 0.5,
         transition::AbstractString = "ease-in-out", timeout::Integer = 30,
         path::AbstractRoute = Route("/modifier/linker", x -> 5))
-        events = Dict{String, Function}()
+        events = Dict{String, Dict{String, Function}}()
         iptable = Dict{String, Dates.DateTime}()
-        f(c::Connection, active_routes = active_routes) = begin
+        f(c::Connection, active_routes::Vector{String} = active_routes) = begin
             fullpath = c.http.message.target
             if contains(fullpath, '?')
                 fullpath = split(c.http.message.target, '?')[1]

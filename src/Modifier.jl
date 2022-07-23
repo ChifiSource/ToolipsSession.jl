@@ -679,23 +679,6 @@ function confirm_redirects!(cm::ComponentModifier)
 };""")
 end
 
-"""
-**Session Interface**
-### free_redirects!(cm::ComponentModifier) -> _
-------------------
-Adds an "are you sure you want to leave this page... unsaved changes" pop-up
- when trying to leave the page. Can be undone with free_redirects!
-#### example
-```
-
-```
-"""
-function confirm_redirects!(cm::ComponentModifier)
-    push!(cm.changes, """window.onbeforeunload = function() {
-    return true;
-};""")
-end
-
 function scroll_to!(cm::ComponentModifier, xy::Tuple{Int64, Int64})
     push!(cm.changes, """window.scrollTo($(xy[1]), $(xy[2]))""")
 end
