@@ -112,7 +112,7 @@ on(c, mydiv, "click") do cm::ComponentModifier
 end
 ```
 """
-setindex!(cm::ComponentModifier, p::Pair, s::Component) = modify!(cm, s, p)
+setindex!(cm::ComponentModifier, p::Pair, s::AbstractComponent) = modify!(cm, s, p)
 
 """
 **Session Interface**
@@ -145,7 +145,7 @@ on(c, mydiv, "click") do cm::ComponentModifier
 end
 ```
 """
-getindex(cc::ComponentModifier, s::Component) = cc.rootc[s.name]
+getindex(cc::ComponentModifier, s::AbstractComponent) = cc.rootc[s.name]
 
 """
 **Session Interface**
@@ -179,7 +179,7 @@ on(c, s, "click") do cm::ComponentModifier
 end
 ```
 """
-animate!(cm::ComponentModifier, s::Servable, a::Animation;
+animate!(cm::ComponentModifier, s::AbstractComponent, a::Animation;
      play::Bool = true) = animate!(cm, s.name, a; play = play)
 
 """
@@ -225,7 +225,7 @@ on(c, s, "click") do cm::ComponentModifier
 end
 ```
 """
-pauseanim!(cm::ComponentModifier, s::Servable) = pauseanim!(cm, s.name)
+pauseanim!(cm::ComponentModifier, s::Component{Any}) = pauseanim!(cm, s.name)
 
 """
 **Session Interface**
@@ -239,7 +239,7 @@ on(c, s, "click") do cm::ComponentModifier
 end
 ```
 """
-playanim!(cm::ComponentModifier, s::Servable) = playanim!(cm, s.name)
+playanim!(cm::ComponentModifier, s::Component{Any}) = playanim!(cm, s.name)
 
 """
 **Session Interface**
@@ -318,7 +318,7 @@ Modifies the key properties of p[1] to the value of p[2] on s.
 
 ```
 """
-function modify!(cm::ComponentModifier, s::Servable, p::Pair ...)
+function modify!(cm::ComponentModifier, s::Component{Any}, p::Pair ...)
     p = [pair for pair in p]
     modify!(cm, s, p)
 end
@@ -333,7 +333,7 @@ Modifies the key properties of i[1] => i[2] for i in p on s.
 
 ```
 """
-function modify!(cm::ComponentModifier, s::Servable,
+function modify!(cm::ComponentModifier, s::Component{Any},
     p::Vector{Pair{String, String}})
     [modify!(cm, s, z) for z in p]
 end
@@ -348,7 +348,7 @@ Modifies the key property p[1] to p[2] on s
 
 ```
 """
-modify!(cm::ComponentModifier, s::Servable, p::Pair) = modify!(cm, s.name, p)
+modify!(cm::ComponentModifier, s::Component{Any}, p::Pair) = modify!(cm, s.name, p)
 
 """
 **Session Interface**
