@@ -193,7 +193,6 @@ example_observer = observer("name")
 ```
 """
 function observer(f::Function, c::Connection, event::String; time::Integer = 1000)
-    name = s.name
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], event => f)
     else
