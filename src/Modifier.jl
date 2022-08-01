@@ -745,11 +745,11 @@ function scroll_by!(cm::Modifier, s::String,
     """document.getElementById('$s').scrollBy($(xy[1]), $(xy[2]))""")
 end
 
-function observe!(f::Function, c::Connection, cm::Modifier, name::String, time::Integer = 1)
+function observe!(f::Function, c::Connection, cm::Modifier, name::String, time::Integer = 1000)
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], name => f)
     else
         c[:Session][getip(c)] = Dict(name => f)
     end
-    push!(cm.changes, "setTimeout(sendpage('$name'), $time);")
+    push!(cm.changes, "new Promise(resolve => setTimeout(sendpage('$name'), $time));")
 end
