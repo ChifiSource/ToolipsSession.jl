@@ -747,9 +747,9 @@ end
 
 function observe!(f::Function, c::Connection, cm::Modifier, name::String, time::Integer = 1)
     if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], event => f)
+        push!(c[:Session][getip(c)], name => f)
     else
-        c[:Session][getip(c)] = Dict(event => f)
+        c[:Session][getip(c)] = Dict(name => f)
     end
     push!(cm.changes, "setTimeout(sendpage('$name'), $time);")
 end
