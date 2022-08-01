@@ -744,3 +744,7 @@ function scroll_by!(cm::Modifier, s::String,
     push!(cm.changes,
     """document.getElementById('$s').scrollBy($(xy[1]), $(xy[2]))""")
 end
+
+function observe!(f::Function, c::Connection, cm::Modifier, name::String, time::Integer = 1)
+    push!(cm.changes, "setTimeout(sendpage('$name'), $time);")
+end
