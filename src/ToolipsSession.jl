@@ -199,9 +199,7 @@ function observer(f::Function, c::Connection, event::String; time::Integer = 100
         c[:Session][getip(c)] = Dict(event => f)
     end
     obsscript = script(event, text = """
-    setTimeout(function () {
-      sendpage('$event');
-   }, $time);
+    sleep($time); sendpage($event);
    """)
    return(obsscript)
 end
