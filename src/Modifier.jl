@@ -599,6 +599,21 @@ end
 
 """
 **Session Interface**
+### style!(cm::Modifier, s::Servable, p::Pair{String, String}) -> _
+------------------
+Styles the Servable s with the properties and values in p.
+#### example
+```
+
+```
+"""
+function style!(cm::Modifier, s::String, p::Pair{String, String} ...)
+    p = [pair for pair in p]
+    style!(cm, s, p)
+end
+
+"""
+**Session Interface**
 ### style!(cm::Modifier, s::Servable, p::Pair) -> _
 ------------------
 Styles the Servable s with the properties and values in p.
@@ -638,6 +653,27 @@ Styles a Servable by name with the properties and values in p.
 function style!(cm::Modifier, s::Servable,
     p::Vector{Pair{String, String}})
     name = s.name
+    getelement = "var new_element = document.getElementById('$name');"
+    push!(cm.changes, getelement)
+    for pair in p
+        value = pair[2]
+        key = pair[1]
+        push!(cm.changes, "new_element.style['$key'] = '$value';")
+    end
+end
+
+"""
+**Session Interface**
+### style!(cm::Modifier, name::String, p::Vector{Pair{String, String}}) -> _
+------------------
+Styles a Servable by name with the properties and values in p.
+#### example
+```
+
+```
+"""
+function style!(cm::Modifier, name::String,
+    p::Vector{Pair{String, String}})
     getelement = "var new_element = document.getElementById('$name');"
     push!(cm.changes, getelement)
     for pair in p
