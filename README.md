@@ -4,7 +4,7 @@
 Toolips Session is a Server Extension for toolips that enables full-stack web-development capabilities. This extension is loaded by default whenever the `Toolips.new_webapp` from the base toolips package is used. Ideally, your project would be setup that way instead of by adding this directly; but of course, you can still add this directly.
 - [Documentation](https://doc.toolips.app/toolips_session/)
 - [Toolips](https://github.com/ChifiSource/Toolips.jl)
-- [Extension Gallery]()
+- [Extension Gallery](https://toolips.app/?page=gallery&selected=session)
 ##### Step 1: add to your dev.jl
 Add ToolipsSession to your dev.jl file. Note **if you use new_webapp** from Toolips, then you don't need to do any of this.
 ```julia
