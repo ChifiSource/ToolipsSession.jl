@@ -165,7 +165,7 @@ route("/") do c::Connection
 end
 ```
 """
-setindex!(m::Session, d::Dict{String, Function}, s::AbstractString) = m.events[s] = d
+setindex!(m::Session, d::Any, s::AbstractString) = m.events[s] = d
 
 """
 **Interface**
