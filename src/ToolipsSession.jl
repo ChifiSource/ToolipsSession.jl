@@ -175,15 +175,15 @@ end
 function on(f::Function, c::Connection, s::AbstractComponent,
      event::AbstractString, readonly::Vector{String} = Vector{String}())
     name::String = s.name
-    ip::String = getip(c)
+    ip::String = string(getip(c))
     s["on$event"] = "sendpage('$event$name');"
     if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], "$event$name" => f)
+        push!(c[:Session][ip], "$event$name" => f)
     else
-        c[:Session][getip(c)] = Dict("$event$name" => f)
+        c[:Session][ip] = Dict("$event$name" => f)
     end
     if length(readonly) > 0
-        c[:Session].readonly("$ip$event$name")
+        c[:Session].readonly["$ip$event$name"] = readonly
     end
 end
 
@@ -221,7 +221,7 @@ function observer(f::Function, c::Connection, event::String,
     new Promise(resolve => setIntervalimeout(sendpage('$event'), $time));
    """)
    if length(readonly) > 0
-       c[:Session].readonly("$ip$event$name")
+       c[:Session].readonly["$ip$event$name"] = readonly
    end
    return(obsscript)
 end
@@ -257,7 +257,7 @@ function on(f::Function, c::Connection, event::AbstractString,
         c[:Session][getip(c)] = Dict("$ref" => f)
     end
     if length(readonly) > 0
-        c[:Session].readonly("$ip$event$name")
+        c[:Session].readonly["$ip$event$name"] = readonly
     end
 end
 
@@ -291,7 +291,7 @@ function on_keydown(f::Function, c::Connection, key::String,
         c[:Session][getip(c)] = Dict(ref => f)
     end
     if length(readonly) > 0
-        c[:Session].readonly("$ip$event$name")
+        c[:Session].readonly["$ip$event$name"] = readonly
     end
 end
 """
@@ -324,7 +324,7 @@ function on_keyup(f::Function, c::Connection, key::String,
         c[:Session][getip(c)] = Dict(ref => f)
     end
     if length(readonly) > 0
-        c[:Session].readonly("$ip$event$name")
+        c[:Session].readonly["$ip$event$name"] = readonly
     end
 end
 
