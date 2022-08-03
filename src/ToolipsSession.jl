@@ -366,7 +366,7 @@ function document_linker(c::Connection)
         c[:Session].iptable[getip(c)] = now()
     end
     if getip(c) in keys(c[:Session].events)
-        if ref in keys(c[:Session].readonly[getip(c) * ref])
+        if ref in keys(c[:Session].readonly[getip(c)])
             cm::ComponentModifier = ComponentModifier(s, c[:Session].readonly[getip(c) * ref])
         else
             cm = ComponentModifier(s)
