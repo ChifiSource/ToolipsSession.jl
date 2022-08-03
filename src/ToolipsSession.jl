@@ -307,7 +307,7 @@ function on_keydown(f::Function, c::Connection, key::String,
         c[:Session][ip] = Dict(key => f)
     end
     if length(readonly) > 0
-        c[:Session].readonly["$ip$event$name"] = readonly
+        c[:Session].readonly["$ip$key"] = readonly
     end
 end
 """
@@ -341,7 +341,7 @@ function on_keyup(f::Function, c::Connection, key::String,
         c[:Session][ip] = Dict(key => f)
     end
     if length(readonly) > 0
-        c[:Session].readonly["$ip$event$name"] = readonly
+        c[:Session].readonly["$ip$key"] = readonly
     end
 end
 
