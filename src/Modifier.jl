@@ -27,11 +27,15 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
         tagr::UnitRange = findnext(" ", s, tag[1])
         nametag::String = s[minimum(tag) + 1:maximum(tagr) - 1]
         namestart::UnitRange = findnext("id=", s, tag[1])
-        if ~(isnothing(namestart))
+        if ~(isnothing(namestart)) && length(readonly) > 0
+            try
             nameranger::UnitRange = namestart[2] + 2:(findnext(" ", s, namestart[1])[1] - 1)
-            if length(readonly) > 0 && ~(replace(s[nameranger], "\"" => "") in readonly)
+            if ~(replace(s[nameranger], "\"" => "") in readonly)
                 continue
             end
+        catch
+            continue
+        end
         end
         tagtext::String = ""
         try
