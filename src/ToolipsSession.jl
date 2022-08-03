@@ -358,7 +358,7 @@ data is posted to for a response.
 """
 function document_linker(c::Connection)
     s::String = getpost(c)
-    ip::String = getip
+    ip::String = getip(c)
     reftag::Vector{UnitRange{Int64}} = findall("?CM?:", s)
     ref_r::UnitRange{Int64} = reftag[1][2] + 4:length(s)
     ref::String = s[ref_r]
