@@ -44,8 +44,9 @@ end
 - f::Function
 - active_routes::Vector{String}
 - events::Dict{String, Pair{String, Function}}
+- readonly::Dict{String, Vector{String}}
 - iptable::Dict{String, Dates.DateTime}
-- timeout::Integer \
+- timeout::Integer\n
 Provides session capabilities and full-stack interactivity to a toolips server.
 Note that the route you want to be interactive **must** be in active_routes!
 ##### example
@@ -203,7 +204,7 @@ end
 
 """
 **Toolips Defaults**
-### observer(f::Function, c::Connection, readonly::Vector{String} = Vector{String}(); time::Integer = 1000) -> _
+### observer(f::Function, c::Connection, readonly::Vector{String} = Vector{String}(); time::Integer = 1000) -> Component{:script}
 ------------------
 Creates an observer.
 #### example
@@ -299,10 +300,11 @@ function on_keydown(f::Function, c::Connection, key::String,
         }
     });</script>
     """)
+    ip::String = getip(c)
     if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], key => f)
+        push!(c[:Session][ip], key => f)
     else
-        c[:Session][getip(c)] = Dict(key => f)
+        c[:Session][ip] = Dict(key => f)
     end
     if length(readonly) > 0
         c[:Session].readonly["$ip$event$name"] = readonly
@@ -332,10 +334,11 @@ function on_keyup(f::Function, c::Connection, key::String,
         }
     });</script>
     """)
+    ip::String = getip(c)
     if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], key => f)
+        push!(c[:Session][ip], key => f)
     else
-        c[:Session][getip(c)] = Dict(key => f)
+        c[:Session][ip] = Dict(key => f)
     end
     if length(readonly) > 0
         c[:Session].readonly["$ip$event$name"] = readonly

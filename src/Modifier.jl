@@ -622,7 +622,6 @@ Retrieves the text of a given Component.
 ```
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment", align = "left")
-    newptext = p("newp", text = "this text is added to our div")
     mydiv = div("mydiv")
     on(c, mybutton, "click") do cm::Modifier
         current_buttont = get_text(cm, mybutton)
@@ -643,7 +642,6 @@ Retrieves the text of a given Component by name
 ```
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment", align = "left")
-    newptext = p("newp", text = "this text is added to our div")
     mydiv = div("mydiv")
     on(c, mybutton, "click") do cm::Modifier
         current_buttont = get_text(cm, "mybutton")
@@ -666,7 +664,6 @@ written to the Connection** prior.
 function home(c::Connection)
     mystyle = Style("newclass", "background-color" => "blue")
     mybutton = button("mybutton", text = "click to change alignment")
-    newptext = p("newp", text = "this text is added to our div")
     mydiv = div("mydiv")
     on(c, mybutton, "click") do cm::Modifier
         style!(cm, mybutton, mystyle)
@@ -688,7 +685,16 @@ Changes the style class of a Servable by name to the style p by name.
 Note -- **styles must be already written to the Connection** prior.
 #### example
 ```
-
+function home(c::Connection)
+    mystyle = Style("newclass", "background-color" => "blue")
+    mybutton = button("mybutton", text = "click to change alignment")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        style!(cm, mybutton, "newclass") #<- name of mystyle
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 function style!(cc::Modifier, name::String,  sname::String)
@@ -702,7 +708,15 @@ end
 Styles the Servable s with the properties and values in p.
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        style!(cm, mybutton, "background-color" => "lightblue", "color" => "white")
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 function style!(cm::Modifier, s::Servable, p::Pair{String, String} ...)
@@ -712,12 +726,20 @@ end
 
 """
 **Session Interface**
-### style!(cm::Modifier, s::Servable, p::Pair{String, String}) -> _
+### style!(cm::Modifier, s::String, p::Pair{String, String}) -> _
 ------------------
-Styles the Servable s with the properties and values in p.
+Styles the Servable s by name with the properties and values in p.
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        style!(cm, "mybutton", "background-color" => "lightblue", "color" => "white")
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 function style!(cm::Modifier, s::String, p::Pair{String, String} ...)
@@ -729,10 +751,18 @@ end
 **Session Interface**
 ### style!(cm::Modifier, s::Servable, p::Pair) -> _
 ------------------
-Styles the Servable s with the properties and values in p.
+Styles the Servable s with the property and value in p.
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        style!(cm, mybutton, "background-color" => "lightblue")
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 style!(cm::Modifier, s::Servable, p::Pair) = style!(cm, s.name, p)
@@ -741,10 +771,18 @@ style!(cm::Modifier, s::Servable, p::Pair) = style!(cm, s.name, p)
 **Session Interface**
 ### style!(cm::Modifier, name::String, p::Pair) -> _
 ------------------
-Styles a Servable by name with the properties and values in p.
+Styles a Servable by name with the property and value in p.
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        style!(cm, "mybutton", "background-color" => "lightblue")
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 function style!(cm::Modifier, name::String, p::Pair)
@@ -760,7 +798,15 @@ end
 Styles a Servable by name with the properties and values in p.
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        style!(cm, mybutton, ["background-color" => "lightblue"])
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 function style!(cm::Modifier, s::Servable,
@@ -782,7 +828,15 @@ end
 Styles a Servable by name with the properties and values in p.
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        style!(cm, "mybutton", "background-color" => "lightblue")
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 function style!(cm::Modifier, name::String,
@@ -804,7 +858,21 @@ Removes the "are you sure you wish to leave" box that can be created with
 confirm_redirects!
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment", redirects = "free")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        if cm[mybutton]["redirects"] == "free"
+            confirm_redirects!(cm)
+            cm[mybutton] = "redirects" => "confirm"
+        else
+            free_redirects!(cm)
+            cm[mybutton] = "redirects" => "free"
+        end
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 function free_redirects!(cm::Modifier)
@@ -819,7 +887,21 @@ Adds an "are you sure you want to leave this page... unsaved changes" pop-up
  when trying to leave the page. Can be undone with `free_redirects!`
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment", redirects = "free")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        if cm[mybutton]["redirects"] == "free"
+            confirm_redirects!(cm)
+            cm[mybutton] = "redirects" => "confirm"
+        else
+            free_redirects!(cm)
+            cm[mybutton] = "redirects" => "free"
+        end
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 function confirm_redirects!(cm::Modifier)
@@ -828,36 +910,166 @@ function confirm_redirects!(cm::Modifier)
 };""")
 end
 
+"""
+**Session Interface**
+### scroll_to!(cm::Modifier, xy::Tuple{Int64, Int64}) -> _
+------------------
+Sets the page scroll to xy.
+#### example
+```
+function home(c::Connection)
+    mybutton = button("mybutton", text = "button")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        scroll_to!(cm, (0, 15))
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
+```
+"""
 function scroll_to!(cm::Modifier, xy::Tuple{Int64, Int64})
-    push!(cm.changes, """window.scrollTo($(xy[1]), $(xy[2]))""")
+    push!(cm.changes, """window.scrollTo($(xy[1]), $(xy[2]));""")
 end
 
+"""
+**Session Interface**
+### scroll_by!(cm::Modifier, xy::Tuple{Int64, Int64}) -> _
+------------------
+Scrolls the page by xy.
+#### example
+```
+function home(c::Connection)
+    mybutton = button("mybutton", text = "button")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        scroll_by!(cm, (0, 15))
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
+```
+"""
 function scroll_by!(cm::Modifier, xy::Tuple{Int64, Int64})
-    push!(cm.changes, """window.scrollBy($(xy[1]), $(xy[2]))""")
+    push!(cm.changes, """window.scrollBy($(xy[1]), $(xy[2]));""")
 end
 
+"""
+**Session Interface**
+### scroll_to!(cm::Modifier, s::AbstractComponent, xy::Tuple{Int64, Int64}) -> _
+------------------
+Sets the Component's scroll to xy.
+#### example
+```
+function home(c::Connection)
+    mybutton = button("mybutton", text = "button")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        scroll_to!(cm, mydiv, (0, 15))
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
+```
+"""
 function scroll_to!(cm::Modifier, s::AbstractComponent,
      xy::Tuple{Int64, Int64})
      scroll_to!(cm, s, xy)
 end
 
+"""
+**Session Interface**
+### scroll_by!(cm::Modifier, s::AbstractComponent, xy::Tuple{Int64, Int64}) -> _
+------------------
+Scrolls the Component `s` by xy.
+#### example
+```
+function home(c::Connection)
+    mybutton = button("mybutton", text = "button")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        scroll_by!(cm, mydiv, (0, 15))
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
+```
+"""
 function scroll_by!(cm::Modifier, s::AbstractComponent,
     xy::Tuple{Int64, Int64})
     scroll_by!(cm, s, xy)
 end
 
+"""
+**Session Interface**
+### scroll_to!(cm::Modifier, s::String, xy::Tuple{Int64, Int64}) -> _
+------------------
+Sets the Component's scroll to xy by name.
+#### example
+```
+function home(c::Connection)
+    mybutton = button("mybutton", text = "button")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        scroll_to!(cm, "mydiv", (0, 15))
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
+```
+"""
 function scroll_to!(cm::Modifier, s::String,
      xy::Tuple{Int64, Int64})
      push!(cm.changes,
-     """document.getElementById('$s').scrollTo($(xy[1]), $(xy[2]))""")
+     """document.getElementById('$s').scrollTo($(xy[1]), $(xy[2]));""")
 end
 
+"""
+**Session Interface**
+### scroll_by!(cm::Modifier, s::String, xy::Tuple{Int64, Int64}) -> _
+------------------
+Scrolls the Component `s` by xy by name.
+#### example
+```
+function home(c::Connection)
+    mybutton = button("mybutton", text = "button")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        scroll_by!(cm, "mydiv", (0, 15))
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
+```
+"""
 function scroll_by!(cm::Modifier, s::String,
     xy::Tuple{Int64, Int64})
     push!(cm.changes,
     """document.getElementById('$s').scrollBy($(xy[1]), $(xy[2]))""")
 end
 
+"""
+**Session Interface**
+### observe!(f::Function, c::Connection, cm::Modifier, name::String, time::Integer = 1000) -> _
+------------------
+Creates a new event to happen in `time`. This is useful if you want to have a delay before
+some initial session call
+#### example
+```
+function home(c::Connection)
+    mybutton = button("mybutton", text = "button")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        scroll_by!(cm, "mydiv", (0, 15))
+        observe!(c, cm, "myobs", 1000) do cm::ComponentModifier
+            scroll_by!(cm, "mydiv", (0, -15)) # < scrolls  the div back up after 1 second.
+        end
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
+```
+"""
 function observe!(f::Function, c::Connection, cm::Modifier, name::String, time::Integer = 1000)
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], name => f)
