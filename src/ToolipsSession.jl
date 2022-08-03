@@ -342,7 +342,7 @@ data is posted to for a response.
 function document_linker(c::Connection)
     s::String = getpost(c)
     reftag::Vector{UnitRange{Int64}} = findall("?CM?:", s)
-    ref_r = reftag[1][2] + 4:length(s)
+    ref_r::UnitRange{Int64} = reftag[1][2] + 4:length(s)
     ref::String = s[ref_r]
     s = replace(s, "?CM?:$ref" => "")
     if getip(c) in keys(c[:Session].iptable)
@@ -352,7 +352,7 @@ function document_linker(c::Connection)
         if ref in keys(c[:Session].readonly[getip(c) * ref])
             cm::ComponentModifier = ComponentModifier(s, c[:Session].readonly[getip(c) * ref])
         else
-            cm::ComponentModifier = ComponentModifier(s)
+            cm = ComponentModifier(s)
             c[:Session][getip(c)][ref](cm)
             write!(c, " ")
             write!(c, cm)
