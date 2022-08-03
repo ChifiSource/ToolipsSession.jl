@@ -331,9 +331,12 @@ Modifies the key properties of p[1] to the value of p[2] on s. This can also be
 done with setindex!
 #### example
 ```
-url = "https://toolips.app"
-on(c, s, "click") do cm::Modifier
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment", align = "left")
+    on(c, mybutton, "click") do cm::Modifier
+        cm[mybutton] = "align" = "center"
+    end
+    write!(c, mybutton)
 end
 ```
 """
@@ -347,10 +350,6 @@ end
 ### modify!(cm::Modifier, s::Servable, p::Vector{Pair{String, String}}) -> _
 ------------------
 Modifies the key properties of i[1] => i[2] for i in p on s.
-#### example
-```
-
-```
 """
 function modify!(cm::Modifier, s::AbstractComponent,
     p::Vector{Pair{String, String}})
@@ -362,10 +361,6 @@ end
 ### modify!(cm::Modifier, s::Servable, p::Pair) -> _
 ------------------
 Modifies the key property p[1] to p[2] on s
-#### example
-```
-
-```
 """
 modify!(cm::Modifier, s::AbstractComponent, p::Pair) = modify!(cm, s.name, p)
 
@@ -374,10 +369,6 @@ modify!(cm::Modifier, s::AbstractComponent, p::Pair) = modify!(cm, s.name, p)
 ### modify!(cm::Modifier, s::Servable, p::Pair) -> _
 ------------------
 Modifies the key property p[1] to p[2] on s
-#### example
-```
-
-```
 """
 function modify!(cm::Modifier, s::String, p::Pair)
     key, val = p[1], p[2]
@@ -390,10 +381,18 @@ end
 **Session Interface**
 ### move!(cm::Modifier, p::Pair{Servable, Servable}) -> _
 ------------------
-Moves the servable p[2] to be a child of p[1]
+Moves the servable p[2] to be a child of p[1].
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment", align = "left")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        move!(cm, mybutton => mydiv)
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 move!(cm::Modifier, p::Pair{Servable, Servable}) = move!(cm,
@@ -406,7 +405,15 @@ move!(cm::Modifier, p::Pair{Servable, Servable}) = move!(cm,
 Moves the servable p[2] to be a child of p[1] by name.
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment", align = "left")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        move!(cm, "mybutton" => "mydiv")
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 function move!(cm::Modifier, p::Pair{String, String})
@@ -426,7 +433,13 @@ end
 Removes the servable s.
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment", align = "left")
+    on(c, mybutton, "click") do cm::Modifier
+        remove!(cm, mybutton)
+    end
+    write!(c, mybutton)
+end
 ```
 """
 remove!(cm::Modifier, s::Servable) = remove!(cm, s.name)
@@ -438,7 +451,13 @@ remove!(cm::Modifier, s::Servable) = remove!(cm, s.name)
 Removes the servable s by name.
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment", align = "left")
+    on(c, mybutton, "click") do cm::Modifier
+        remove!(cm, "mybutton")
+    end
+    write!(c, mybutton)
+end
 ```
 """
 function remove!(cm::Modifier, s::String)
@@ -452,7 +471,13 @@ end
 Sets the inner HTML of a Servable.
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change text")
+    on(c, mybutton, "click") do cm::Modifier
+        set_text!(cm, mybutton, "changed text")
+    end
+    write!(c, mybutton)
+end
 ```
 """
 set_text!(cm::Modifier, s::Servable, txt::String) = set_text!(cm,
@@ -465,7 +490,13 @@ set_text!(cm::Modifier, s::Servable, txt::String) = set_text!(cm,
 Sets the inner HTML of a Servable by name
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change text")
+    on(c, "mybutton", "click") do cm::Modifier
+        set_text!(cm, mybutton, "changed text")
+    end
+    write!(c, mybutton)
+end
 ```
 """
 function set_text!(c::Modifier, s::String, txt::String)
@@ -479,7 +510,15 @@ end
 Sets the children of a given component.
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment", align = "left")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        set_children!(cm, mydiv, [mybutton])
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 function set_children!(cm::Modifier, s::Servable, v::Vector{Servable})
@@ -493,7 +532,16 @@ end
 Sets the children of a given component by name.
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment", align = "left")
+    newptext = p("newp", text = "this text is added to our div")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        set_children!(cm, "mydiv", [newptext])
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 function set_children!(cm::Modifier, s::String, v::Vector{Servable})
@@ -510,7 +558,16 @@ end
 Appends child to the servable s.
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment", align = "left")
+    newptext = p("newp", text = "this text is added to our div")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        append!(cm, mydiv, newptext)
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 function append!(cm::Modifier, s::Servable, child::Servable)
@@ -524,7 +581,16 @@ end
 Appends child to the servable s by name.
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment", align = "left")
+    newptext = p("newp", text = "this text is added to our div")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        append!(cm, "mydiv", newptext)
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 function append!(cm::Modifier, name::String, child::Servable)
@@ -554,7 +620,16 @@ end
 Retrieves the text of a given Component.
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment", align = "left")
+    newptext = p("newp", text = "this text is added to our div")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        current_buttont = get_text(cm, mybutton)
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 get_text(cm::Modifier, s::Component) = cm[s][:text]
@@ -566,7 +641,16 @@ get_text(cm::Modifier, s::Component) = cm[s][:text]
 Retrieves the text of a given Component by name
 #### example
 ```
-
+function home(c::Connection)
+    mybutton = button("mybutton", text = "click to change alignment", align = "left")
+    newptext = p("newp", text = "this text is added to our div")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        current_buttont = get_text(cm, "mybutton")
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 get_text(cm::Modifier, s::String) = cm[s][:text]
@@ -579,7 +663,17 @@ Changes the style class of s to the style p. Note -- **styles must be already
 written to the Connection** prior.
 #### example
 ```
-
+function home(c::Connection)
+    mystyle = Style("newclass", "background-color" => "blue")
+    mybutton = button("mybutton", text = "click to change alignment")
+    newptext = p("newp", text = "this text is added to our div")
+    mydiv = div("mydiv")
+    on(c, mybutton, "click") do cm::Modifier
+        style!(cm, mybutton, mystyle)
+    end
+    write!(c, mybutton)
+    write!(c, mydiv)
+end
 ```
 """
 function style!(cm::Modifier, s::Servable,  style::Style)
@@ -719,10 +813,10 @@ end
 
 """
 **Session Interface**
-### free_redirects!(cm::Modifier) -> _
+### confirm_redirects!(cm::Modifier) -> _
 ------------------
 Adds an "are you sure you want to leave this page... unsaved changes" pop-up
- when trying to leave the page. Can be undone with free_redirects!
+ when trying to leave the page. Can be undone with `free_redirects!`
 #### example
 ```
 

@@ -155,7 +155,7 @@ getindex(m::Session, s::AbstractString) = m.events[s]
 
 """
 **Interface**
-### on(f::Function, c::Connection, s::Component, event::AbstractString)
+### on(f::Function, c::Connection, s::Component, event::AbstractString, readonly::Vector{String} = Vector{String})
 ------------------
 Creates a new event for the current IP in a session. Performs the function on
     the event. The function should take a ComponentModifier as an argument.
@@ -163,13 +163,12 @@ Creates a new event for the current IP in a session. Performs the function on
 ```
 route("/") do c::Connection
     myp = p("hello", text = "wow")
-    timer = TimedTrigger(5000) do cm::ComponentModifier
+    on(c, myp, "click")
         if cm[myp][:text] == "wow"
             c[:Logger].log("wow.")
         end
     end
     write!(c, myp)
-    write!(c, timer)
 end
 ```
 """
@@ -190,7 +189,7 @@ end
 
 """
 **Toolips Defaults**
-### observer(f::Function, c::Connection, readonly::Vector{String} = Vector{String}(), time::Integer) -> _
+### observer(f::Function, c::Connection, readonly::Vector{String} = Vector{String}(); time::Integer = 1000) -> _
 ------------------
 Creates an observer.
 #### example
@@ -264,7 +263,7 @@ end
 
 """
 **Session Interface**
-### on_keydown(f::Function, c::Connection, key::AbstractString)
+### on_keydown(f::Function, c::Connection, key::AbstractString, readonly::Vector{String} = Vector{String})
 ------------------
 Creates a new event for the current IP in a session. Performs f when the key
     is pressed.
@@ -297,13 +296,17 @@ function on_keydown(f::Function, c::Connection, key::String,
 end
 """
 **Session Interface**
-### on_keyup(f::Function, c::Connection, key::AbstractString)
+### on_keyup(f::Function, c::Connection, key::AbstractString, readonly::Vector{String} = Vector{String})
 ------------------
 Creates a new event for the current IP in a session. Performs f when the key
     is brought up.
 #### example
 ```
-
+home = route("/") do c::Connection
+    on_keydown(c, "ArrowRight") do cm::ComponentModifier
+        alert!(cm, "right arrow press.")
+    end
+end
 ```
 """
 function on_keyup(f::Function, c::Connection, key::String,
