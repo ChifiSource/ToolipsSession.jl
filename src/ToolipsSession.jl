@@ -79,6 +79,7 @@ mutable struct Session <: ServerExtension
     f::Function
     active_routes::Vector{String}
     events::Dict{String, Dict{String, Function}}
+    readonly::Dict{String, Vector{String}}
     iptable::Dict{String, Dates.DateTime}
     timeout::Integer
     function Session(active_routes::Vector{String} = ["/"];
@@ -87,6 +88,7 @@ mutable struct Session <: ServerExtension
         path::AbstractRoute = Route("/modifier/linker", x -> 5))
         events = Dict{String, Dict{String, Function}}()
         iptable = Dict{String, Dates.DateTime}()
+        readonly = copy(events)
         f(c::Connection, active_routes::Vector{String} = active_routes) = begin
             fullpath = c.http.message.target
             if contains(fullpath, '?')
@@ -133,7 +135,7 @@ mutable struct Session <: ServerExtension
             push!(routes, path)
         end
         new([:connection, :func, :routing], f, active_routes, events,
-        iptable, timeout)
+        iptable, readonly, timeout)
     end
 end
 
@@ -171,45 +173,69 @@ route("/") do c::Connection
 end
 ```
 """
-function on(f::Function, c::Connection, s::Component,
-     event::AbstractString)
-    name = s.name
+function on(f::Function, c::Connection, s::AbstractComponent,
+     event::AbstractString, readonly::Vector{String} = Vector{String}())
+    name::String = s.name
+    ip::String = getip(c)
     s["on$event"] = "sendpage('$event$name');"
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], "$event$name" => f)
     else
         c[:Session][getip(c)] = Dict("$event$name" => f)
     end
+    if length(readonly) > 0
+        c[:Session].readonly("$ip$event$name")
+    end
 end
 
 """
 **Toolips Defaults**
-### observer(f::Function, c::Connection, time::Integer) -> _
+### observer(f::Function, c::Connection, readonly::Vector{String} = Vector{String}(), time::Integer) -> _
 ------------------
 Creates an observer.
 #### example
 ```
-example_observer = observer("name")
+len = 10
+home = route("/") do c::Connection
+    lenp = p("lenp", text = 10)
+    example_observer = observer(c, "observepage") do cm::ComponentModifier
+        if len > 0
+            len -= 1
+            set_text!(cm, lenp, string(len))
+        else
+            remove!(cm, "observepage")
+        end
+    end
+    write!(c, lenp)
+    write!(c, example_observer)
+end
 ```
 """
-function observer(f::Function, c::Connection, event::String; time::Integer = 1000)
+function observer(f::Function, c::Connection, event::String,
+    readonly::Vector{String} = Vector{String}(); time::Integer = 1000)
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], event => f)
     else
         c[:Session][getip(c)] = Dict(event => f)
     end
     obsscript = script(event, text = """
-    new Promise(resolve => setTimeout(sendpage('$event'), $time));
+    new Promise(resolve => setIntervalimeout(sendpage('$event'), $time));
    """)
+   if length(readonly) > 0
+       c[:Session].readonly("$ip$event$name")
+   end
    return(obsscript)
 end
 
 """
 **Session Interface**
-### on(f::Function, c::Connection, event::AbstractString)
+### on(f::Function, c::Connection, event::AbstractString, readonly::Vector{String} = Vector{String}())
 ------------------
 Creates a new event for the current IP in a session. Performs the function on
     the event. The function should take a ComponentModifier as an argument.
+    readonly will provide certain names to be read into the ComponentModifier.
+    This can help to improve Session's performance, as it will need to parse
+    less Components.
 #### example
 ```
 route("/") do c::Connection
@@ -221,7 +247,8 @@ route("/") do c::Connection
 end
 ```
 """
-function on(f::Function, c::Connection, event::AbstractString)
+function on(f::Function, c::Connection, event::AbstractString,
+    readonly::Vector{String} = Vector{String}()
     ref = gen_ref()
     write!(c,
         "<script>document.addEventListener('$event', sendpage($ref));</script>")
@@ -229,6 +256,9 @@ function on(f::Function, c::Connection, event::AbstractString)
         push!(c[:Session][getip(c)], "$ref" => f)
     else
         c[:Session][getip(c)] = Dict("$ref" => f)
+    end
+    if length(readonly) > 0
+        c[:Session].readonly("$ip$event$name")
     end
 end
 
@@ -240,10 +270,15 @@ Creates a new event for the current IP in a session. Performs f when the key
     is pressed.
 #### example
 ```
-
+home = route("/") do c::Connection
+    on_keydown(c, "ArrowRight") do cm::ComponentModifier
+        alert!(cm, "right arrow press.")
+    end
+end
 ```
 """
-function on_keydown(f::Function, c::Connection, key::String)
+function on_keydown(f::Function, c::Connection, key::String,
+    readonly::Vector{String} = Vector{String}())
     write!(c, """<script>
     document.addEventListener('keydown', function(event) {
         if (event.key == "$key") {
@@ -255,6 +290,9 @@ function on_keydown(f::Function, c::Connection, key::String)
         push!(c[:Session][getip(c)], key => f)
     else
         c[:Session][getip(c)] = Dict(ref => f)
+    end
+    if length(readonly) > 0
+        c[:Session].readonly("$ip$event$name")
     end
 end
 """
@@ -268,7 +306,8 @@ Creates a new event for the current IP in a session. Performs f when the key
 
 ```
 """
-function on_keyup(f::Function, c::Connection, key::String)
+function on_keyup(f::Function, c::Connection, key::String,
+    readonly::Vector{String} = Vector{String}())
     write!(c, """<script>
     document.addEventListener('keyup', function(event) {
         if (event.key == "$key") {
@@ -280,6 +319,9 @@ function on_keyup(f::Function, c::Connection, key::String)
         push!(c[:Session][getip(c)], key => f)
     else
         c[:Session][getip(c)] = Dict(ref => f)
+    end
+    if length(readonly) > 0
+        c[:Session].readonly("$ip$event$name")
     end
 end
 
@@ -296,33 +338,39 @@ data is posted to for a response.
 """
 function document_linker(c::Connection)
     s::String = getpost(c)
-    reftag = findall("?CM?:", s)
+    reftag::Vector{UnitRange{Int64}} = findall("?CM?:", s)
     ref_r = reftag[1][2] + 4:length(s)
     ref::String = s[ref_r]
     s = replace(s, "?CM?:$ref" => "")
-    cm::ComponentModifier = ComponentModifier(s)
     if getip(c) in keys(c[:Session].iptable)
         c[:Session].iptable[getip(c)] = now()
-    else
-        write!(c, "timeout"); return
     end
     if getip(c) in keys(c[:Session].events)
-        c[:Session][getip(c)][ref](cm)
-        write!(c, " ")
-        write!(c, cm)
-    else
-        write!(c, "timeout")
+        if ref in keys(c[:Session].readonly[getip(c) * ref])
+            cm::ComponentModifier = ComponentModifier(s, c[:Session].readonly[getip(c) * ref])
+        else
+            cm::ComponentModifier = ComponentModifier(s)
+            c[:Session][getip(c)][ref](cm)
+            write!(c, " ")
+            write!(c, cm)
+        end
     end
 end
 
 """
 **Session Interface**
-### remove!(c::Connection, fname::AbstractString, s::Servable) -> _
+### kill!(c::Connection, event::AbstractString, s::Servable) -> _
 ------------------
-Removes a given function call from a connection's Session.
+Removes a given event call from a connection's Session.
 #### example
 ```
-
+route("/") do c::Connection
+    myp = p("hello", text = "wow")
+    on(c, "load") do cm::ComponentModifier
+        set_text!(cm, myp, "not so wow")
+    end
+    write!(c, myp)
+end
 ```
 """
 function kill!(c::Connection, fname::AbstractString, s::Servable)

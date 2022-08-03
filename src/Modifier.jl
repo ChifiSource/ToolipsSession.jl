@@ -17,7 +17,7 @@ comp["hello"]["align"]
     "center"
 ```
 """
-function htmlcomponent(s::String)
+function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
     tagpos::Vector{UnitRange{Int64}} = [f[1]:e[1] for (f, e) in zip(findall("<", s), findall(">", s))]
     comps::Dict{String, Component} = Dict{String, Component}()
     for tag::UnitRange in tagpos
@@ -26,6 +26,9 @@ function htmlcomponent(s::String)
         end
         tagr::UnitRange = findnext(" ", s, tag[1])
         nametag::String = s[minimum(tag) + 1:maximum(tagr) - 1]
+        if length(readonly) > 0 && ~(nametag in readonly)
+            continue
+        end
         tagtext::String = ""
         try
             textr::UnitRange = maximum(tag) + 1:minimum(findnext("</$nametag", s, tag[1])[1]) - 1
@@ -80,19 +83,28 @@ end
 ```
 ------------------
 ##### constructors
-ComponentModifier(html::String)
+- ComponentModifier(html::String)
+- ComponentModifier(html::String, readonly::Vector{String})
 """
 mutable struct ComponentModifier <: Modifier
-    rootc::Dict{String, Component}
+    rootc::Dict{String, AbstractComponent}
     f::Function
     changes::Vector{String}
     function ComponentModifier(html::String)
-        rootc = htmlcomponent(html)
+        rootc::Dict{String, AbstractComponent} = htmlcomponent(html)
+        changes::Vector{String} = Vector{String}()
         f(c::Connection) = begin
             write!(c, join(changes))
         end
-        changes = Vector{String}()
-        new(rootc, f, changes)
+        new(rootc, f, changes)::ComponentModifier
+    end
+    function ComponentModifier(html::String, readonly::Vector{String})
+        rootc::Dict{String, AbstractComponent} = htmlcomponent(html, readonly)
+        changes::Vector{String} = Vector{String}()
+        f(c::Connection) = begin
+            write!(c, join(changes))
+        end
+        new(rootc, f, changes)::ComponentModifier
     end
 end
 
@@ -297,7 +309,10 @@ alert!(cm::Modifier, s::AbstractString) = push!(cm.changes,
 Redirects the session to **url**. Can be given delay with **delay**.
 #### example
 ```
-
+url = "https://toolips.app"
+on(c, s, "click") do cm::Modifier
+    redirect!(cm, url, 3) # waits three seconds, then navigates to toolips.app
+end
 ```
 """
 function redirect!(cm::Modifier, url::AbstractString, delay::Int64 = 0)
@@ -312,10 +327,14 @@ end
 **Session Interface**
 ### modify!(cm::Modifier, s::Servable, p::Pair ...) -> _
 ------------------
-Modifies the key properties of p[1] to the value of p[2] on s.
+Modifies the key properties of p[1] to the value of p[2] on s. This can also be
+done with setindex!
 #### example
 ```
+url = "https://toolips.app"
+on(c, s, "click") do cm::Modifier
 
+end
 ```
 """
 function modify!(cm::Modifier, s::AbstractComponent, p::Pair ...)
