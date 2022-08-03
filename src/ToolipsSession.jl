@@ -302,7 +302,7 @@ function on_keydown(f::Function, c::Connection, key::String,
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], key => f)
     else
-        c[:Session][getip(c)] = Dict(ref => f)
+        c[:Session][getip(c)] = Dict(key => f)
     end
     if length(readonly) > 0
         c[:Session].readonly["$ip$event$name"] = readonly
@@ -335,7 +335,7 @@ function on_keyup(f::Function, c::Connection, key::String,
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], key => f)
     else
-        c[:Session][getip(c)] = Dict(ref => f)
+        c[:Session][getip(c)] = Dict(key => f)
     end
     if length(readonly) > 0
         c[:Session].readonly["$ip$event$name"] = readonly
