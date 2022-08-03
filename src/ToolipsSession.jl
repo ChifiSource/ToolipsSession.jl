@@ -141,7 +141,7 @@ end
 
 """
 **Session Interface**
-### getindex(m::Session, s::AbstractString) -> ::Vector{Pair}
+### getindex(m::Session, s::AbstractString) -> ::Dict{String, Function}
 ------------------
 Gets a session's refs by ip.
 #### example
@@ -152,6 +152,20 @@ end
 ```
 """
 getindex(m::Session, s::AbstractString) = m.events[s]
+
+"""
+**Session Interface**
+### getindex(m::Session, d::Dict{String, Function}, s::AbstractString) -> _
+------------------
+Creates a new Session.
+#### example
+```
+route("/") do c::Connection
+    c[:Session][getip(c)] = Dict{String, Function}
+end
+```
+"""
+setindex!(m::Session, d::Dict{String, Function}, s::AbstractString) = m.events[s] = d
 
 """
 **Interface**
@@ -180,7 +194,7 @@ function on(f::Function, c::Connection, s::AbstractComponent,
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][ip], "$event$name" => f)
     else
-        c[:Session][ip] = Dict("$event$name" => f)
+        c[:Session].events[ip] = Dict("$event$name" => f)
     end
     if length(readonly) > 0
         c[:Session].readonly["$ip$event$name"] = readonly
