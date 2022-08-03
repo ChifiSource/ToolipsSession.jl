@@ -136,7 +136,7 @@ mutable struct Session <: ServerExtension
             push!(routes, path)
         end
         new([:connection, :func, :routing], f, active_routes, events,
-        iptable, readonly, timeout)
+        readonly, iptable, timeout)
     end
 end
 
