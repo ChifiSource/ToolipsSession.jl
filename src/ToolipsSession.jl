@@ -247,7 +247,7 @@ end
 ```
 """
 function on(f::Function, c::Connection, event::AbstractString,
-    readonly::Vector{String} = Vector{String}()
+    readonly::Vector{String} = Vector{String}())
     ref = gen_ref()
     write!(c,
         "<script>document.addEventListener('$event', sendpage($ref));</script>")
