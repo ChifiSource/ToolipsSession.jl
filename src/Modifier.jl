@@ -26,10 +26,12 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
         end
         tagr::UnitRange = findnext(" ", s, tag[1])
         nametag::String = s[minimum(tag) + 1:maximum(tagr) - 1]
-        namestart::UnitRange = findnext("id=", s, tagr[2])[2] + 1
-        nameranger::UnitRange = namestart:(findnext(" ", s, namestart[1])[1] - 1)
-        if length(readonly) > 0 && ~(s[nameranger] in readonly)
-            continue
+        if contains(s[tag], "id=")
+            namestart::UnitRange = findnext("id=", s, tagr[2])[2] + 1
+            nameranger::UnitRange = namestart:(findnext(" ", s, namestart[1])[1] - 1)
+            if length(readonly) > 0 && ~(s[nameranger] in readonly)
+                continue
+            end
         end
         tagtext::String = ""
         try
