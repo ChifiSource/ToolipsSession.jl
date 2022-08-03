@@ -26,7 +26,7 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
         end
         tagr::UnitRange = findnext(" ", s, tag[1])
         nametag::String = s[minimum(tag) + 1:maximum(tagr) - 1]
-        namestart::Int64 = findnext("id=", s, tag[1])
+        namestart::UnitRange = findnext("id=", s, tag[1])
         if ~(isnothing(namestart))
             nameranger::UnitRange = namestart[2] + 2:(findnext(" ", s, namestart[1])[1] - 1)
             if length(readonly) > 0 && ~(replace(s[nameranger], "\"" => "") in readonly)
