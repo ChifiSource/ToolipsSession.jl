@@ -26,7 +26,9 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
         end
         tagr::UnitRange = findnext(" ", s, tag[1])
         nametag::String = s[minimum(tag) + 1:maximum(tagr) - 1]
-        if length(readonly) > 0 && ~(nametag in readonly)
+        namestart::UnitRange = findnext("id=", s, tagr[2])[2] + 1
+        nameranger::UnitRange = namestart:(findnext(" ", s, namestart[1])[1] - 1)
+        if length(readonly) > 0 && ~(s[nameranger] in readonly)
             continue
         end
         tagtext::String = ""
@@ -40,16 +42,17 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
         catch
             tagtext = ""
         end
-        propvec = split(s[maximum(tagr) + 1:maximum(tag) - 1], " ")
+        propvec::Vector{SubString} = split(s[maximum(tagr) + 1:maximum(tag) - 1], " ")
         properties::Dict{Any, Any} = Dict{Any, Any}()
-        for segment in propvec
-            ppair = split(segment, "=")
+        [begin
+            ppair::Vector{SubString} = split(segment, "=")
             if length(ppair) != 2
                 continue
             end
             push!(properties, string(ppair[1]) => replace(string(ppair[2]), "\"" => ""))
-        end
+        end for segment in propvec]
         name::String = properties["id"]
+
         delete!(properties, "id")
         push!(properties, "text" => tagtext)
         push!(comps, name => Component(name, string(nametag), properties))
