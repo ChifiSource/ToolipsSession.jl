@@ -46,9 +46,6 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
         properties::Dict{Any, Any} = Dict{Any, Any}()
         [begin
             ppair::Vector{SubString} = split(segment, "=")
-            if length(ppair) != 2
-                continue
-            end
             push!(properties, string(ppair[1]) => replace(string(ppair[2]), "\"" => ""))
         end for segment in propvec]
         name::String = properties["id"]
