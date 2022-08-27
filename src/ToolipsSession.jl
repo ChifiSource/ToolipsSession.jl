@@ -359,8 +359,8 @@ mutable struct HotKey{K}
     end
 end
 
-const CtrlKey = Hotkey(:ctrl)
-const ShiftKey = Hotkey(:shift)
+const CtrlKey = HotKey(:ctrl)
+const ShiftKey = HotKey(:shift)
 
 mutable struct KeyCombination
     hotkeys::Vector{Hotkey{<:Any}}
