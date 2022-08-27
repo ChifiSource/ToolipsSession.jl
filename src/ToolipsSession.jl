@@ -345,6 +345,31 @@ function on_keyup(f::Function, c::Connection, key::String,
     end
 end
 
+function on_keydown(f::Function, c::Connection, c::AbstractComponent,
+    key::String)
+end
+
+function on_keyup(f::Function, c::Connection, c::AbstractComponent,
+    key::String)
+end
+
+mutable struct HotKey{K}
+    function Hotkey(key::Symbol)
+        new{key}()
+    end
+end
+
+const CtrlKey = Hotkey(:ctrl)
+const ShiftKey = Hotkey(:shift)
+
+mutable struct KeyCombination
+    hotkeys::Vector{Hotkey{<:Any}}
+end
+
+function on_keydown(f::Function, c::Connection, kcombo::KeyCombination)
+
+end
+
 """
 **Session Internals**
 ### document_linker(c::Connection) -> _

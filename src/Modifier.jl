@@ -42,9 +42,9 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
             textr::UnitRange = maximum(tag) + 1:minimum(findnext("</$nametag", s, tag[1])[1]) - 1
             tagtext = s[textr]
             tagtext = replace(tagtext, "<br>" => "\n")
-            tagtext = replace(tagtext, "&nbsp" => " ")
-            tagtext = replace(tagtext, "&ensp" => "  ")
-            tagtext = replace(tagtext, "&emsp" => "    ")
+            tagtext = replace(tagtext, "&nbsp;" => " ")
+            tagtext = replace(tagtext, "&ensp;" => "  ")
+            tagtext = replace(tagtext, "&emsp;" => "    ")
         catch
             tagtext = ""
         end
@@ -508,7 +508,7 @@ end
 ```
 """
 function set_text!(c::Modifier, s::String, txt::String)
-    push!(c.changes, "document.getElementById('$s').innerHTML = `$txt`;")
+    push!(c.changes, "document.getElementById('$s').innerHTML = `````$txt`````;")
 end
 
 """
@@ -1078,11 +1078,15 @@ function home(c::Connection)
 end
 ```
 """
-function observe!(f::Function, c::Connection, cm::Modifier, name::String, time::Integer = 1000)
+function observe!(f::Function, c::Connection, cm::Modifier, name::String,
+     readonly::Vector{String} = Vector{String}(); time::Integer = 1000)
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], name => f)
     else
         c[:Session][getip(c)] = Dict(name => f)
     end
     push!(cm.changes, "new Promise(resolve => setTimeout(sendpage('$name'), $time));")
+    if length(readonly) > 0
+        c[:Session].readonly["$ip$key"] = readonly
+    end
 end
