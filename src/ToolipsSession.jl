@@ -363,7 +363,7 @@ const CtrlKey = HotKey(:ctrl)
 const ShiftKey = HotKey(:shift)
 
 mutable struct KeyCombination
-    hotkeys::Vector{Hotkey{<:Any}}
+    hotkeys::Vector{HotKey{<:Any}}
 end
 
 function on_keydown(f::Function, c::Connection, kcombo::KeyCombination)
