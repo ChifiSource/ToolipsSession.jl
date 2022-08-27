@@ -354,7 +354,7 @@ function on_keyup(f::Function, c::Connection, s::AbstractComponent,
 end
 
 mutable struct HotKey{K}
-    function Hotkey(key::Symbol)
+    function HotKey(key::Symbol)
         new{key}()
     end
 end
