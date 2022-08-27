@@ -345,11 +345,11 @@ function on_keyup(f::Function, c::Connection, key::String,
     end
 end
 
-function on_keydown(f::Function, c::Connection, c::AbstractComponent,
+function on_keydown(f::Function, c::Connection, s::AbstractComponent,
     key::String)
 end
 
-function on_keyup(f::Function, c::Connection, c::AbstractComponent,
+function on_keyup(f::Function, c::Connection, s::AbstractComponent,
     key::String)
 end
 
