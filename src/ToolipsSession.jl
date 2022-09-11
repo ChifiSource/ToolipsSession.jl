@@ -202,6 +202,15 @@ function on(f::Function, c::Connection, s::AbstractComponent,
     end
 end
 
+function on_static(f::Function, s::AbstractComponent, event::String)
+    cm = StaticModifier("$(s.name)-$func")
+    f(cm)
+    s = script("$(s.name)-event",
+    text = """document.addEventListener('$event', fname);""")
+    push!(s.extras, s, cm)
+    s
+end
+
 """
 **Toolips Defaults**
 ### observer(f::Function, c::Connection, readonly::Vector{String} = Vector{String}(); time::Integer = 1000) -> Component{:script}
@@ -353,17 +362,9 @@ function on_keyup(f::Function, c::Connection, s::AbstractComponent,
     key::String)
 end
 
-mutable struct HotKey{K}
-    function HotKey(key::Symbol)
-        new{key}()
-    end
-end
-
-const CtrlKey = HotKey(:ctrl)
-const ShiftKey = HotKey(:shift)
-
 mutable struct KeyCombination
-    hotkeys::Vector{HotKey{<:Any}}
+    basekey::String
+    added_keys::Vector{String}
 end
 
 function on_keydown(f::Function, c::Connection, kcombo::KeyCombination)

@@ -65,6 +65,35 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
     return(comps)::Dict{String, Component}
 end
 
+mutable struct ClientModifier <: Modifier
+    f::Function
+    changes::Vector{String}
+    function ClientModifier(name::String)
+        changes = Vector{String}()
+        f(c::Connection; args ...) = begin
+            script("name", text = """function $name () {$(join(changes))}""")
+            write!(c, eventscript)
+        end
+        new(f, changes)
+    end
+end
+
+function get(f::Function, s::String)
+
+end
+
+function post(f::Function, s::String)
+
+end
+
+function webcrawl!(f::Function, s::String)
+
+end
+
+mutable struct RequestModifier <: Modifier
+    changes::Vector{String}
+end
+
 """
 ### ComponentModifier
 - rootc::Dict
@@ -165,7 +194,7 @@ on(c, mydiv, "click") do cm::Modifier
 end
 ```
 """
-getindex(cc::Modifier, s::AbstractComponent) = cc.rootc[s.name]
+getindex(cc::ComponentModifier, s::AbstractComponent) = cc.rootc[s.name]
 
 """
 **Session Interface**
@@ -180,7 +209,7 @@ on(c, mydiv, "click") do cm::Modifier
 end
 ```
 """
-getindex(cc::Modifier, s::String) = cc.rootc[s]
+getindex(cc::ComponentModifier, s::String) = cc.rootc[s]
 
 """
 **Session Interface**
