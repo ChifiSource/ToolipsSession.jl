@@ -12,6 +12,7 @@ adding the Session extension to your ServerTemplate before starting. There are
 also methods contained for modifying Servables.
 ##### Module Composition
 - [**ToolipsSession**](https://github.com/ChifiSource/ToolipsSession.jl)
+- [Keys.jl]
 """
 module ToolipsSession
 using Toolips
@@ -33,9 +34,9 @@ gen_ref()
 "jfuR2wgprielweh3"
 ```
 """
-function gen_ref()
+function gen_ref(n::In64 = 16)
     Random.seed!( rand(1:100000) )
-    randstring(16)
+    randstring(n)::String
 end
 
 """
@@ -140,6 +141,7 @@ mutable struct Session <: ServerExtension
     end
 end
 
+
 """
 **Session Interface**
 ### getindex(m::Session, s::AbstractString) -> ::Dict{String, Function}
@@ -202,39 +204,23 @@ function on(f::Function, c::Connection, s::AbstractComponent,
     end
 end
 
-function on_static(f::Function, s::AbstractComponent, event::String)
-    cm = StaticModifier("$(s.name)-$func")
-    f(cm)
-    s = script("$(s.name)-event",
-    text = """document.addEventListener('$event', fname);""")
-    push!(s.extras, s, cm)
-    s
+function script!(f::Function, c::Connection, name::String, event::String,
+    readonly::Vector{String} = Vector{String}(); time::Integer = 1000)
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][getip(c)], event => f)
+    else
+        c[:Session][getip(c)] = Dict(event => f)
+    end
+    obsscript = script(event, text = """
+    new Promise(resolve => setIntervalimeout(sendpage('$event'), $time));
+   """)
+   if length(readonly) > 0
+       c[:Session].readonly["$ip$event$name"] = readonly
+   end
+   return(obsscript)
 end
 
-"""
-**Toolips Defaults**
-### observer(f::Function, c::Connection, readonly::Vector{String} = Vector{String}(); time::Integer = 1000) -> Component{:script}
-------------------
-Creates an observer.
-#### example
-```
-len = 10
-home = route("/") do c::Connection
-    lenp = p("lenp", text = 10)
-    example_observer = observer(c, "observepage") do cm::ComponentModifier
-        if len > 0
-            len -= 1
-            set_text!(cm, lenp, string(len))
-        else
-            remove!(cm, "observepage")
-        end
-    end
-    write!(c, lenp)
-    write!(c, example_observer)
-end
-```
-"""
-function observer(f::Function, c::Connection, event::String,
+function script!(f::Function, c::Connection, name::String, event::String,
     readonly::Vector{String} = Vector{String}(); time::Integer = 1000)
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], event => f)
@@ -319,6 +305,7 @@ function on_keydown(f::Function, c::Connection, key::String,
         c[:Session].readonly["$ip$key"] = readonly
     end
 end
+
 """
 **Session Interface**
 ### on_keyup(f::Function, c::Connection, key::AbstractString, readonly::Vector{String} = Vector{String})
@@ -354,20 +341,29 @@ function on_keyup(f::Function, c::Connection, key::String,
     end
 end
 
-function on_keydown(f::Function, c::Connection, s::AbstractComponent,
-    key::String)
+mutable struct ControlMap
+    keys::Vector{Combination{String}}
+    events::Function
 end
 
-function on_keyup(f::Function, c::Connection, s::AbstractComponent,
-    key::String)
+in(km::ControlMap, i::Any)
+
+show(io::IO, m::MIME"text/plain", c::ControlMap) = begin
+    [println("$(key[i]) : $(key[i])")]
 end
 
-mutable struct KeyCombination
-    basekey::String
-    added_keys::Vector{String}
+function on_keydown(f::Function, c::Connection, kcombo::Combination{String})
+    script("keydown-$(kcombo.basekey)-$(kcombo.added_key)", text = """
+    function KeyPress(e) {
+          var evtobj = window.event? event : e
+          if (evtobj.keyCode == 90 && evtobj.ctrlKey) alert("Ctrl+z");
+    }
+
+    document.onkeydown = KeyPress;
+""")
 end
 
-function on_keydown(f::Function, c::Connection, kcombo::KeyCombination)
+function on_map(f::Function, c::Connection, cm::ControlMap)
 
 end
 
@@ -440,10 +436,68 @@ function kill!(c::Connection)
     delete!(c[:Session].events, getip(c))
 end
 
+"""
+Created in June, 2022 by
+[chifi - an open source software dynasty.](https://github.com/orgs/ChifiSource)
+by team
+[toolips](https://github.com/orgs/ChifiSource/teams/toolips)
+This software is MIT-licensed.
+### Keys
+**Extension for:**
+- [Toolips](https://github.com/ChifiSource/Toolips.jl) \
+**Part of:**
+- [ToolipsSession](https://github.com/ChifiSource/ToolipsSession.jl)
+This module provides ToolipsSession with a more eloquent Keys and keymap feature.
+The benefits to this are that we can make complex hotkey and control combinations
+in a very easy way.
+##### Module Composition
+- [ToolipsSession](https://github.com/ChifiSource/ToolipsSession.jl)
+- [**Keys**]()
+"""
+module Keys
+using Toolips
+import Toolips: Servable
+using ToolipsSession
+
+
+abstract type AbstractKey <: Servable end
+
+mutable struct Key <: AbstractKey
+
+end
+
+mutable struct KeyMap <: AbstractKey
+
+end
+
+function bind(f::Function, keymap::KeyMap, ks::Pair{Key, Key})
+
+end
+
+end # Keys
+
+"""
+**Session Interface**
+### create_peers(c::Connection)
+------------------
+Creates a new peer `Connection` inside of ToolipsSession
+#### example
+```
+
+```
+"""
+function create_peers(f::Function, c::Connection)
+
+end
+
+function join_peer(f::Function, c::Connection)
+
+end
 
 export Session, on, on_keydown, on_keyup
 export TimedTrigger, observe!, ComponentModifier, animate!, pauseanim!
 export playanim!, alert!, redirect!, modify!, move!, remove!, set_text!
 export set_children!, get_text, style!, free_redirects!, confirm_redirects!
+export Keys
 
 end # module

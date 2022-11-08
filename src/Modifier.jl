@@ -3,10 +3,21 @@ import Toolips: StyleComponent, get, kill!, animate!, SpoofConnection
 import Toolips: style!, Servable, Connection
 import Base: setindex!, getindex, push!, append!
 
+"""
+### abstract type Modifier <: Servable
+Modifiers are used to interpret and respond to incoming data. The prime example
+for this is the **ComponentModifier**. This is used to bring Components into a
+    readable form and then change different Component properties.
+##### Consistencies
+- **Servable** Is bound to `Toolips.write!` in one form or another, and works
+in `Vector{Servable}`s.
+"""
 abstract type Modifier <: Servable end
+
 """
 **Session Internals**
-### htmlcomponent(s::String) -> ::Dict{String, Toolips.Component}
+### htmlcomponent(f::Function, readonly::Vector{String};  )
+) -> ::Dict{String, Toolips.Component}
 ------------------
 Converts HTML into a dictionary of components.
 #### example
@@ -17,11 +28,14 @@ comp["hello"]["align"]
     "center"
 ```
 """
-function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
+function htmlcomponent(
+    parseby::Function = (s::String) -> (~(contains(s, "/")) || (contains(s[tag],
+     " id="))), s::String = "",
+     readonly::Vector{String} = Vector{String}(); parseall::Bool = false)
     tagpos::Vector{UnitRange{Int64}} = [f[1]:e[1] for (f, e) in zip(findall("<", s), findall(">", s))]
     comps::Dict{String, Component} = Dict{String, Component}()
     for tag::UnitRange in tagpos
-       if contains(s[tag], "/") || ~(contains(s[tag], " id="))
+       if parseall == false && ~(parseby(s[tag]))
             continue
         end
         tagr::UnitRange = findnext(" ", s, tag[1])
@@ -76,22 +90,6 @@ mutable struct ClientModifier <: Modifier
         end
         new(f, changes)
     end
-end
-
-function get(f::Function, s::String)
-
-end
-
-function post(f::Function, s::String)
-
-end
-
-function webcrawl!(f::Function, s::String)
-
-end
-
-mutable struct RequestModifier <: Modifier
-    changes::Vector{String}
 end
 
 """
