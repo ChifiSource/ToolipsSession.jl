@@ -83,12 +83,14 @@ mutable struct Session <: ServerExtension
     events::Dict{String, Dict{String, Function}}
     readonly::Dict{String, Vector{String}}
     iptable::Dict{String, Dates.DateTime}
+    peers::Dict{String, Dict{String, Vector{Servable}}}
     timeout::Integer
     function Session(active_routes::Vector{String} = ["/"];
         transition_duration::AbstractFloat = 0.5,
         transition::AbstractString = "ease-in-out", timeout::Integer = 30,
         path::AbstractRoute = Route("/modifier/linker", x -> 5))
         events = Dict{String, Dict{String, Function}}()
+        peers::Dict{String, Dict{String, Vector{Servable}}} = Dict{String, Vector{Servable}}()
         iptable = Dict{String, Dates.DateTime}()
         readonly = copy(events)
         f(c::Connection, active_routes::Vector{String} = active_routes) = begin
@@ -137,7 +139,7 @@ mutable struct Session <: ServerExtension
             push!(routes, path)
         end
         new([:connection, :func, :routing], f, active_routes, events,
-        readonly, iptable, timeout)
+        readonly, iptable, peers, timeout)
     end
 end
 
@@ -220,8 +222,15 @@ function script!(f::Function, c::Connection, name::String, event::String,
    return(obsscript)
 end
 
-function script!(f::Function, c::Connection, name::String, event::String,
-    readonly::Vector{String} = Vector{String}(); time::Integer = 1000)
+#==
+TODO We also need ClientModifier Scripts that can be binded with `on`. This
+should be the ultimate goal, though not the current expectation. (this function
+is not yet written) What we do is make the script into a `script component using
+a modifier, that way we can create client functions on a whim and call them at
+will. The implications of this are pretty sweet considering set_children!, and
+other functions like that. I need to make more functions like that, as well.`
+==#
+function script(f::Function, name::String)
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], event => f)
     else
@@ -235,6 +244,7 @@ function script!(f::Function, c::Connection, name::String, event::String,
    end
    return(obsscript)
 end
+
 
 """
 **Session Interface**
@@ -456,21 +466,69 @@ in a very easy way.
 """
 module Keys
 using Toolips
-import Toolips: Servable
+import Toolips: write!
 using ToolipsSession
 
+"""
+"""
+abstract type AbstractKey end
 
-abstract type AbstractKey <: Servable end
+mutable struct Key{s <: Any} <: AbstractKey
+    name::String
+end
 
-mutable struct Key <: AbstractKey
+function bind(f::Function, c::AbstractConnection, ks::Key{<:Any})
+    write!(c, script("bind-$(ks.name)", text = """
+    document.addEventListener('keydown', function(event) {
+        if (event.key == "$(key.name)") {
+        sendpage(event.key);
+        }
+    });
+    """))
+    ip::String = getip(c)
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][ip], key => f)
+    else
+        c[:Session][ip] = Dict(key => f)
+    end
+    if length(readonly) > 0
+        c[:Session].readonly["$ip$key"] = readonly
+    end
+end
+
+function bind(f::Function, c::AbstractConnection, ks::Pair{Key, Key})
+    for headkey in ks
+
+    end
+    write!(c, script("bind-$(ks.name)", text = """
+    document.addEventListener('keydown', function(event) {
+        if (event.key == "$(key.name)") {
+        sendpage(event.key);
+        }
+    });
+    """))
+    ip::String = getip(c)
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][ip], key => f)
+    else
+        c[:Session][ip] = Dict(key => f)
+    end
+    if length(readonly) > 0
+        c[:Session].readonly["$ip$key"] = readonly
+    end
+end
+
+mutable struct KeyMap <: Servable
+    bindings::Dict{Any, Function}
+end
+
+
+
+function bind(keymap::KeyMap)
 
 end
 
-mutable struct KeyMap <: AbstractKey
-
-end
-
-function bind(f::Function, keymap::KeyMap, ks::Pair{Key, Key})
+write!(c::Connection, km::KeyMap) = begin
 
 end
 
@@ -480,7 +538,10 @@ end # Keys
 **Session Interface**
 ### create_peers(c::Connection)
 ------------------
-Creates a new peer `Connection` inside of ToolipsSession
+Creates a new peer `Connection` inside of ToolipsSession. This is still
+expiremental and in an early stage of development, but soon this will be an
+easy to use method system for working between many different peers and communicating
+    data easily.
 #### example
 ```
 
@@ -490,6 +551,18 @@ function create_peers(f::Function, c::Connection)
 
 end
 
+"""
+**Session Interface**
+### join_peer(f::Function, c::Connection)
+------------------
+Joins a peer to a connection with a given ComponentModifier function. Note that
+    any non-read components will not be passed through, though can still be pushed
+    changes if they have names.
+#### example
+```
+
+```
+"""
 function join_peer(f::Function, c::Connection)
 
 end

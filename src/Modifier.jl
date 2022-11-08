@@ -79,19 +79,6 @@ function htmlcomponent(
     return(comps)::Dict{String, Component}
 end
 
-mutable struct ClientModifier <: Modifier
-    f::Function
-    changes::Vector{String}
-    function ClientModifier(name::String)
-        changes = Vector{String}()
-        f(c::Connection; args ...) = begin
-            script("name", text = """function $name () {$(join(changes))}""")
-            write!(c, eventscript)
-        end
-        new(f, changes)
-    end
-end
-
 """
 ### ComponentModifier
 - rootc::Dict
