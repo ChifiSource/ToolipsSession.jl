@@ -12,7 +12,6 @@ adding the Session extension to your ServerTemplate before starting. There are
 also methods contained for modifying Servables.
 ##### Module Composition
 - [**ToolipsSession**](https://github.com/ChifiSource/ToolipsSession.jl)
-- [Keys.jl]
 """
 module ToolipsSession
 using Toolips
@@ -206,6 +205,32 @@ function on(f::Function, c::Connection, s::AbstractComponent,
     end
 end
 
+"""
+**Session Interface**
+### bind(f::Function, c::AbstractConnection, keys::String ...;
+    on::Symbol = :down, client::Bool == false)
+------------------
+The new interface for binding keys. Takes a a single key or series of keys. Note
+    that when binding a series of keys, ctrl, alt and shift will become event keys.
+    The **on** argument can be used to change whether this happens on key-up or
+    keydown. **client** functions are another implementation that will be used
+    to store functions on the client side for quicker access to different
+        scripts (without Julia)
+#### example
+```
+
+```
+"""
+function bind(f::Function, c::AbstractConnection, keys::String ...;
+    on::Symbol = :up, client::Bool = false)
+    if client
+
+    end
+    if length(keys) == 1
+
+    end
+end
+
 function script!(f::Function, c::Connection, name::String, event::String,
     readonly::Vector{String} = Vector{String}(); time::Integer = 1000)
     if getip(c) in keys(c[:Session].iptable)
@@ -282,102 +307,6 @@ function on(f::Function, c::Connection, event::AbstractString,
 end
 
 """
-**Session Interface**
-### on_keydown(f::Function, c::Connection, key::AbstractString, readonly::Vector{String} = Vector{String})
-------------------
-Creates a new event for the current IP in a session. Performs f when the key
-    is pressed.
-#### example
-```
-home = route("/") do c::Connection
-    on_keydown(c, "ArrowRight") do cm::ComponentModifier
-        alert!(cm, "right arrow press.")
-    end
-end
-```
-"""
-function on_keydown(f::Function, c::Connection, key::String,
-    readonly::Vector{String} = Vector{String}())
-    write!(c, """<script>
-    document.addEventListener('keydown', function(event) {
-        if (event.key == "$key") {
-        sendpage(event.key);
-        }
-    });</script>
-    """)
-    ip::String = getip(c)
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][ip], key => f)
-    else
-        c[:Session][ip] = Dict(key => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$key"] = readonly
-    end
-end
-
-"""
-**Session Interface**
-### on_keyup(f::Function, c::Connection, key::AbstractString, readonly::Vector{String} = Vector{String})
-------------------
-Creates a new event for the current IP in a session. Performs f when the key
-    is brought up.
-#### example
-```
-home = route("/") do c::Connection
-    on_keydown(c, "ArrowRight") do cm::ComponentModifier
-        alert!(cm, "right arrow press.")
-    end
-end
-```
-"""
-function on_keyup(f::Function, c::Connection, key::String,
-    readonly::Vector{String} = Vector{String}())
-    write!(c, """<script>
-    document.addEventListener('keyup', function(event) {
-        if (event.key == "$key") {
-        sendpage(event.key);
-        }
-    });</script>
-    """)
-    ip::String = getip(c)
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][ip], key => f)
-    else
-        c[:Session][ip] = Dict(key => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$key"] = readonly
-    end
-end
-
-mutable struct ControlMap
-    keys::Vector{Combination{String}}
-    events::Function
-end
-
-in(km::ControlMap, i::Any)
-
-show(io::IO, m::MIME"text/plain", c::ControlMap) = begin
-    [println("$(key[i]) : $(key[i])")]
-end
-
-function on_keydown(f::Function, c::Connection, kcombo::Combination{String})
-    script("keydown-$(kcombo.basekey)-$(kcombo.added_key)", text = """
-    function KeyPress(e) {
-          var evtobj = window.event? event : e
-          if (evtobj.keyCode == 90 && evtobj.ctrlKey) alert("Ctrl+z");
-    }
-
-    document.onkeydown = KeyPress;
-""")
-end
-
-function on_map(f::Function, c::Connection, cm::ControlMap)
-
-end
-
-"""
 **Session Internals**
 ### document_linker(c::Connection) -> _
 ------------------
@@ -445,94 +374,6 @@ function kill!(c::Connection)
     delete!(c[:Session].iptable, getip(c))
     delete!(c[:Session].events, getip(c))
 end
-
-"""
-Created in June, 2022 by
-[chifi - an open source software dynasty.](https://github.com/orgs/ChifiSource)
-by team
-[toolips](https://github.com/orgs/ChifiSource/teams/toolips)
-This software is MIT-licensed.
-### Keys
-**Extension for:**
-- [Toolips](https://github.com/ChifiSource/Toolips.jl) \
-**Part of:**
-- [ToolipsSession](https://github.com/ChifiSource/ToolipsSession.jl)
-This module provides ToolipsSession with a more eloquent Keys and keymap feature.
-The benefits to this are that we can make complex hotkey and control combinations
-in a very easy way.
-##### Module Composition
-- [ToolipsSession](https://github.com/ChifiSource/ToolipsSession.jl)
-- [**Keys**]()
-"""
-module Keys
-using Toolips
-import Toolips: write!
-using ToolipsSession
-
-"""
-"""
-abstract type AbstractKey end
-
-mutable struct Key{s <: Any} <: AbstractKey
-    name::String
-end
-
-function bind(f::Function, c::AbstractConnection, ks::Key{<:Any})
-    write!(c, script("bind-$(ks.name)", text = """
-    document.addEventListener('keydown', function(event) {
-        if (event.key == "$(key.name)") {
-        sendpage(event.key);
-        }
-    });
-    """))
-    ip::String = getip(c)
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][ip], key => f)
-    else
-        c[:Session][ip] = Dict(key => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$key"] = readonly
-    end
-end
-
-function bind(f::Function, c::AbstractConnection, ks::Pair{Key, Key})
-    for headkey in ks
-
-    end
-    write!(c, script("bind-$(ks.name)", text = """
-    document.addEventListener('keydown', function(event) {
-        if (event.key == "$(key.name)") {
-        sendpage(event.key);
-        }
-    });
-    """))
-    ip::String = getip(c)
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][ip], key => f)
-    else
-        c[:Session][ip] = Dict(key => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$key"] = readonly
-    end
-end
-
-mutable struct KeyMap <: Servable
-    bindings::Dict{Any, Function}
-end
-
-
-
-function bind(keymap::KeyMap)
-
-end
-
-write!(c::Connection, km::KeyMap) = begin
-
-end
-
-end # Keys
 
 """
 **Session Interface**
