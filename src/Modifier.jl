@@ -84,25 +84,23 @@ end
 """
 ### ClientModifier <: AbstractComponentModifier
 - changes::Vector{String}
-The
+
+The `ClientModifier` makes changes specifically client-side. This means that
+attributes cannot be used. In the future this will be slightly adjusted to
+include client-side variables. The biggest thing is that Julia cannot be used
+in them, though Julia can be placed to use this. Importantly, do not call this
+directly, similarly to the `ComponentModifier`, it is meant to be used with
+`on`.
 ##### example
 ```
 route("/") do c::Connection
     mydiv = divider("mydiv", align = "center")
-    on(c, mydiv, "click") do cm::Modifier
-        if cm[mydiv]["align"] == "center"
-            cm[mydiv] = "align" => "left"
-        else
-            cm[mydiv] = "align" => "center"
-        end
-    end
-    write!(c, mydiv)
+    c, mydiv)
 end
 ```
 ------------------
 ##### constructors
 - ComponentModifier(html::String)
-- ComponentModifier(html::String, readonly::Vector{String})
 """
 mutable struct ClientModifier <: AbstractComponentModifier
     changes::Vector{String}
