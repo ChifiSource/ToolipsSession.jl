@@ -50,3 +50,28 @@ end
 ```julia
 include("dev.jl")
 ```
+#### new in 0.3.0
+- new `bind` method replaces old keys, can now use event and hotkeys quite easily with this method.
+- simplified `on`.
+- Peer-based `ComponentModifier` sessions.
+- new `script!` and `script` interface for creating client functions and observable functions in a consistent way.
+- Expansion of some other Modifier functions. Additional abstraction to Modifiers.
+
+###### demonstration
+The first new feature is the `bind` method. This allows us to bind different keys together a lot better than `on_keydown` of old.
+```julia
+using Toolips
+using ToolipsSession
+
+myroute = route("/") do c::Connection
+    bod = body("home-body", align = "center")
+    style!(bod, "padding" => 100px)
+    bind(c, "Shift", "Enter") do cm::ComponentModifier
+        set_children!(cm, bod, [h(1, "buttonpressed", text = "congratulations, you pressed shift and enter")])
+    end
+end
+```
+Next are the peer-to-peer Connections. These store ComponentModifiers as Vectors, and sync changes with RPC called on ComponentModifiers -- here is a demonstration of using this technique to create a single-page chat site.
+```julia
+# I'm still working on the readme lol
+```
