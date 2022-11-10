@@ -224,7 +224,7 @@ The new interface for binding keys. Takes a a single key or series of keys. Note
 function bind(f::Function, c::AbstractConnection, keys::String ...;
     on::Symbol = :up, client::Bool = false)
     if client
-
+        f(ClientModifier())
     end
     if length(keys) == 1
 

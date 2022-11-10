@@ -1,18 +1,20 @@
 using Toolips
 import Toolips: StyleComponent, get, kill!, animate!, SpoofConnection
-import Toolips: style!, Servable, Connection
+import Toolips: style!, Servable, Connection, Modifier
 import Base: setindex!, getindex, push!, append!
 
 """
-### abstract type Modifier <: Servable
-Modifiers are used to interpret and respond to incoming data. The prime example
+### abstract type AbstractComponentModifier <: Servable
+Modifiers are used to interpret and respond to incoming data. AbstractComponentModifiers
+change Components that are already written to a Connection. These are in essence,
+the callback function's mutable type for toolips. The prime example
 for this is the **ComponentModifier**. This is used to bring Components into a
     readable form and then change different Component properties.
 ##### Consistencies
 - **Servable** Is bound to `Toolips.write!` in one form or another, and works
 in `Vector{Servable}`s.
 """
-abstract type Modifier <: Servable end
+abstract type AbstractComponentModifier <: Modifier end
 
 """
 **Session Internals**
@@ -80,7 +82,35 @@ function htmlcomponent(
 end
 
 """
-### ComponentModifier
+### ClientModifier <: AbstractComponentModifier
+- changes::Vector{String}
+The
+##### example
+```
+route("/") do c::Connection
+    mydiv = divider("mydiv", align = "center")
+    on(c, mydiv, "click") do cm::Modifier
+        if cm[mydiv]["align"] == "center"
+            cm[mydiv] = "align" => "left"
+        else
+            cm[mydiv] = "align" => "center"
+        end
+    end
+    write!(c, mydiv)
+end
+```
+------------------
+##### constructors
+- ComponentModifier(html::String)
+- ComponentModifier(html::String, readonly::Vector{String})
+"""
+mutable struct ClientModifier <: AbstractComponentModifier
+    changes::Vector{String}
+    ClientModifier() = new(Vector{String}())::ClientModifier
+end
+
+"""
+### ComponentModifier <: AbstractComponentModifier
 - rootc::Dict
 - f::Function
 - changes::Vector{String} \
@@ -108,7 +138,7 @@ end
 - ComponentModifier(html::String)
 - ComponentModifier(html::String, readonly::Vector{String})
 """
-mutable struct ComponentModifier <: Modifier
+mutable struct ComponentModifier <: AbstractComponentModifier
     rootc::Dict{String, AbstractComponent}
     f::Function
     changes::Vector{String}
@@ -1070,6 +1100,9 @@ function scroll_by!(cm::Modifier, s::String,
     """document.getElementById('$s').scrollBy($(xy[1]), $(xy[2]))""")
 end
 
+#==
+TODO observe! should be replaced with `script!` and the like.
+==#
 """
 **Session Interface**
 ### observe!(f::Function, c::Connection, cm::Modifier, name::String, time::Integer = 1000) -> _
@@ -1104,3 +1137,7 @@ function observe!(f::Function, c::Connection, cm::Modifier, name::String,
         c[:Session].readonly["$ip$key"] = readonly
     end
 end
+#==
+TODO More children functions, arrangemnet functions, and animation tools for
+"onanimationend" bindings, for example.
+==#
