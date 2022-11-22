@@ -53,10 +53,14 @@ include("dev.jl")
 #### new in 0.3.0
 - new `bind` method replaces old keys, can now use event and hotkeys quite easily with this method.
 - simplified `on`.
-- Peer-based `ComponentModifier` sessions.
+- multi-client remote procedure `ComponentModifier` sessions.
 - new `script!` and `script` interface for creating client functions and observable functions in a consistent way.
-- Expansion of some other Modifier functions. Additional abstraction to Modifiers.
-
+- Additional abstraction to Modifiers.
+- `Modifier` Abstract type moved to [toolips](https://github.com/ChifiSource/Toolips.jl)
+- `next!` method to set next animations and changes.
+- `observe!` has become `script` in accordance with new syntax.
+- `insert_child!` allows the inserting of children.
+- `append_first!` allows us to append a child to the top of the children.
 ###### demonstration
 The first new feature is the `bind` method. This allows us to bind different keys together a lot better than `on_keydown` of old.
 ```julia
