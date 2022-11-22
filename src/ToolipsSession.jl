@@ -256,18 +256,8 @@ will. The implications of this are pretty sweet considering set_children!, and
 other functions like that. I need to make more functions like that, as well.`
 ==#
 function script(f::Function, name::String)
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], event => f)
-    else
-        c[:Session][getip(c)] = Dict(event => f)
-    end
-    obsscript = script(event, text = """
-    new Promise(resolve => setIntervalimeout(sendpage('$event'), $time));
-   """)
-   if length(readonly) > 0
-       c[:Session].readonly["$ip$event$name"] = readonly
-   end
-   return(obsscript)
+    modif::ClientModifier = ClientModifier()
+    inner_f = f(modif)
 end
 
 

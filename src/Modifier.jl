@@ -1100,9 +1100,10 @@ end
 
 #==
 TODO observe! should be replaced with `script!` and the like.
+below this are new features in 0.3.0
 ==#
 """
-**Session Interface**
+**Session Interface** 0.3
 ### observe!(f::Function, c::Connection, cm::Modifier, name::String, time::Integer = 1000) -> _
 ------------------
 Creates a new event to happen in `time`. This is useful if you want to have a delay before
@@ -1123,7 +1124,7 @@ function home(c::Connection)
 end
 ```
 """
-function observe!(f::Function, c::Connection, cm::Modifier, name::String,
+function script!(f::Function, c::Connection, cm::Modifier, name::String,
      readonly::Vector{String} = Vector{String}(); time::Integer = 1000)
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], name => f)
@@ -1135,6 +1136,64 @@ function observe!(f::Function, c::Connection, cm::Modifier, name::String,
         c[:Session].readonly["$ip$key"] = readonly
     end
 end
+
+"""
+**Session Interface** 0.3
+### next!(f::Function, cm::ComponentModifier)
+------------------
+This method can be used to chain animations (or transitions.) We can do this
+by calling next on our ComponentModifier, the same could also be done with a
+`Component{:script}` (usually made with) `script(::String, properties ...)` or
+the `script(::Function, ::String)` function from this module. Note that **transitions**
+have not been verified to work with this syntax (yet).
+#### example
+```
+
+```
+"""
+function next!(f::Function, cm::ComponentModifier)
+
+end
+
+"""
+**Session Interface** 0.3
+### next!(f::Function, name::String, cm::ComponentModifier, a::Animation)
+------------------
+This method can be used to chain animations (or transitions.) Using the `Animation`
+dispatch for this will simply set the next animation on completion of the previous.
+#### example
+```
+
+```
+"""
+function next!(f::Function, name::String, cm::ComponentModifier, a::Animation;
+    write::Bool = false)
+    cm[]
+end
+
+
+"""
+**Session Interface** 0.3
+### next!(f::Function, cm::ComponentModifier)
+------------------
+
+#### example
+```
+
+```
+"""
+function next!(f::Function, sc::Component{:script})
+
+end
+
+function insert_child!()
+
+end
+
+function append_first!()
+
+end
+
 #==
 TODO More children functions, arrangemnet functions, and animation tools for
 "onanimationend" bindings, for example.
