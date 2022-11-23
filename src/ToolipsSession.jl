@@ -22,6 +22,24 @@ using Random, Dates
 
 include("Modifier.jl")
 
+#==
+Hello, welcome to the Session source. Here is an overview of the organization
+that might help you out:
+------------------
+- ToolipsSession.jl
+--- random functions
+--- Session extension
+--- on
+--- bind
+--- script interface
+--- rpc
+------------------
+- Modifier.jl
+--- ComponentModifiers
+--- Modifier functions
+------------------
+==#
+
 """
 **Session**
 ### gen_ref() -> ::String
@@ -37,6 +55,75 @@ gen_ref()
 function gen_ref(n::In64 = 16)
     Random.seed!( rand(1:100000) )
     randstring(n)::String
+end
+
+"""
+**Session Internals**
+### document_linker(c::Connection) -> _
+------------------
+Served to /modifier/linker by the Session extension. This is where incoming
+data is posted to for a response.
+#### example
+```
+
+```
+"""
+function document_linker(c::Connection)
+    s::String = getpost(c)
+    ip::String = getip(c)
+    reftag::Vector{UnitRange{Int64}} = findall("?CM?:", s)
+    ref_r::UnitRange{Int64} = reftag[1][2] + 4:length(s)
+    ref::String = s[ref_r]
+    s = replace(s, "?CM?:$ref" => "")
+    if ip in keys(c[:Session].iptable)
+        c[:Session].iptable[ip] = now()
+    end
+    if ip in keys(c[:Session].events)
+        if ip * ref in keys(c[:Session].readonly)
+            cm::ComponentModifier = ComponentModifier(s, c[:Session].readonly[ip * ref])
+        else
+            cm = ComponentModifier(s)
+        end
+        c[:Session][ip][ref](cm)
+        write!(c, " ")
+        write!(c, cm)
+    end
+end
+
+"""
+**Session Interface**
+### kill!(c::Connection, event::AbstractString, s::Servable) -> _
+------------------
+Removes a given event call from a connection's Session.
+#### example
+```
+route("/") do c::Connection
+    myp = p("hello", text = "wow")
+    on(c, "load") do cm::ComponentModifier
+        set_text!(cm, myp, "not so wow")
+    end
+    write!(c, myp)
+end
+```
+"""
+function kill!(c::Connection, fname::AbstractString, s::Servable)
+    refname = s.name * fname
+    delete!(c[:Session][getip()], refname)
+end
+
+"""
+**Session Interface**
+### kill!(c::Connection)
+------------------
+Kills a Connection's saved events.
+#### example
+```
+
+```
+"""
+function kill!(c::Connection)
+    delete!(c[:Session].iptable, getip(c))
+    delete!(c[:Session].events, getip(c))
 end
 
 """
@@ -208,140 +295,6 @@ end
 
 """
 **Session Interface**
-### bind(f::Function, c::AbstractConnection, key::String;
-    on::Symbol = :down, client::Bool == false)
-------------------
-The new interface for binding keys. Takes a a single key or series of keys. Note
-    that when binding a series of keys, ctrl, alt and shift will become event keys.
-    The **on** argument can be used to change whether this happens on key-up or
-    keydown. **client** functions are another implementation that will be used
-    to store functions on the client side for quicker access to different
-        scripts (without Julia)
-#### example
-```
-
-```
-"""
-function bind(f::Function, c::AbstractConnection, key::String,
-    readonly::Vector{String} = Vector{String}();
-    on::Symbol = :up, client::Bool = false)
-    cm::Modifier = ClientModifier()
-    if client
-        f(cm)
-        write!(c, """<script>
-    document.addEventListener('key$on', function(event) {
-        if (event.key == "$key") {
-        $(join(cm.changes))
-        }
-    });</script>
-    """)
-        return
-    end
-    write!(c, """<script>
-document.addEventListener('key$on', function(event) {
-    if (event.key == "$key") {
-    sendpage(event.key);
-    }
-});</script>
-    """)
-    ip::String = getip(c)
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][ip], key => f)
-    else
-        c[:Session][ip] = Dict(key => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$key"] = readonly
-    end
-end
-
-"""
-**Session Interface**
-### bind(f::Function, c::AbstractConnection, Pair{Symbol, String};
-    on::Symbol = :down, client::Bool == false)
-------------------
-The new interface for binding keys. Takes a a single key or series of keys. Note
-    that when binding a series of keys, ctrl, alt and shift will become event keys.
-    The **on** argument can be used to change whether this happens on key-up or
-    keydown. **client** functions are another implementation that will be used
-    to store functions on the client side for quicker access to different
-        scripts (without Julia)
-#### example
-```
-
-```
-"""
-function bind(f::Function, comp::AbstractComponent, c::AbstractConnection,
-    keys::Vector{String}; on::Symbol = :up, client::Bool = false)
-    if client
-        cm::Modifier = ClientModifier()
-        f(cm)
-        # now we write this into a into a binding for our script function name!
-    end
-end
-
-"""
-**Session Interface**
-### bind(f::Function, c::AbstractConnection, Pair{Symbol, Pair{Symbol, String}};
-    on::Symbol = :down, client::Bool == false)
-------------------
-The new interface for binding keys. Takes a a single key or series of keys. Note
-    that when binding a series of keys, ctrl, alt and shift will become event keys.
-    The **on** argument can be used to change whether this happens on key-up or
-    keydown. **client** functions are another implementation that will be used
-    to store functions on the client side for quicker access to different
-        scripts (without Julia)
-#### example
-```
-
-```
-"""
-function bind(f::Function, comp::AbstractComponent, c::AbstractConnection,
-    keys::Vector{String}; on::Symbol = :up, client::Bool = false)
-    if client
-        cm::Modifier = ClientModifier()
-        f(cm)
-        # now we write this into a into a binding for our script function name!
-    end
-end
-
-function script!(f::Function, c::Connection, name::String, event::String,
-    readonly::Vector{String} = Vector{String}(); time::Integer = 1000)
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], event => f)
-    else
-        c[:Session][getip(c)] = Dict(event => f)
-    end
-    obsscript = script(event, text = """
-    new Promise(resolve => setIntervalimeout(sendpage('$event'), $time));
-   """)
-   if length(readonly) > 0
-       c[:Session].readonly["$ip$event$name"] = readonly
-   end
-   return(obsscript)
-end
-
-#==
-TODO We also need ClientModifier Scripts that can be binded with `on`. This
-should be the ultimate goal, though not the current expectation. (this function
-is not yet written) What we do is make the script into a `script component using
-a modifier, that way we can create client functions on a whim and call them at
-will. The implications of this are pretty sweet considering set_children!, and
-other functions like that. I need to make more functions like that, as well.`
-==#
-function script(f::Function, name::String)
-    modif::ClientModifier = ClientModifier()
-    f(modif)
-    #== TODO
-    Here, I want to convert this join(cm.changes) into a function with the same
-    name as the actual script element/component, that way these are really easy
-    to create !
-    ==#
-end
-
-
-"""
-**Session Interface**
 ### on(f::Function, c::Connection, event::AbstractString, readonly::Vector{String} = Vector{String}())
 ------------------
 Creates a new event for the current IP in a session. Performs the function on
@@ -376,72 +329,121 @@ function on(f::Function, c::Connection, event::AbstractString,
 end
 
 """
-**Session Internals**
-### document_linker(c::Connection) -> _
+**Session Interface** 0.3
+### bind!(f::Function, c::AbstractConnection, key::String, readonly::Vector{String} = [];
+    on::Symbol = :down, client::Bool == false)  -> _
 ------------------
-Served to /modifier/linker by the Session extension. This is where incoming
-data is posted to for a response.
+
 #### example
 ```
 
 ```
 """
-function document_linker(c::Connection)
-    s::String = getpost(c)
+function bind!(f::Function, c::AbstractConnection, key::String,
+    readonly::Vector{String} = Vector{String}();
+    on::Symbol = :down, client::Bool = false)
+    cm::Modifier = ClientModifier()
+    if client
+        f(cm)
+        write!(c, """<script>
+    document.addEventListener('key$on', function(event) {
+        if (event.key == "$key") {
+        $(join(cm.changes))
+        }
+    });</script>
+    """)
+        return
+    end
+    write!(c, """<script>
+document.addEventListener('key$on', function(event) {
+    if (event.key == "$key") {
+    sendpage(event.key);
+    }
+});</script>
+    """)
     ip::String = getip(c)
-    reftag::Vector{UnitRange{Int64}} = findall("?CM?:", s)
-    ref_r::UnitRange{Int64} = reftag[1][2] + 4:length(s)
-    ref::String = s[ref_r]
-    s = replace(s, "?CM?:$ref" => "")
-    if ip in keys(c[:Session].iptable)
-        c[:Session].iptable[ip] = now()
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][ip], key => f)
+    else
+        c[:Session][ip] = Dict(key => f)
     end
-    if ip in keys(c[:Session].events)
-        if ip * ref in keys(c[:Session].readonly)
-            cm::ComponentModifier = ComponentModifier(s, c[:Session].readonly[ip * ref])
-        else
-            cm = ComponentModifier(s)
-        end
-        c[:Session][ip][ref](cm)
-        write!(c, " ")
-        write!(c, cm)
+    if length(readonly) > 0
+        c[:Session].readonly["$ip$key"] = readonly
     end
 end
 
 """
-**Session Interface**
-### kill!(c::Connection, event::AbstractString, s::Servable) -> _
+**Session Interface** 0.3
+### bind!(f::Function, c::AbstractConnection, key::String, readonly::Vector{String} = [];
+    on::Symbol = :down, client::Bool == false)  -> _
 ------------------
-Removes a given event call from a connection's Session.
-#### example
-```
-route("/") do c::Connection
-    myp = p("hello", text = "wow")
-    on(c, "load") do cm::ComponentModifier
-        set_text!(cm, myp, "not so wow")
-    end
-    write!(c, myp)
-end
-```
-"""
-function kill!(c::Connection, fname::AbstractString, s::Servable)
-    refname = s.name * fname
-    delete!(c[:Session][getip()], refname)
-end
 
-"""
-**Session Interface**
-### kill!(c::Connection)
-------------------
-Kills a Connection's saved events.
 #### example
 ```
 
 ```
 """
-function kill!(c::Connection)
-    delete!(c[:Session].iptable, getip(c))
-    delete!(c[:Session].events, getip(c))
+function bind!(f::Function, c::AbstractConnection, key::Pair{Symbol, String},
+    readonly::Vector{String} = Vector{String}();
+    on::Symbol = :down, client::Bool = false)
+    cm::Modifier = ClientModifier()
+    if client
+        f(cm)
+        write!(c, """<script>
+    document.addEventListener('key$on', function(event) {
+        if (event.key == "$key") {
+        $(join(cm.changes))
+        }
+    });</script>
+    """)
+        return
+    end
+    write!(c, """<script>
+document.addEventListener('key$on', function(event) {
+    if (event.key == "$key") {
+    sendpage(event.key);
+    }
+});</script>
+    """)
+    ip::String = getip(c)
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][ip], key => f)
+    else
+        c[:Session][ip] = Dict(key => f)
+    end
+    if length(readonly) > 0
+        c[:Session].readonly["$ip$key"] = readonly
+    end
+end
+
+function script!(f::Function, c::Connection, name::String, event::String,
+    readonly::Vector{String} = Vector{String}(); time::Integer = 1000)
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][getip(c)], event => f)
+    else
+        c[:Session][getip(c)] = Dict(event => f)
+    end
+    obsscript = script(event, text = """
+    new Promise(resolve => setIntervalimeout(sendpage('$event'), $time));
+   """)
+   if length(readonly) > 0
+       c[:Session].readonly["$ip$event$name"] = readonly
+   end
+   return(obsscript)
+end
+
+function script!(c::Connection, scr::Component{:script})
+
+end
+
+function script(f::Function, name::String)
+    modif::ClientModifier = ClientModifier()
+    f(modif)
+    #== TODO
+    Here, I want to convert this join(cm.changes) into a function with the same
+    name as the actual script element/component, that way these are really easy
+    to create !
+    ==#
 end
 
 """
@@ -465,7 +467,7 @@ function close_rpc!(c::Connection)
 
 end
 
-function join_rpc!(c::Connection, token::String)
+function join_rpc!(c::Connection, client::String)
 
 end
 
@@ -473,10 +475,30 @@ function rpc!(c::Connection, cm::ComponentModifier)
 
 end
 
+is_host(c::Connection) = begin
+    if getip(c) in keys(c[:Session].peers)
+        true
+    end
+    false
+end
+
+is_client(c::Connection, s::String) = begin
+    if getip(c) in keys(c[:Session].peers)
+        true
+    end
+    false
+end
+
+is_dead(c::Connection) = begin
+    if getip(c) in keys(c[:Session].iptable)
+        true
+    end
+    false
+end
+
 export Session, on, on_keydown, on_keyup
 export TimedTrigger, observe!, ComponentModifier, animate!, pauseanim!
 export playanim!, alert!, redirect!, modify!, move!, remove!, set_text!
 export set_children!, get_text, style!, free_redirects!, confirm_redirects!
-export Keys
 
 end # module
