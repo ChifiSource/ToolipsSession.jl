@@ -19,6 +19,7 @@ import Toolips: ServerExtension, Servable, Connection, AbstractComponent
 import Toolips: AbstractRoute, kill!
 import Base: setindex!, getindex, push!
 using Random, Dates
+
 include("Modifier.jl")
 
 """
@@ -207,7 +208,7 @@ end
 
 """
 **Session Interface**
-### bind(f::Function, c::AbstractConnection, keys::String ...;
+### bind(f::Function, c::AbstractConnection, key::String;
     on::Symbol = :down, client::Bool == false)
 ------------------
 The new interface for binding keys. Takes a a single key or series of keys. Note
@@ -221,13 +222,62 @@ The new interface for binding keys. Takes a a single key or series of keys. Note
 
 ```
 """
-function bind(f::Function, c::AbstractConnection, keys::String ...;
+function bind(f::Function, c::AbstractConnection, key::String;
     on::Symbol = :up, client::Bool = false)
     if client
-        f(ClientModifier())
+        cm::Modifier = ClientModifier()
+        f(cm)
+        # now we write this into a into a binding for our script function name!
     end
-    if length(keys) == 1
+end
 
+"""
+**Session Interface**
+### bind(f::Function, c::AbstractConnection, Pair{Symbol, String};
+    on::Symbol = :down, client::Bool == false)
+------------------
+The new interface for binding keys. Takes a a single key or series of keys. Note
+    that when binding a series of keys, ctrl, alt and shift will become event keys.
+    The **on** argument can be used to change whether this happens on key-up or
+    keydown. **client** functions are another implementation that will be used
+    to store functions on the client side for quicker access to different
+        scripts (without Julia)
+#### example
+```
+
+```
+"""
+function bind(f::Function, comp::AbstractComponent, c::AbstractConnection,
+    keys::Vector{String}; on::Symbol = :up, client::Bool = false)
+    if client
+        cm::Modifier = ClientModifier()
+        f(cm)
+        # now we write this into a into a binding for our script function name!
+    end
+end
+
+"""
+**Session Interface**
+### bind(f::Function, c::AbstractConnection, Pair{Symbol, Pair{Symbol, String}};
+    on::Symbol = :down, client::Bool == false)
+------------------
+The new interface for binding keys. Takes a a single key or series of keys. Note
+    that when binding a series of keys, ctrl, alt and shift will become event keys.
+    The **on** argument can be used to change whether this happens on key-up or
+    keydown. **client** functions are another implementation that will be used
+    to store functions on the client side for quicker access to different
+        scripts (without Julia)
+#### example
+```
+
+```
+"""
+function bind(f::Function, comp::AbstractComponent, c::AbstractConnection,
+    keys::Vector{String}; on::Symbol = :up, client::Bool = false)
+    if client
+        cm::Modifier = ClientModifier()
+        f(cm)
+        # now we write this into a into a binding for our script function name!
     end
 end
 
@@ -378,23 +428,19 @@ easy to use method system for working between many different peers and communica
 
 ```
 """
-function create_peers(f::Function, c::Connection)
+function open_rpc!(c::Connection)
 
 end
 
-"""
-**Session Interface**
-### join_peer(f::Function, c::Connection)
-------------------
-Joins a peer to a connection with a given ComponentModifier function. Note that
-    any non-read components will not be passed through, though can still be pushed
-    changes if they have names.
-#### example
-```
+function close_rpc!(c::Connection)
 
-```
-"""
-function join_peer(f::Function, c::Connection)
+end
+
+function join_rpc!(c::Connection, token::String)
+
+end
+
+function rpc!(c::Connection, cm::ComponentModifier)
 
 end
 

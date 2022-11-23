@@ -1098,10 +1098,6 @@ function scroll_by!(cm::Modifier, s::String,
     """document.getElementById('$s').scrollBy($(xy[1]), $(xy[2]))""")
 end
 
-#==
-TODO observe! should be replaced with `script!` and the like.
-below this are new features in 0.3.0
-==#
 """
 **Session Interface** 0.3
 ### observe!(f::Function, c::Connection, cm::Modifier, name::String, time::Integer = 1000) -> _
@@ -1170,8 +1166,8 @@ function next!(f::Function, name::String, cm::ComponentModifier, a::Animation;
     write::Bool = false)
     cm[]
 end
-
-
+# random comment easter egg ::)
+#     that's not a face, it is of type `)`. Don't be racist.`
 """
 **Session Interface** 0.3
 ### next!(f::Function, cm::ComponentModifier)
@@ -1193,8 +1189,3 @@ end
 function append_first!()
 
 end
-
-#==
-TODO More children functions, arrangemnet functions, and animation tools for
-"onanimationend" bindings, for example.
-==#
