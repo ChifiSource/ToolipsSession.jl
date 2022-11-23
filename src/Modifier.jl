@@ -1166,21 +1166,45 @@ function next!(f::Function, name::String, cm::ComponentModifier, a::Animation;
     write::Bool = false)
     cm[]
 end
-# random comment easter egg ::)
-#     that's not a face, it is of type `)`. Don't be racist.`
+# emmy was here ! <3
 """
 **Session Interface** 0.3
-### next!(f::Function, cm::ComponentModifier)
+### next!(f::Function, name::String, cm::ComponentModifier, a::Animation)
 ------------------
-
+This method can be used to chain animations (or transitions.) Using the `Animation`
+dispatch for this will simply set the next animation on completion of the previous.
 #### example
 ```
 
 ```
 """
-function next!(f::Function, sc::Component{:script})
-
+function update!(cm::ComponentModifier, ppane::AbstractComponent, plot::Any)
+    io::IOBuffer = IOBuffer();
+    show(io, "text/html", plot)
+    data::String = String(io.data)
+    data = replace(data,
+     """<?xml version=\"1.0\" encoding=\"utf-8\"?>\n""" => "")
+    set_text!(cm, ppane.name, data)
 end
+
+"""
+**Session Interface** 0.3
+### next!(f::Function, name::String, cm::ComponentModifier, a::Animation)
+------------------
+This method can be used to chain animations (or transitions.) Using the `Animation`
+dispatch for this will simply set the next animation on completion of the previous.
+#### example
+```
+
+```
+"""
+function update!(cm::ComponentModifier, ppane::AbstractComponent,
+    comp::AbstractComponent)
+    spoof = SpoofConnection()
+    write!(spoof, comp)
+    set_text!(cm, ppane.name, spoof.http.text)
+end
+
 
 function insert_child!()
 
