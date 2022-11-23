@@ -222,12 +222,36 @@ The new interface for binding keys. Takes a a single key or series of keys. Note
 
 ```
 """
-function bind(f::Function, c::AbstractConnection, key::String;
+function bind(f::Function, c::AbstractConnection, key::String,
+    readonly::Vector{String} = Vector{String}();
     on::Symbol = :up, client::Bool = false)
+    cm::Modifier = ClientModifier()
     if client
-        cm::Modifier = ClientModifier()
         f(cm)
-        # now we write this into a into a binding for our script function name!
+        write!(c, """<script>
+    document.addEventListener('key$on', function(event) {
+        if (event.key == "$key") {
+        $(join(cm.changes))
+        }
+    });</script>
+    """)
+        return
+    end
+    write!(c, """<script>
+document.addEventListener('key$on', function(event) {
+    if (event.key == "$key") {
+    sendpage(event.key);
+    }
+});</script>
+    """)
+    ip::String = getip(c)
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][ip], key => f)
+    else
+        c[:Session][ip] = Dict(key => f)
+    end
+    if length(readonly) > 0
+        c[:Session].readonly["$ip$key"] = readonly
     end
 end
 
@@ -307,7 +331,12 @@ other functions like that. I need to make more functions like that, as well.`
 ==#
 function script(f::Function, name::String)
     modif::ClientModifier = ClientModifier()
-    inner_f = f(modif)
+    f(modif)
+    #== TODO
+    Here, I want to convert this join(cm.changes) into a function with the same
+    name as the actual script element/component, that way these are really easy
+    to create !
+    ==#
 end
 
 
