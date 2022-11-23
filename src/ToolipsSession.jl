@@ -383,15 +383,17 @@ end
 
 ```
 """
-function bind!(f::Function, c::AbstractConnection, key::Pair{Symbol, String},
-    readonly::Vector{String} = Vector{String}();
+function bind!(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol ...;
+    readonly::Vector{String} = Vector{String}()
     on::Symbol = :down, client::Bool = false)
     cm::Modifier = ClientModifier()
+    eventstr::String = join([begin " event.$(event)Key && "
+                            end for event in eventkeys])
     if client
         f(cm)
         write!(c, """<script>
     document.addEventListener('key$on', function(event) {
-        if (event.key == "$key") {
+        if ($eventstr event.key == "$(key[2])") {
         $(join(cm.changes))
         }
     });</script>
@@ -400,7 +402,7 @@ function bind!(f::Function, c::AbstractConnection, key::Pair{Symbol, String},
     end
     write!(c, """<script>
 document.addEventListener('key$on', function(event) {
-    if (event.key == "$key") {
+    if ($eventstr event.key == "$(key[2])") {
     sendpage(event.key);
     }
 });</script>
