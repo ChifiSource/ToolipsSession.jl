@@ -792,8 +792,8 @@ function home(c::Connection)
 end
 ```
 """
-function style!(cm::Modifier, s::String, p::Pair{String, String} ...)
-    p = [pair for pair in p]
+function style!(cm::Modifier, s::String, p::Pair{String, Any} ...)
+    p = [pair[1] => string(pair[2]) for pair in p]
     style!(cm, s, p)
 end
 
@@ -1133,6 +1133,10 @@ function script!(f::Function, c::Connection, cm::Modifier, name::String,
     end
 end
 
+function push!(cm::Modifier, s::Servable ...)
+
+end
+
 """
 **Session Interface** 0.3
 ### next!(f::Function, cm::ComponentModifier)
@@ -1162,9 +1166,20 @@ dispatch for this will simply set the next animation on completion of the previo
 
 ```
 """
-function next!(f::Function, name::String, cm::ComponentModifier, a::Animation;
+function next!(f::Function, cm::ComponentModifier, a::Animation;
     write::Bool = false)
-    cm[]
+    anendscr = script("$(a.name)endscr")
+    cm[name]["onanimationend"] = ""
+    playstate = "running"
+    if ~(play)
+        playstate = "paused"
+    end
+    animname = a.name
+    time = string(a.length) * "s"
+     push!(cm.changes,
+     "document.getElementById('$s').style.animation = '$time 1 $animname';")
+     push!(cm.changes,
+    "document.getElementById('$s').style.animationPlayState = '$playstate';")
 end
 # emmy was here ! <3
 """
