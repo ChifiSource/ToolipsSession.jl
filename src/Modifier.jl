@@ -547,7 +547,7 @@ end
 ```
 """
 function set_text!(c::Modifier, s::String, txt::String)
-    push!(c.changes, "document.getElementById('$s').innerHTML = `````$txt`````;")
+    push!(c.changes, "document.getElementById('$s').innerHTML = `$txt`;")
 end
 
 """

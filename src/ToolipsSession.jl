@@ -419,14 +419,14 @@ document.addEventListener('key$on', function(event) {
 end
 
 function script!(f::Function, c::Connection, name::String,
-    readonly::Vector{String} = Vector{String}(); time::Integer = 1000)
+    readonly::Vector{String} = Vector{String}(); time::Integer = 1)
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], name => f)
     else
         c[:Session][getip(c)] = Dict(name => f)
     end
     obsscript = script(name, text = """
-    setIntervaTimeout(sendpage('$name'), $time);
+    setInterval(function () { sendpage('$name'); }, 500);
    """)
    if length(readonly) > 0
        c[:Session].readonly["$ip$name"] = readonly
@@ -455,7 +455,7 @@ easy to use method system for working between many different peers and communica
 
 ```
 """
-function open_rpc!(c::Connection; tickrate::Int64 = 100)
+function open_rpc!(c::Connection; tickrate::Int64 = 1)
     push!(c[:Session].peers,
      getip(c) => Dict{String, Modifier}(getip(c) => ComponentModifier("")))
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
@@ -476,7 +476,7 @@ easy to use method system for working between many different peers and communica
 
 ```
 """
-function open_rpc!(c::Connection, name::String; tickrate::Int64 = 100)
+function open_rpc!(c::Connection, name::String; tickrate::Int64 = 1)
     push!(c[:Session].peers,
      name => Dict{String, Modifier}(getip(c) => ComponentModifier("")))
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
@@ -488,24 +488,24 @@ function close_rpc!(c::Connection)
     delete!(c[:Session].peers, getip(c))
 end
 
-function join_rpc!(c::Connection, host::String; tickrate::Int64 = 100)
+function join_rpc!(c::Connection, host::String; tickrate::Int64 = 1)
     push!(c[:Session].peers[host], getip(c) => ComponentModifier(""))
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
         location::String = find_client(c)
+        @info "hi"
         cm.changes = vcat(c[:Session].peers[location][getip(c)].changes, cm.changes)
     end
 end
 
 function find_client(c::Connection)
     clientlocation = findfirst(x -> getip(c) in keys(x), c[:Session].peers)
-    c[:Logger].log(string(c[:Session].peers))
     clientlocation::String
 end
 
 function rpc!(c::Connection, cm::ComponentModifier)
     mods::String = find_client(c)
     [mod[2].changes = vcat(mod[2].changes, cm.changes) for mod in c[:Session].peers[mods]]
-    return
+    cm.changes = Vector{String}()
 end
 
 function disconnect_rpc!(c::Connection)
