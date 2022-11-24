@@ -419,14 +419,14 @@ document.addEventListener('key$on', function(event) {
 end
 
 function script!(f::Function, c::Connection, name::String,
-    readonly::Vector{String} = Vector{String}(); time::Integer = 1)
+    readonly::Vector{String} = Vector{String}(); time::Integer = 500)
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], name => f)
     else
         c[:Session][getip(c)] = Dict(name => f)
     end
     obsscript = script(name, text = """
-    setInterval(function () { sendpage('$name'); }, 500);
+    setInterval(function () { sendpage('$name'); }, $time);
    """)
    if length(readonly) > 0
        c[:Session].readonly["$ip$name"] = readonly
@@ -455,11 +455,11 @@ easy to use method system for working between many different peers and communica
 
 ```
 """
-function open_rpc!(c::Connection; tickrate::Int64 = 1)
+function open_rpc!(c::Connection; tickrate::Int64 = 500)
     push!(c[:Session].peers,
      getip(c) => Dict{String, Modifier}(getip(c) => ComponentModifier("")))
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
-        cm.changes = vcat(c[:Session].peers[getip(c)][getip(c)].changes, cm.changes)
+        cm.changes = c[:Session].peers[getip(c)][getip(c)].changes
     end
 end
 
@@ -476,11 +476,12 @@ easy to use method system for working between many different peers and communica
 
 ```
 """
-function open_rpc!(c::Connection, name::String; tickrate::Int64 = 1)
+function open_rpc!(c::Connection, name::String; tickrate::Int64 = 500)
     push!(c[:Session].peers,
-     name => Dict{String, Modifier}(getip(c) => ComponentModifier("")))
+     name => Dict{String, Modifier}(getip(c) => ClientModifier()))
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
-        cm.changes = vcat(c[:Session].peers[name][getip(c)].changes, cm.changes)
+        cm.changes = c[:Session].peers[name][getip(c)].changes
+        c[:Session].peers[name][getip(c)].changes = Vector{String}()
     end
 end
 
@@ -488,12 +489,12 @@ function close_rpc!(c::Connection)
     delete!(c[:Session].peers, getip(c))
 end
 
-function join_rpc!(c::Connection, host::String; tickrate::Int64 = 1)
-    push!(c[:Session].peers[host], getip(c) => ComponentModifier(""))
+function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
+    push!(c[:Session].peers[host], getip(c) => ClientModifier())
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
         location::String = find_client(c)
-        @info "hi"
-        cm.changes = vcat(c[:Session].peers[location][getip(c)].changes, cm.changes)
+        cm.changes = c[:Session].peers[location][getip(c)].changes, cm.changes
+        c[:Session].peers[location][getip(c)].changes = Vector{String}()
     end
 end
 
@@ -504,7 +505,9 @@ end
 
 function rpc!(c::Connection, cm::ComponentModifier)
     mods::String = find_client(c)
-    [mod[2].changes = vcat(mod[2].changes, cm.changes) for mod in c[:Session].peers[mods]]
+    for mod in values(c[:Session].peers[mods])
+        push!(mod.changes, join(cm.changes))
+    end
     cm.changes = Vector{String}()
 end
 

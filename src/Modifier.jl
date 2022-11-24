@@ -101,7 +101,9 @@ end
 """
 mutable struct ClientModifier <: AbstractComponentModifier
     changes::Vector{String}
-    ClientModifier() = new(Vector{String}())::ClientModifier
+    f::Function
+    ClientModifier() = new(Vector{String}(),
+    c::Connection -> write!(c, join(changes)))::ClientModifier
 end
 
 """
