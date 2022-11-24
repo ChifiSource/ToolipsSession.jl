@@ -170,14 +170,14 @@ mutable struct Session <: ServerExtension
     events::Dict{String, Dict{String, Function}}
     readonly::Dict{String, Vector{String}}
     iptable::Dict{String, Dates.DateTime}
-    peers::Dict{String, Dict{String, Vector{Servable}}}
+    peers::Dict{String, Dict{String, Modifier}}
     timeout::Integer
     function Session(active_routes::Vector{String} = ["/"];
         transition_duration::AbstractFloat = 0.5,
         transition::AbstractString = "ease-in-out", timeout::Integer = 30,
         path::AbstractRoute = Route("/modifier/linker", x -> 5))
         events = Dict{String, Dict{String, Function}}()
-        peers::Dict{String, Dict{String, Vector{Servable}}} = Dict{String, Vector{Servable}}()
+        peers::Dict{String, Dict{String, Modifier}} = Dict{String, Dict{String, Modifier}}()
         iptable = Dict{String, Dates.DateTime}()
         readonly = copy(events)
         f(c::Connection, active_routes::Vector{String} = active_routes) = begin
@@ -462,18 +462,34 @@ easy to use method system for working between many different peers and communica
 ```
 """
 function open_rpc!(c::Connection)
-
+    push!(c[:Session].peers, getip(c) => Dict{String, Modifier}())
+    #== TODO
+    spawn observer script!
+    ==#
 end
 
 function close_rpc!(c::Connection)
-
+    delete!(c[:Session].peers, getip(c))
 end
 
-function join_rpc!(c::Connection, client::String)
+function join_rpc!(c::Connection, host::String)
+    push!(c[:Session].peers[host])
+    #== TODO
+    spawn observer script!
+    ==#
+end
 
+function find_client(c::Connection)
+    clientlocation = findfirst(x -> getip(c) in values(x)), c[:Session].peers
+    clientlocation[1]
 end
 
 function rpc!(c::Connection, cm::ComponentModifier)
+    mods = find_client(c)
+
+end
+
+function disconnect_rpc!()
 
 end
 
@@ -485,7 +501,7 @@ is_host(c::Connection) = begin
 end
 
 is_client(c::Connection, s::String) = begin
-    if getip(c) in keys(c[:Session].peers)
+    if getip(c) in keys(c[:Session].peers[s])
         true
     end
     false
