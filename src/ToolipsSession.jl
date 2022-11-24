@@ -431,21 +431,15 @@ function script!(f::Function, c::Connection, name::String, event::String,
    if length(readonly) > 0
        c[:Session].readonly["$ip$event$name"] = readonly
    end
-   return(obsscript)
-end
-
-function script!(c::Connection, scr::Component{:script})
-
+   write!(c, obsscript)
 end
 
 function script(f::Function, name::String)
-    modif::ClientModifier = ClientModifier()
-    f(modif)
-    #== TODO
-    Here, I want to convert this join(cm.changes) into a function with the same
-    name as the actual script element/component, that way these are really easy
-    to create !
-    ==#
+    cm::ClientModifier = ClientModifier()
+    f(cm)
+    news::Component{:script} = script(name, text = """function $script() {
+    $(join(cm.changes))
+    }""")
 end
 
 """
@@ -461,11 +455,11 @@ easy to use method system for working between many different peers and communica
 
 ```
 """
-function open_rpc!(c::Connection)
+function open_rpc!(c::Connection; tickrate::Int64 = 100)
     push!(c[:Session].peers, getip(c) => Dict{String, Modifier}())
-    #== TODO
-    spawn observer script!
-    ==#
+    script!(c, getip(c) * "rpc", "rpc", time = tickrate) do cm::ComponentModifier
+
+    end
 end
 
 function close_rpc!(c::Connection)
@@ -474,23 +468,29 @@ end
 
 function join_rpc!(c::Connection, host::String)
     push!(c[:Session].peers[host])
-    #== TODO
-    spawn observer script!
-    ==#
+    script!(c, getip(c) * "rpc", "rpc", time = tickrate) do cm::ComponentModifier
+
+    end
+end
+
+function _dorpc(c::Connection, cm::ComponentModifier)
+
 end
 
 function find_client(c::Connection)
     clientlocation = findfirst(x -> getip(c) in values(x)), c[:Session].peers
-    clientlocation[1]
+    clientlocation[1]::String
 end
 
 function rpc!(c::Connection, cm::ComponentModifier)
-    mods = find_client(c)
-
+    mods::String = find_client(c)
+    [mod.changes = vcat(mod.changes) for mod in c[:Session].peers[mods]]
+    return
 end
 
-function disconnect_rpc!()
-
+function disconnect_rpc!(c::Connection)
+    mods::String = find_client(c)
+    delete!(c[:Session].peers[mods][getip(c)])
 end
 
 is_host(c::Connection) = begin
