@@ -30,14 +30,11 @@ comp["hello"]["align"]
     "center"
 ```
 """
-function htmlcomponent(
-    parseby::Function = (s::String) -> (~(contains(s, "/")) || (contains(s[tag],
-     " id="))), s::String = "",
-     readonly::Vector{String} = Vector{String}(); parseall::Bool = false)
+function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
     tagpos::Vector{UnitRange{Int64}} = [f[1]:e[1] for (f, e) in zip(findall("<", s), findall(">", s))]
     comps::Dict{String, Component} = Dict{String, Component}()
     for tag::UnitRange in tagpos
-       if parseall == false && ~(parseby(s[tag]))
+       if contains(s[tag], "/") || ~(contains(s[tag], " id="))
             continue
         end
         tagr::UnitRange = findnext(" ", s, tag[1])
@@ -58,9 +55,9 @@ function htmlcomponent(
             textr::UnitRange = maximum(tag) + 1:minimum(findnext("</$nametag", s, tag[1])[1]) - 1
             tagtext = s[textr]
             tagtext = replace(tagtext, "<br>" => "\n")
-            tagtext = replace(tagtext, "&nbsp;" => " ")
-            tagtext = replace(tagtext, "&ensp;" => "  ")
-            tagtext = replace(tagtext, "&emsp;" => "    ")
+            tagtext = replace(tagtext, "&nbsp" => " ")
+            tagtext = replace(tagtext, "&ensp" => "  ")
+            tagtext = replace(tagtext, "&emsp" => "    ")
         catch
             tagtext = ""
         end
@@ -1151,7 +1148,7 @@ have not been verified to work with this syntax (yet).
 
 ```
 """
-function next!(f::Function, name::String cm::ComponentModifier)
+function next!(f::Function, name::String, cm::ComponentModifier)
     ip::String = string(getip(c))
     id::String = gen_ref()
     cm[name]["ontransitionend"] = "sendpage('$(id)');"

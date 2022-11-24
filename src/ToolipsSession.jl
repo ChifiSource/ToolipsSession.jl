@@ -16,7 +16,7 @@ also methods contained for modifying Servables.
 module ToolipsSession
 using Toolips
 import Toolips: ServerExtension, Servable, AbstractComponent, Modifier
-import Toolips: AbstractRoute, kill!
+import Toolips: AbstractRoute, kill!, AbstractConnection, script
 import Base: setindex!, getindex, push!
 using Random, Dates
 
@@ -52,7 +52,7 @@ gen_ref()
 "jfuR2wgprielweh3"
 ```
 """
-function gen_ref(n::In64 = 16)
+function gen_ref(n::Int64 = 16)
     Random.seed!( rand(1:100000) )
     randstring(n)::String
 end
@@ -384,7 +384,7 @@ end
 ```
 """
 function bind!(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol ...;
-    readonly::Vector{String} = Vector{String}()
+    readonly::Vector{String} = Vector{String}(),
     on::Symbol = :down, client::Bool = false)
     cm::Modifier = ClientModifier()
     eventstr::String = join([begin " event.$(event)Key && "
@@ -426,7 +426,7 @@ function script!(f::Function, c::Connection, name::String,
         c[:Session][getip(c)] = Dict(name => f)
     end
     obsscript = script(name, text = """
-    new Promise(resolve => setIntervalimeout(sendpage('$name'), $time));
+    setIntervaTimeout(sendpage('$name'), $time);
    """)
    if length(readonly) > 0
        c[:Session].readonly["$ip$name"] = readonly
@@ -456,9 +456,31 @@ easy to use method system for working between many different peers and communica
 ```
 """
 function open_rpc!(c::Connection; tickrate::Int64 = 100)
-    push!(c[:Session].peers, getip(c) => Dict{String, Modifier}())
+    push!(c[:Session].peers,
+     getip(c) => Dict{String, Modifier}(getip(c) => ComponentModifier("")))
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
         cm.changes = vcat(c[:Session].peers[getip(c)][getip(c)].changes, cm.changes)
+    end
+end
+
+"""
+**Session Interface**
+### create_peers(c::Connection)
+------------------
+Creates a new peer `Connection` inside of ToolipsSession. This is still
+expiremental and in an early stage of development, but soon this will be an
+easy to use method system for working between many different peers and communicating
+    data easily.
+#### example
+```
+
+```
+"""
+function open_rpc!(c::Connection, name::String; tickrate::Int64 = 100)
+    push!(c[:Session].peers,
+     name => Dict{String, Modifier}(getip(c) => ComponentModifier("")))
+    script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
+        cm.changes = vcat(c[:Session].peers[name][getip(c)].changes, cm.changes)
     end
 end
 
@@ -466,8 +488,8 @@ function close_rpc!(c::Connection)
     delete!(c[:Session].peers, getip(c))
 end
 
-function join_rpc!(c::Connection, host::String)
-    push!(c[:Session].peers[host])
+function join_rpc!(c::Connection, host::String; tickrate::Int64 = 100)
+    push!(c[:Session].peers[host], getip(c) => ComponentModifier(""))
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
         location::String = find_client(c)
         cm.changes = vcat(c[:Session].peers[location][getip(c)].changes, cm.changes)
@@ -475,13 +497,14 @@ function join_rpc!(c::Connection, host::String)
 end
 
 function find_client(c::Connection)
-    clientlocation = findfirst(x -> getip(c) in values(x)), c[:Session].peers
-    clientlocation[1]::String
+    clientlocation = findfirst(x -> getip(c) in keys(x), c[:Session].peers)
+    c[:Logger].log(string(c[:Session].peers))
+    clientlocation::String
 end
 
 function rpc!(c::Connection, cm::ComponentModifier)
     mods::String = find_client(c)
-    [mod.changes = vcat(mod.changes) for mod in c[:Session].peers[mods]]
+    [mod[2].changes = vcat(mod[2].changes, cm.changes) for mod in c[:Session].peers[mods]]
     return
 end
 
@@ -501,5 +524,6 @@ export playanim!, alert!, redirect!, modify!, move!, remove!, set_text!
 export update!, insert_child!, append_first!, animate!, pauseanim!, next!
 export set_children!, get_text, style!, free_redirects!, confirm_redirects!
 export scroll_by!, scroll_to!
-
+export rpc!, disconnect_rpc!, find_client, join_rpc!, close_rpc!, open_rpc!
+export join_rpc!, is_client, is_dead, is_host
 end # module
