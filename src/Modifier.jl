@@ -121,7 +121,7 @@ the index to a pair will modify said component.
 ```
 route("/") do c::Connection
     mydiv = divider("mydiv", align = "center")
-    on(c, mydiv, "click") do cm::Modifier
+    on(c, mydiv, "click") do cm::AbstractComponentModifier
         if cm[mydiv]["align"] == "center"
             cm[mydiv] = "align" => "left"
         else
@@ -160,12 +160,12 @@ end
 
 """
 **Session Interface**
-### setindex!(cm::Modifier, p::Pair, s::Component) -> _
+### setindex!(cm::AbstractComponentModifier, p::Pair, s::Component) -> _
 ------------------
 Sets the property from p[1] to p[2] on the served Component s.
 #### example
 ```
-on(c, mydiv, "click") do cm::Modifier
+on(c, mydiv, "click") do cm::AbstractComponentModifier
     if cm[mydiv]["align"] == "center"
         cm[mydiv] = "align" => "left"
     else
@@ -174,16 +174,16 @@ on(c, mydiv, "click") do cm::Modifier
 end
 ```
 """
-setindex!(cm::Modifier, p::Pair, s::AbstractComponent) = modify!(cm, s, p)
+setindex!(cm::AbstractComponentModifier, p::Pair, s::AbstractComponent) = modify!(cm, s, p)
 
 """
 **Session Interface**
-### setindex!(cm::Modifier, p::Pair, s::String) -> _
+### setindex!(cm::AbstractComponentModifier, p::Pair, s::String) -> _
 ------------------
 Sets the property from p[1] to p[2] on the served with name s.
 #### example
 ```
-on(c, mydiv, "click") do cm::Modifier
+on(c, mydiv, "click") do cm::AbstractComponentModifier
     if cm["mydiv"]["align"] == "center"
         cm["mydiv"] = "align" => "left"
     else
@@ -192,16 +192,16 @@ on(c, mydiv, "click") do cm::Modifier
 end
 ```
 """
-setindex!(cm::Modifier, p::Pair, s::String) = modify!(cm, s, p)
+setindex!(cm::AbstractComponentModifier, p::Pair, s::String) = modify!(cm, s, p)
 
 """
 **Session Interface**
-### getindex(cm::Modifier, s::Component) -> ::Component
+### getindex(cm::AbstractComponentModifier, s::Component) -> ::Component
 ------------------
 Gets the Component s from the ComponentModifier cm.
 #### example
 ```
-on(c, mydiv, "click") do cm::Modifier
+on(c, mydiv, "click") do cm::AbstractComponentModifier
     mydiv = cm[mydiv]
     mydivalignment = mydiv["align"]
 end
@@ -211,12 +211,12 @@ getindex(cc::ComponentModifier, s::AbstractComponent) = cc.rootc[s.name]
 
 """
 **Session Interface**
-### getindex(cm::Modifier, s::String) -> ::Component
+### getindex(cm::AbstractComponentModifier, s::String) -> ::Component
 ------------------
 Gets the a Component by name from cm.
 #### example
 ```
-on(c, mydiv, "click") do cm::Modifier
+on(c, mydiv, "click") do cm::AbstractComponentModifier
     mydiv = cm["mydiv"]
     mydivalignment = mydiv["align"]
 end
@@ -226,7 +226,7 @@ getindex(cc::ComponentModifier, s::String) = cc.rootc[s]
 
 """
 **Session Interface**
-### animate!(cm::Modifier, s::Servable, a::Animation; play::Bool) -> _
+### animate!(cm::AbstractComponentModifier, s::Servable, a::Animation; play::Bool) -> _
 ------------------
 Updates the servable s's animation with the animation a.
 #### example
@@ -236,17 +236,17 @@ a = Animation("fade")
 a[:from] = "opacity" => "0%"
 a[:to] = "opacity" => "100%"
 # where c is the Connection.
-on(c, s, "click") do cm::Modifier
+on(c, s, "click") do cm::AbstractComponentModifier
     animate!(cm, s, a)
 end
 ```
 """
-animate!(cm::Modifier, s::AbstractComponent, a::Animation;
+animate!(cm::AbstractComponentModifier, s::AbstractComponent, a::Animation;
      play::Bool = true) = animate!(cm, s.name, a; play = play)
 
 """
 **Session Interface**
-### animate!(cm::Modifier, s::String, a::Animation; play::Bool) -> _
+### animate!(cm::AbstractComponentModifier, s::String, a::Animation; play::Bool) -> _
 ------------------
 Updates the servable with name s's animation with the animation a.
 #### example
@@ -256,12 +256,12 @@ a = Animation("fade")
 a[:from] = "opacity" => "0%"
 a[:to] = "opacity" => "100%"
 # where c is the Connection.
-on(c, s, "click") do cm::Modifier
+on(c, s, "click") do cm::AbstractComponentModifier
     animate!(cm, s, a)
 end
      ```
      """
-function animate!(cm::Modifier, s::String, a::Animation;
+function animate!(cm::AbstractComponentModifier, s::String, a::Animation;
     play::Bool = true)
     playstate = "running"
     if ~(play)
@@ -277,95 +277,95 @@ end
 
 """
 **Session Interface**
-### pauseanim!(cm::Modifier, s::Servable) -> _
+### pauseanim!(cm::AbstractComponentModifier, s::Servable) -> _
 ------------------
 Pauses the servable's animation.
 #### example
 ```
-on(c, s, "click") do cm::Modifier
+on(c, s, "click") do cm::AbstractComponentModifier
     pauseanim!(cm, s)
 end
 ```
 """
-pauseanim!(cm::Modifier, s::AbstractComponent) = pauseanim!(cm, s.name)
+pauseanim!(cm::AbstractComponentModifier, s::AbstractComponent) = pauseanim!(cm, s.name)
 
 """
 **Session Interface**
-### playanim!(cm::Modifier, s::Servable) -> _
+### playanim!(cm::AbstractComponentModifier, s::Servable) -> _
 ------------------
 Plays the servable's animation.
 #### example
 ```
-on(c, s, "click") do cm::Modifier
+on(c, s, "click") do cm::AbstractComponentModifier
     playanim!(cm, s)
 end
 ```
 """
-playanim!(cm::Modifier, s::AbstractComponent) = playanim!(cm, s.name)
+playanim!(cm::AbstractComponentModifier, s::AbstractComponent) = playanim!(cm, s.name)
 
 """
 **Session Interface**
-### pauseanim!(cm::Modifier, name::String) -> _
+### pauseanim!(cm::AbstractComponentModifier, name::String) -> _
 ------------------
 Pauses a servable's animation by name.
 #### example
 ```
-on(c, s, "click") do cm::Modifier
+on(c, s, "click") do cm::AbstractComponentModifier
     pauseanim!(cm, s.name)
 end
 ```
 """
-function pauseanim!(cm::Modifier, name::String)
+function pauseanim!(cm::AbstractComponentModifier, name::String)
     push!(cm.changes,
     "document.getElementById('$name').style.animationPlayState = 'paused';")
 end
 
 """
 **Session Interface**
-### playanim!(cm::Modifier, name::String) -> _
+### playanim!(cm::AbstractComponentModifier, name::String) -> _
 ------------------
 Plays a servable's animation by name.
 #### example
 ```
-on(c, s, "click") do cm::Modifier
+on(c, s, "click") do cm::AbstractComponentModifier
     playanim!(cm, s.name)
 end
 ```
 """
-function playanim!(cm::Modifier, name::String)
+function playanim!(cm::AbstractComponentModifier, name::String)
     push!(cm.changes,
     "document.getElementById('$name').style.animationPlayState = 'running';")
 end
 
 """
 **Session Interface**
-### alert!(cm::Modifier, s::String) -> _
+### alert!(cm::AbstractComponentModifier, s::String) -> _
 ------------------
 Sends an alert to the current session.
 #### example
 ```
-on(c, s, "click") do cm::Modifier
+on(c, s, "click") do cm::AbstractComponentModifier
     alert!(cm, "oh no!")
 end
 ```
 """
-alert!(cm::Modifier, s::AbstractString) = push!(cm.changes,
+alert!(cm::AbstractComponentModifier, s::AbstractString) = push!(cm.changes,
         "alert('$s');")
 
 """
 **Session Interface**
-### redirect!(cm::Modifier, url::AbstractString, delay::Int64 = 0) -> _
+### redirect!(cm::AbstractComponentModifier, url::AbstractString, delay::Int64 = 0) -> _
 ------------------
 Redirects the session to **url**. Can be given delay with **delay**.
 #### example
 ```
 url = "https://toolips.app"
-on(c, s, "click") do cm::Modifier
+on(c, s, "click") do cm::AbstractComponentModifier
     redirect!(cm, url, 3) # waits three seconds, then navigates to toolips.app
 end
 ```
 """
-function redirect!(cm::Modifier, url::AbstractString, delay::Int64 = 0)
+function redirect!(cm::AbstractComponentModifier, url::AbstractString, delay::Int64 = 0)
     push!(cm.changes, """
     setTimeout(function () {
       window.location.href = "$url";
@@ -375,7 +375,7 @@ end
 
 """
 **Session Interface**
-### modify!(cm::Modifier, s::Servable, p::Pair ...) -> _
+### modify!(cm::AbstractComponentModifier, s::Servable, p::Pair ...) -> _
 ------------------
 Modifies the key properties of p[1] to the value of p[2] on s. This can also be
 done with setindex!
@@ -383,44 +383,44 @@ done with setindex!
 ```
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment", align = "left")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         cm[mybutton] = "align" = "center"
     end
     write!(c, mybutton)
 end
 ```
 """
-function modify!(cm::Modifier, s::AbstractComponent, p::Pair ...)
+function modify!(cm::AbstractComponentModifier, s::AbstractComponent, p::Pair ...)
     p = [pair for pair in p]
     modify!(cm, s, p)
 end
 
 """
 **Session Interface**
-### modify!(cm::Modifier, s::Servable, p::Vector{Pair{String, String}}) -> _
+### modify!(cm::AbstractComponentModifier, s::Servable, p::Vector{Pair{String, String}}) -> _
 ------------------
 Modifies the key properties of i[1] => i[2] for i in p on s.
 """
-function modify!(cm::Modifier, s::AbstractComponent,
+function modify!(cm::AbstractComponentModifier, s::AbstractComponent,
     p::Vector{Pair{String, String}})
     [modify!(cm, s, z) for z in p]
 end
 
 """
 **Session Interface**
-### modify!(cm::Modifier, s::Servable, p::Pair) -> _
+### modify!(cm::AbstractComponentModifier, s::Servable, p::Pair) -> _
 ------------------
 Modifies the key property p[1] to p[2] on s
 """
-modify!(cm::Modifier, s::AbstractComponent, p::Pair) = modify!(cm, s.name, p)
+modify!(cm::AbstractComponentModifier, s::AbstractComponent, p::Pair) = modify!(cm, s.name, p)
 
 """
 **Session Interface**
-### modify!(cm::Modifier, s::Servable, p::Pair) -> _
+### modify!(cm::AbstractComponentModifier, s::Servable, p::Pair) -> _
 ------------------
 Modifies the key property p[1] to p[2] on s
 """
-function modify!(cm::Modifier, s::String, p::Pair)
+function modify!(cm::AbstractComponentModifier, s::String, p::Pair)
     key, val = p[1], p[2]
     push!(cm.changes,
     "document.getElementById('$s').setAttribute('$key','$val');")
@@ -429,7 +429,7 @@ end
 
 """
 **Session Interface**
-### move!(cm::Modifier, p::Pair{Servable, Servable}) -> _
+### move!(cm::AbstractComponentModifier, p::Pair{Servable, Servable}) -> _
 ------------------
 Moves the servable p[2] to be a child of p[1].
 #### example
@@ -437,7 +437,7 @@ Moves the servable p[2] to be a child of p[1].
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment", align = "left")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         move!(cm, mybutton => mydiv)
     end
     write!(c, mybutton)
@@ -445,12 +445,12 @@ function home(c::Connection)
 end
 ```
 """
-move!(cm::Modifier, p::Pair{Servable, Servable}) = move!(cm,
+move!(cm::AbstractComponentModifier, p::Pair{Servable, Servable}) = move!(cm,
                                                         p[1].name => p[2].name)
 
 """
 **Session Interface**
-### move!(cm::Modifier, p::Pair{String, String}) -> _
+### move!(cm::AbstractComponentModifier, p::Pair{String, String}) -> _
 ------------------
 Moves the servable p[2] to be a child of p[1] by name.
 #### example
@@ -458,7 +458,7 @@ Moves the servable p[2] to be a child of p[1] by name.
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment", align = "left")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         move!(cm, "mybutton" => "mydiv")
     end
     write!(c, mybutton)
@@ -466,7 +466,7 @@ function home(c::Connection)
 end
 ```
 """
-function move!(cm::Modifier, p::Pair{String, String})
+function move!(cm::AbstractComponentModifier, p::Pair{String, String})
     firstname = p[1]
     secondname = p[2]
     push!(cm.changes, "
@@ -478,71 +478,71 @@ end
 
 """
 **Session Interface**
-### remove!(cm::Modifier, s::Servable) -> _
+### remove!(cm::AbstractComponentModifier, s::Servable) -> _
 ------------------
 Removes the servable s.
 #### example
 ```
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment", align = "left")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         remove!(cm, mybutton)
     end
     write!(c, mybutton)
 end
 ```
 """
-remove!(cm::Modifier, s::Servable) = remove!(cm, s.name)
+remove!(cm::AbstractComponentModifier, s::Servable) = remove!(cm, s.name)
 
 """
 **Session Interface**
-### remove!(cm::Modifier, s::String) -> _
+### remove!(cm::AbstractComponentModifier, s::String) -> _
 ------------------
 Removes the servable s by name.
 #### example
 ```
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment", align = "left")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         remove!(cm, "mybutton")
     end
     write!(c, mybutton)
 end
 ```
 """
-function remove!(cm::Modifier, s::String)
+function remove!(cm::AbstractComponentModifier, s::String)
     push!(cm.changes, "document.getElementById('$s').remove();")
 end
 
 """
 **Session Interface**
-### set_text!(cm::Modifier, s::Servable, txt::String) -> _
+### set_text!(cm::AbstractComponentModifier, s::Servable, txt::String) -> _
 ------------------
 Sets the inner HTML of a Servable.
 #### example
 ```
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change text")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         set_text!(cm, mybutton, "changed text")
     end
     write!(c, mybutton)
 end
 ```
 """
-set_text!(cm::Modifier, s::Servable, txt::String) = set_text!(cm,
+set_text!(cm::AbstractComponentModifier, s::Servable, txt::String) = set_text!(cm,
                                                                     s.name, txt)
 
 """
 **Session Interface**
-### set_text!(cm::Modifier, s::String, txt::String) -> _
+### set_text!(cm::AbstractComponentModifier, s::String, txt::String) -> _
 ------------------
 Sets the inner HTML of a Servable by name
 #### example
 ```
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change text")
-    on(c, "mybutton", "click") do cm::Modifier
+    on(c, "mybutton", "click") do cm::AbstractComponentModifier
         set_text!(cm, mybutton, "changed text")
     end
     write!(c, mybutton)
@@ -555,7 +555,7 @@ end
 
 """
 **Session Interface**
-### set_children!(cm::Modifier, s::Servable, v::Vector{Servable}) -> _
+### set_children!(cm::AbstractComponentModifier, s::Servable, v::Vector{Servable}) -> _
 ------------------
 Sets the children of a given component.
 #### example
@@ -563,7 +563,7 @@ Sets the children of a given component.
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment", align = "left")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         set_children!(cm, mydiv, [mybutton])
     end
     write!(c, mybutton)
@@ -571,13 +571,13 @@ function home(c::Connection)
 end
 ```
 """
-function set_children!(cm::Modifier, s::Servable, v::Vector{Servable})
+function set_children!(cm::AbstractComponentModifier, s::Servable, v::Vector{Servable})
     set_children!(cm, s.name, v)
 end
 
 """
 **Session Interface**
-### set_children!(cm::Modifier, s::String, v::Vector{Servable}) -> _
+### set_children!(cm::AbstractComponentModifier, s::String, v::Vector{Servable}) -> _
 ------------------
 Sets the children of a given component by name.
 #### example
@@ -586,7 +586,7 @@ function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment", align = "left")
     newptext = p("newp", text = "this text is added to our div")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         set_children!(cm, "mydiv", [newptext])
     end
     write!(c, mybutton)
@@ -594,7 +594,7 @@ function home(c::Connection)
 end
 ```
 """
-function set_children!(cm::Modifier, s::String, v::Vector{Servable})
+function set_children!(cm::AbstractComponentModifier, s::String, v::Vector{Servable})
     spoofconn::SpoofConnection = SpoofConnection()
     write!(spoofconn, v)
     txt::String = spoofconn.http.text
@@ -603,7 +603,7 @@ end
 
 """
 **Session Interface**
-### append!(cm::Modifier, s::Servable, child::Servable) -> _
+### append!(cm::AbstractComponentModifier, s::Servable, child::Servable) -> _
 ------------------
 Appends child to the servable s.
 #### example
@@ -612,7 +612,7 @@ function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment", align = "left")
     newptext = p("newp", text = "this text is added to our div")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         append!(cm, mydiv, newptext)
     end
     write!(c, mybutton)
@@ -620,13 +620,13 @@ function home(c::Connection)
 end
 ```
 """
-function append!(cm::Modifier, s::Servable, child::Servable)
+function append!(cm::AbstractComponentModifier, s::Servable, child::Servable)
     append!(cm, s.name, child)
 end
 
 """
 **Session Interface**
-### append!(cm::Modifier, name::String, child::Servable) -> _
+### append!(cm::AbstractComponentModifier, name::String, child::Servable) -> _
 ------------------
 Appends child to the servable s by name.
 #### example
@@ -635,7 +635,7 @@ function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment", align = "left")
     newptext = p("newp", text = "this text is added to our div")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         append!(cm, "mydiv", newptext)
     end
     write!(c, mybutton)
@@ -643,7 +643,7 @@ function home(c::Connection)
 end
 ```
 """
-function append!(cm::Modifier, name::String, child::Servable)
+function append!(cm::AbstractComponentModifier, name::String, child::Servable)
     ctag = child.tag
     exstr = "var element = document.createElement($ctag);"
     for prop in child.properties
@@ -665,7 +665,7 @@ end
 
 """
 **Session Interface**
-### get_text(cm::Modifier, s::Component) -> ::String
+### get_text(cm::AbstractComponentModifier, s::Component) -> ::String
 ------------------
 Retrieves the text of a given Component.
 #### example
@@ -673,7 +673,7 @@ Retrieves the text of a given Component.
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment", align = "left")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         current_buttont = get_text(cm, mybutton)
     end
     write!(c, mybutton)
@@ -681,11 +681,11 @@ function home(c::Connection)
 end
 ```
 """
-get_text(cm::Modifier, s::Component) = cm[s][:text]
+get_text(cm::AbstractComponentModifier, s::Component) = cm[s][:text]
 
 """
 **Session Interface**
-### get_text(cm::Modifier, s::String) -> ::String
+### get_text(cm::AbstractComponentModifier, s::String) -> ::String
 ------------------
 Retrieves the text of a given Component by name
 #### example
@@ -693,7 +693,7 @@ Retrieves the text of a given Component by name
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment", align = "left")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         current_buttont = get_text(cm, "mybutton")
     end
     write!(c, mybutton)
@@ -701,11 +701,11 @@ function home(c::Connection)
 end
 ```
 """
-get_text(cm::Modifier, s::String) = cm[s][:text]
+get_text(cm::AbstractComponentModifier, s::String) = cm[s][:text]
 
 """
 **Session Interface**
-### style!(cm::Modifier, s::Servable, style::Style) -> _
+### style!(cm::AbstractComponentModifier, s::Servable, style::Style) -> _
 ------------------
 Changes the style class of s to the style p. Note -- **styles must be already
 written to the Connection** prior.
@@ -715,7 +715,7 @@ function home(c::Connection)
     mystyle = Style("newclass", "background-color" => "blue")
     mybutton = button("mybutton", text = "click to change alignment")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         style!(cm, mybutton, mystyle)
     end
     write!(c, mybutton)
@@ -723,13 +723,13 @@ function home(c::Connection)
 end
 ```
 """
-function style!(cm::Modifier, s::Servable,  style::Style)
+function style!(cm::AbstractComponentModifier, s::Servable,  style::Style)
     style!(cm, s.name, style.name)
 end
 
 """
 **Session Interface**
-### style!(cm::Modifier, name::String, sname::String) -> _
+### style!(cm::AbstractComponentModifier, name::String, sname::String) -> _
 ------------------
 Changes the style class of a Servable by name to the style p by name.
 Note -- **styles must be already written to the Connection** prior.
@@ -739,7 +739,7 @@ function home(c::Connection)
     mystyle = Style("newclass", "background-color" => "blue")
     mybutton = button("mybutton", text = "click to change alignment")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         style!(cm, mybutton, "newclass") #<- name of mystyle
     end
     write!(c, mybutton)
@@ -753,7 +753,7 @@ end
 
 """
 **Session Interface**
-### style!(cm::Modifier, s::Servable, p::Pair{String, String}) -> _
+### style!(cm::AbstractComponentModifier, s::Servable, p::Pair{String, String}) -> _
 ------------------
 Styles the Servable s with the properties and values in p.
 #### example
@@ -761,7 +761,7 @@ Styles the Servable s with the properties and values in p.
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         style!(cm, mybutton, "background-color" => "lightblue", "color" => "white")
     end
     write!(c, mybutton)
@@ -769,14 +769,14 @@ function home(c::Connection)
 end
 ```
 """
-function style!(cm::Modifier, s::Servable, p::Pair{String, String} ...)
+function style!(cm::AbstractComponentModifier, s::Servable, p::Pair{String, String} ...)
     p = [pair for pair in p]
     style!(cm, s, p)
 end
 
 """
 **Session Interface**
-### style!(cm::Modifier, s::String, p::Pair{String, String}) -> _
+### style!(cm::AbstractComponentModifier, s::String, p::Pair{String, String}) -> _
 ------------------
 Styles the Servable s by name with the properties and values in p.
 #### example
@@ -784,7 +784,7 @@ Styles the Servable s by name with the properties and values in p.
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         style!(cm, "mybutton", "background-color" => "lightblue", "color" => "white")
     end
     write!(c, mybutton)
@@ -792,14 +792,14 @@ function home(c::Connection)
 end
 ```
 """
-function style!(cm::Modifier, s::String, p::Pair{String, Any} ...)
+function style!(cm::AbstractComponentModifier, s::String, p::Pair{String, Any} ...)
     p = [pair[1] => string(pair[2]) for pair in p]
     style!(cm, s, p)
 end
 
 """
 **Session Interface**
-### style!(cm::Modifier, s::Servable, p::Pair) -> _
+### style!(cm::AbstractComponentModifier, s::Servable, p::Pair) -> _
 ------------------
 Styles the Servable s with the property and value in p.
 #### example
@@ -807,7 +807,7 @@ Styles the Servable s with the property and value in p.
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         style!(cm, mybutton, "background-color" => "lightblue")
     end
     write!(c, mybutton)
@@ -815,11 +815,11 @@ function home(c::Connection)
 end
 ```
 """
-style!(cm::Modifier, s::Servable, p::Pair) = style!(cm, s.name, p)
+style!(cm::AbstractComponentModifier, s::Servable, p::Pair) = style!(cm, s.name, p)
 
 """
 **Session Interface**
-### style!(cm::Modifier, name::String, p::Pair) -> _
+### style!(cm::AbstractComponentModifier, name::String, p::Pair) -> _
 ------------------
 Styles a Servable by name with the property and value in p.
 #### example
@@ -827,7 +827,7 @@ Styles a Servable by name with the property and value in p.
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         style!(cm, "mybutton", "background-color" => "lightblue")
     end
     write!(c, mybutton)
@@ -835,7 +835,7 @@ function home(c::Connection)
 end
 ```
 """
-function style!(cm::Modifier, name::String, p::Pair)
+function style!(cm::AbstractComponentModifier, name::String, p::Pair)
     key, value = p[1], p[2]
     push!(cm.changes,
         "document.getElementById('$name').style['$key'] = `$value`;")
@@ -843,7 +843,7 @@ end
 
 """
 **Session Interface**
-### style!(cm::Modifier, name::String, p::Vector{Pair{String, String}}) -> _
+### style!(cm::AbstractComponentModifier, name::String, p::Vector{Pair{String, String}}) -> _
 ------------------
 Styles a Servable by name with the properties and values in p.
 #### example
@@ -851,7 +851,7 @@ Styles a Servable by name with the properties and values in p.
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         style!(cm, mybutton, ["background-color" => "lightblue"])
     end
     write!(c, mybutton)
@@ -859,7 +859,7 @@ function home(c::Connection)
 end
 ```
 """
-function style!(cm::Modifier, s::Servable,
+function style!(cm::AbstractComponentModifier, s::Servable,
     p::Vector{Pair{String, String}})
     name = s.name
     getelement = "var new_element = document.getElementById('$name');"
@@ -873,7 +873,7 @@ end
 
 """
 **Session Interface**
-### style!(cm::Modifier, name::String, p::Vector{Pair{String, String}}) -> _
+### style!(cm::AbstractComponentModifier, name::String, p::Vector{Pair{String, String}}) -> _
 ------------------
 Styles a Servable by name with the properties and values in p.
 #### example
@@ -881,7 +881,7 @@ Styles a Servable by name with the properties and values in p.
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         style!(cm, "mybutton", "background-color" => "lightblue")
     end
     write!(c, mybutton)
@@ -889,7 +889,7 @@ function home(c::Connection)
 end
 ```
 """
-function style!(cm::Modifier, name::String,
+function style!(cm::AbstractComponentModifier, name::String,
     p::Vector{Pair{String, String}})
     getelement = "var new_element = document.getElementById('$name');"
     push!(cm.changes, getelement)
@@ -902,7 +902,7 @@ end
 
 """
 **Session Interface**
-### free_redirects!(cm::Modifier) -> _
+### free_redirects!(cm::AbstractComponentModifier) -> _
 ------------------
 Removes the "are you sure you wish to leave" box that can be created with
 confirm_redirects!
@@ -911,7 +911,7 @@ confirm_redirects!
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment", redirects = "free")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         if cm[mybutton]["redirects"] == "free"
             confirm_redirects!(cm)
             cm[mybutton] = "redirects" => "confirm"
@@ -925,13 +925,13 @@ function home(c::Connection)
 end
 ```
 """
-function free_redirects!(cm::Modifier)
+function free_redirects!(cm::AbstractComponentModifier)
     push!(cm.changes, """window.onbeforeunload = null;""")
 end
 
 """
 **Session Interface**
-### confirm_redirects!(cm::Modifier) -> _
+### confirm_redirects!(cm::AbstractComponentModifier) -> _
 ------------------
 Adds an "are you sure you want to leave this page... unsaved changes" pop-up
  when trying to leave the page. Can be undone with `free_redirects!`
@@ -940,7 +940,7 @@ Adds an "are you sure you want to leave this page... unsaved changes" pop-up
 function home(c::Connection)
     mybutton = button("mybutton", text = "click to change alignment", redirects = "free")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         if cm[mybutton]["redirects"] == "free"
             confirm_redirects!(cm)
             cm[mybutton] = "redirects" => "confirm"
@@ -954,7 +954,7 @@ function home(c::Connection)
 end
 ```
 """
-function confirm_redirects!(cm::Modifier)
+function confirm_redirects!(cm::AbstractComponentModifier)
     push!(cm.changes, """window.onbeforeunload = function() {
     return true;
 };""")
@@ -962,7 +962,7 @@ end
 
 """
 **Session Interface**
-### scroll_to!(cm::Modifier, xy::Tuple{Int64, Int64}) -> _
+### scroll_to!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64}) -> _
 ------------------
 Sets the page scroll to xy.
 #### example
@@ -970,7 +970,7 @@ Sets the page scroll to xy.
 function home(c::Connection)
     mybutton = button("mybutton", text = "button")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         scroll_to!(cm, (0, 15))
     end
     write!(c, mybutton)
@@ -978,13 +978,13 @@ function home(c::Connection)
 end
 ```
 """
-function scroll_to!(cm::Modifier, xy::Tuple{Int64, Int64})
+function scroll_to!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
     push!(cm.changes, """window.scrollTo($(xy[1]), $(xy[2]));""")
 end
 
 """
 **Session Interface**
-### scroll_by!(cm::Modifier, xy::Tuple{Int64, Int64}) -> _
+### scroll_by!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64}) -> _
 ------------------
 Scrolls the page by xy.
 #### example
@@ -992,7 +992,7 @@ Scrolls the page by xy.
 function home(c::Connection)
     mybutton = button("mybutton", text = "button")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         scroll_by!(cm, (0, 15))
     end
     write!(c, mybutton)
@@ -1000,13 +1000,13 @@ function home(c::Connection)
 end
 ```
 """
-function scroll_by!(cm::Modifier, xy::Tuple{Int64, Int64})
+function scroll_by!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
     push!(cm.changes, """window.scrollBy($(xy[1]), $(xy[2]));""")
 end
 
 """
 **Session Interface**
-### scroll_to!(cm::Modifier, s::AbstractComponent, xy::Tuple{Int64, Int64}) -> _
+### scroll_to!(cm::AbstractComponentModifier, s::AbstractComponent, xy::Tuple{Int64, Int64}) -> _
 ------------------
 Sets the Component's scroll to xy.
 #### example
@@ -1014,7 +1014,7 @@ Sets the Component's scroll to xy.
 function home(c::Connection)
     mybutton = button("mybutton", text = "button")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         scroll_to!(cm, mydiv, (0, 15))
     end
     write!(c, mybutton)
@@ -1022,14 +1022,14 @@ function home(c::Connection)
 end
 ```
 """
-function scroll_to!(cm::Modifier, s::AbstractComponent,
+function scroll_to!(cm::AbstractComponentModifier, s::AbstractComponent,
      xy::Tuple{Int64, Int64})
      scroll_to!(cm, s, xy)
 end
 
 """
 **Session Interface**
-### scroll_by!(cm::Modifier, s::AbstractComponent, xy::Tuple{Int64, Int64}) -> _
+### scroll_by!(cm::AbstractComponentModifier, s::AbstractComponent, xy::Tuple{Int64, Int64}) -> _
 ------------------
 Scrolls the Component `s` by xy.
 #### example
@@ -1037,7 +1037,7 @@ Scrolls the Component `s` by xy.
 function home(c::Connection)
     mybutton = button("mybutton", text = "button")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         scroll_by!(cm, mydiv, (0, 15))
     end
     write!(c, mybutton)
@@ -1045,14 +1045,14 @@ function home(c::Connection)
 end
 ```
 """
-function scroll_by!(cm::Modifier, s::AbstractComponent,
+function scroll_by!(cm::AbstractComponentModifier, s::AbstractComponent,
     xy::Tuple{Int64, Int64})
     scroll_by!(cm, s, xy)
 end
 
 """
 **Session Interface**
-### scroll_to!(cm::Modifier, s::String, xy::Tuple{Int64, Int64}) -> _
+### scroll_to!(cm::AbstractComponentModifier, s::String, xy::Tuple{Int64, Int64}) -> _
 ------------------
 Sets the Component's scroll to xy by name.
 #### example
@@ -1060,7 +1060,7 @@ Sets the Component's scroll to xy by name.
 function home(c::Connection)
     mybutton = button("mybutton", text = "button")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         scroll_to!(cm, "mydiv", (0, 15))
     end
     write!(c, mybutton)
@@ -1068,7 +1068,7 @@ function home(c::Connection)
 end
 ```
 """
-function scroll_to!(cm::Modifier, s::String,
+function scroll_to!(cm::AbstractComponentModifier, s::String,
      xy::Tuple{Int64, Int64})
      push!(cm.changes,
      """document.getElementById('$s').scrollTo($(xy[1]), $(xy[2]));""")
@@ -1076,7 +1076,7 @@ end
 
 """
 **Session Interface**
-### scroll_by!(cm::Modifier, s::String, xy::Tuple{Int64, Int64}) -> _
+### scroll_by!(cm::AbstractComponentModifier, s::String, xy::Tuple{Int64, Int64}) -> _
 ------------------
 Scrolls the Component `s` by xy by name.
 #### example
@@ -1084,7 +1084,7 @@ Scrolls the Component `s` by xy by name.
 function home(c::Connection)
     mybutton = button("mybutton", text = "button")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         scroll_by!(cm, "mydiv", (0, 15))
     end
     write!(c, mybutton)
@@ -1092,7 +1092,7 @@ function home(c::Connection)
 end
 ```
 """
-function scroll_by!(cm::Modifier, s::String,
+function scroll_by!(cm::AbstractComponentModifier, s::String,
     xy::Tuple{Int64, Int64})
     push!(cm.changes,
     """document.getElementById('$s').scrollBy($(xy[1]), $(xy[2]))""")
@@ -1100,7 +1100,7 @@ end
 
 """
 **Session Interface** 0.3
-### observe!(f::Function, c::Connection, cm::Modifier, name::String, time::Integer = 1000) -> _
+### observe!(f::Function, c::Connection, cm::AbstractComponentModifier, name::String, time::Integer = 1000) -> _
 ------------------
 Creates a new event to happen in `time`. This is useful if you want to have a delay before
 some initial session call
@@ -1109,7 +1109,7 @@ some initial session call
 function home(c::Connection)
     mybutton = button("mybutton", text = "button")
     mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::Modifier
+    on(c, mybutton, "click") do cm::AbstractComponentModifier
         scroll_by!(cm, "mydiv", (0, 15))
         observe!(c, cm, "myobs", 1000) do cm::ComponentModifier
             scroll_by!(cm, "mydiv", (0, -15)) # < scrolls  the div back up after 1 second.
@@ -1120,7 +1120,7 @@ function home(c::Connection)
 end
 ```
 """
-function script!(f::Function, c::Connection, cm::Modifier, name::String,
+function script!(f::Function, c::Connection, cm::AbstractComponentModifier, name::String,
      readonly::Vector{String} = Vector{String}(); time::Integer = 1000)
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], name => f)
@@ -1133,7 +1133,7 @@ function script!(f::Function, c::Connection, cm::Modifier, name::String,
     end
 end
 
-function push!(cm::Modifier, s::Servable ...)
+function push!(cm::AbstractComponentModifier, s::Servable ...)
 
 end
 
@@ -1151,8 +1151,68 @@ have not been verified to work with this syntax (yet).
 
 ```
 """
-function next!(f::Function, cm::ComponentModifier)
+function next!(f::Function, name::String cm::ComponentModifier)
+    ip::String = string(getip(c))
+    id::String = gen_ref()
+    cm[name]["ontransitionend"] = "sendpage('$(id)');"
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][ip], "$(id)" => f)
+    else
+        c[:Session].events[ip] = Dict("$(id)" => f)
+    end
+    if length(readonly) > 0
+        c[:Session].readonly["$(ip)$(id)"] = readonly
+    end
+end
 
+"""
+**Session Interface** 0.3
+### next!(f::Function, cm::ComponentModifier)
+------------------
+This method can be used to chain animations (or transitions.) We can do this
+by calling next on our ComponentModifier, the same could also be done with a
+`Component{:script}` (usually made with) `script(::String, properties ...)` or
+the `script(::Function, ::String)` function from this module. Note that **transitions**
+have not been verified to work with this syntax (yet).
+#### example
+```
+
+```
+"""
+next!(f::Function, s::AbstractComponent, cm::ComponentModifier) = next!(f,
+        s.name, cm)
+
+"""
+**Session Interface** 0.3
+### next!(f::Function, name::String, cm::ComponentModifier, a::Animation)
+------------------
+This method can be used to chain animations (or transitions.) Using the `Animation`
+dispatch for this will simply set the next animation on completion of the previous.
+#### example
+```
+
+```
+"""
+function next!(cm::ComponentModifier, name::String, a::Animation;
+    write::Bool = false)
+    anendscr = script("$(a.name)endscr") do cm::ClientModifier
+        animate!(cm, name, a, write = write)
+        remove!(cm, "$(a.name)endscr")
+    end
+    cm[name]["onanimationend"] = "$(a.name)endscr()"
+    playstate = "running"
+    if ~(play)
+        playstate = "paused"
+    end
+    animname = a.name
+    time = string(a.length) * "s"
+     push!(cm.changes,
+     "document.getElementById('$s').style.animation = '$time 1 $animname';")
+     push!(cm.changes,
+    "document.getElementById('$s').style.animationPlayState = '$playstate';")
+    if write
+        push!(cm, a)
+    end
 end
 
 """
@@ -1166,20 +1226,9 @@ dispatch for this will simply set the next animation on completion of the previo
 
 ```
 """
-function next!(f::Function, cm::ComponentModifier, a::Animation;
+function next!(cm::ComponentModifier, s::AbstractComponent, a::Animation;
     write::Bool = false)
-    anendscr = script("$(a.name)endscr")
-    cm[name]["onanimationend"] = ""
-    playstate = "running"
-    if ~(play)
-        playstate = "paused"
-    end
-    animname = a.name
-    time = string(a.length) * "s"
-     push!(cm.changes,
-     "document.getElementById('$s').style.animation = '$time 1 $animname';")
-     push!(cm.changes,
-    "document.getElementById('$s').style.animationPlayState = '$playstate';")
+    next!(cm, s.name, a, write = write)
 end
 # emmy was here ! <3
 """
@@ -1225,6 +1274,23 @@ function insert_child!()
 
 end
 
-function append_first!()
-
+function append_first!(cm::ComponentModifier, name::String, child::AbstractComponent)
+    ctag = child.tag
+    exstr = "var element = document.createElement($ctag);"
+    for prop in child.properties
+        if prop[1] == :children
+            spoofconn::SpoofConnection = SpoofConnection()
+            write!(spoofconn, prop[2])
+            txt = spoofconn.http.text
+            push!(cm.changes, "element.innerHTML = `$txt`;")
+        elseif prop[1] == :text
+            txt = prop[2]
+            push!(cm.changes, "element.innerHTML = `$txt`;")
+        else
+            key, val = prop[1], prop[2]
+            push(cm.changes, "element.setAttribute('$key',`$val`);")
+        end
+    end
+    push!(cm.changes,
+    "document.getElementById('$name').appendBefore(element, document.getElementById('$name').firstChild);")
 end

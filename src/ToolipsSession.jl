@@ -496,9 +496,10 @@ is_client(c::Connection, s::String) = getip(c) in keys(c[:Session].peers[s])
 
 is_dead(c::Connection) = getip(c) in keys(c[:Session].iptable)
 
-export Session, on, bind!, script!, script,
-export TimedTrigger, observe!, ComponentModifier, animate!, pauseanim!
+export Session, on, bind!, script!, script, ComponentModifier, ClientModifier
 export playanim!, alert!, redirect!, modify!, move!, remove!, set_text!
+export update!, insert_child!, append_first!, animate!, pauseanim!, next!
 export set_children!, get_text, style!, free_redirects!, confirm_redirects!
+export scroll_by!, scroll_to!
 
 end # module
