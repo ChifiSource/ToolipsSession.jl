@@ -15,7 +15,7 @@ also methods contained for modifying Servables.
 """
 module ToolipsSession
 using Toolips
-import Toolips: ServerExtension, Servable, Connection, AbstractComponent
+import Toolips: ServerExtension, Servable, AbstractComponent, Modifier
 import Toolips: AbstractRoute, kill!
 import Base: setindex!, getindex, push!
 using Random, Dates
@@ -418,18 +418,18 @@ document.addEventListener('key$on', function(event) {
     end
 end
 
-function script!(f::Function, c::Connection, name::String, event::String,
+function script!(f::Function, c::Connection, name::String,
     readonly::Vector{String} = Vector{String}(); time::Integer = 1000)
     if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], event => f)
+        push!(c[:Session][getip(c)], name => f)
     else
-        c[:Session][getip(c)] = Dict(event => f)
+        c[:Session][getip(c)] = Dict(name => f)
     end
-    obsscript = script(event, text = """
-    new Promise(resolve => setIntervalimeout(sendpage('$event'), $time));
+    obsscript = script(name, text = """
+    new Promise(resolve => setIntervalimeout(sendpage('$name'), $time));
    """)
    if length(readonly) > 0
-       c[:Session].readonly["$ip$event$name"] = readonly
+       c[:Session].readonly["$ip$name"] = readonly
    end
    write!(c, obsscript)
 end
@@ -457,8 +457,8 @@ easy to use method system for working between many different peers and communica
 """
 function open_rpc!(c::Connection; tickrate::Int64 = 100)
     push!(c[:Session].peers, getip(c) => Dict{String, Modifier}())
-    script!(c, getip(c) * "rpc", "rpc", time = tickrate) do cm::ComponentModifier
-
+    script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
+        cm.changes = vcat(c[:Session].peers[getip(c)][getip(c)].changes, cm.changes)
     end
 end
 
@@ -468,13 +468,10 @@ end
 
 function join_rpc!(c::Connection, host::String)
     push!(c[:Session].peers[host])
-    script!(c, getip(c) * "rpc", "rpc", time = tickrate) do cm::ComponentModifier
-
+    script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
+        location::String = find_client(c)
+        cm.changes = vcat(c[:Session].peers[location][getip(c)].changes, cm.changes)
     end
-end
-
-function _dorpc(c::Connection, cm::ComponentModifier)
-
 end
 
 function find_client(c::Connection)
@@ -493,28 +490,13 @@ function disconnect_rpc!(c::Connection)
     delete!(c[:Session].peers[mods][getip(c)])
 end
 
-is_host(c::Connection) = begin
-    if getip(c) in keys(c[:Session].peers)
-        true
-    end
-    false
-end
+is_host(c::Connection) = getip(c) in keys(c[:Session].peers)
 
-is_client(c::Connection, s::String) = begin
-    if getip(c) in keys(c[:Session].peers[s])
-        true
-    end
-    false
-end
+is_client(c::Connection, s::String) = getip(c) in keys(c[:Session].peers[s])
 
-is_dead(c::Connection) = begin
-    if getip(c) in keys(c[:Session].iptable)
-        true
-    end
-    false
-end
+is_dead(c::Connection) = getip(c) in keys(c[:Session].iptable)
 
-export Session, on, on_keydown, on_keyup
+export Session, on, bind!, script!, script,
 export TimedTrigger, observe!, ComponentModifier, animate!, pauseanim!
 export playanim!, alert!, redirect!, modify!, move!, remove!, set_text!
 export set_children!, get_text, style!, free_redirects!, confirm_redirects!
