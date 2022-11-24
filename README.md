@@ -50,32 +50,17 @@ end
 ```julia
 include("dev.jl")
 ```
-#### new in 0.3.0
+###### new in 0.3.0
 - new `bind` method replaces old keys, can now use event and hotkeys quite easily with this method.
 - simplified `on`.
-- multi-client remote procedure `ComponentModifier` sessions.
+- multi-client remote procedure `ComponentModifier` sessions. (`rpc!`, `open_rpc!`, `join_rpc!`, `disconnect_rpc!`, `close_rpc!`, `is_host`, `is_client`, `is_dead`)
 - new `script!` and `script` interface for creating client functions and observable functions in a consistent way.
-- Additional abstraction to Modifiers.
+- Additional abstraction to Modifiers. 
+- Client Modifiers
 - `Modifier` Abstract type moved to [toolips](https://github.com/ChifiSource/Toolips.jl)
 - `next!` method to set next animations and changes.
 - `observe!` has become `script` in accordance with new syntax.
 - `insert_child!` allows the inserting of children.
 - `append_first!` allows us to append a child to the top of the children.
-###### demonstration
-The first new feature is the `bind` method. This allows us to bind different keys together a lot better than `on_keydown` of old.
-```julia
-using Toolips
-using ToolipsSession
-
-myroute = route("/") do c::Connection
-    bod = body("home-body", align = "center")
-    style!(bod, "padding" => 100px)
-    bind(c, "Shift", "Enter") do cm::ComponentModifier
-        set_children!(cm, bod, [h(1, "buttonpressed", text = "congratulations, you pressed shift and enter")])
-    end
-end
-```
-Next are the peer-to-peer Connections. These store ComponentModifiers as Vectors, and sync changes with RPC called on ComponentModifiers -- here is a demonstration of using this technique to create a single-page chat site.
-```julia
-# I'm still working on the readme lol
-```
+- `push!` `ComponentModifier` bindings to put scripts into documents.
+- `update!` allows any Julia type to be written to the "text/html" MIME. Eventually, this function will include an auto-mime algorithm similar to the one seen in Olive.jl [here](https://github.com/ChifiSource/Olive.jl/blob/main/src/Core.jl) (towards the bottom of the file).
