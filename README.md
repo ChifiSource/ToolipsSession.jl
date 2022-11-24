@@ -8,7 +8,7 @@ Toolips Session is a Server Extension for toolips that enables full-stack web-de
 ##### Step 1: Add ToolipsSession to your environment with Pkg
 Start a toolips **webapp** to automatically add `ToolipsSession`:
 ```julia
-Toolips.new_webapp("ModifierExample
+Toolips.new_webapp("ModifierExample")
 ```
 Otherwise, you can add it from Pkg directly, just ensure [toolips](https://github.com/ChifiSource/Toolips.jl) is also added.
 ```julia
