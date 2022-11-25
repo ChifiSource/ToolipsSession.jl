@@ -317,7 +317,7 @@ function on(f::Function, c::Connection, event::AbstractString,
     readonly::Vector{String} = Vector{String}())
     ref = gen_ref()
     write!(c,
-        "<script>document.addEventListener('$event', sendpage('$ref'));</script>")
+        "<script>document.addEventListener('$event', \"sendpage('$ref')\");</script>")
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], "$ref" => f)
     else
