@@ -170,14 +170,14 @@ mutable struct Session <: ServerExtension
     events::Dict{String, Dict{String, Function}}
     readonly::Dict{String, Vector{String}}
     iptable::Dict{String, Dates.DateTime}
-    peers::Dict{String, Dict{String, Modifier}}
+    peers::Dict{String, Dict{String, Vector{String}}}
     timeout::Integer
     function Session(active_routes::Vector{String} = ["/"];
         transition_duration::AbstractFloat = 0.5,
         transition::AbstractString = "ease-in-out", timeout::Integer = 30,
         path::AbstractRoute = Route("/modifier/linker", x -> 5))
         events = Dict{String, Dict{String, Function}}()
-        peers::Dict{String, Dict{String, Modifier}} = Dict{String, Dict{String, Modifier}}()
+        peers::Dict{String, Dict{String, Vector{String}}} = Dict{String, Dict{String, Vector{String}}}()
         iptable = Dict{String, Dates.DateTime}()
         readonly = copy(events)
         f(c::Connection, active_routes::Vector{String} = active_routes) = begin
@@ -478,10 +478,10 @@ easy to use method system for working between many different peers and communica
 """
 function open_rpc!(c::Connection, name::String; tickrate::Int64 = 500)
     push!(c[:Session].peers,
-     name => Dict{String, Modifier}(getip(c) => ClientModifier()))
+     name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
-        cm.changes = c[:Session].peers[name][getip(c)].changes
-        c[:Session].peers[name][getip(c)].changes = Vector{String}()
+        cm.changes = c[:Session].peers[name][getip(c)]
+        c[:Session].peers[name][getip(c)] = Vector{String}()
     end
 end
 
@@ -490,11 +490,11 @@ function close_rpc!(c::Connection)
 end
 
 function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
-    push!(c[:Session].peers[host], getip(c) => ClientModifier())
+    push!(c[:Session].peers[host], getip(c) => Vector{String}())
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
         location::String = find_client(c)
-        cm.changes = c[:Session].peers[location][getip(c)].changes
-        c[:Session].peers[location][getip(c)].changes = Vector{String}()
+        cm.changes = c[:Session].peers[location][getip(c)]
+        c[:Session].peers[location][getip(c)] = Vector{String}()
     end
 end
 
@@ -505,10 +505,8 @@ end
 
 function rpc!(c::Connection, cm::ComponentModifier)
     mods::String = find_client(c)
-    for mod in values(c[:Session].peers[mods])
-        push!(mod.changes, join(cm.changes))
-    end
-    cm.changes = Vector{String}()
+    push!(c[:Session].peers[mods][getip(c)], join(cm.changes))
+    cm = ComponentModifier("")
 end
 
 function rpc!(f::Function, c::Connection)
@@ -518,7 +516,6 @@ function rpc!(f::Function, c::Connection)
     for mod in values(c[:Session].peers[mods])
         push!(mod.changes, join(cm.changes))
     end
-
 end
 
 function disconnect_rpc!(c::Connection)
