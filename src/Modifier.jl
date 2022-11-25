@@ -1153,36 +1153,20 @@ have not been verified to work with this syntax (yet).
 
 ```
 """
-function next!(f::Function, name::String, cm::ComponentModifier)
-    ip::String = string(getip(c))
-    id::String = gen_ref()
-    cm[name]["ontransitionend"] = "sendpage('$(id)');"
+function next!(f::Function, c::AbstractConnection, comp::Component{<:Any},
+    cm::ComponentModifier, readonly::Vector{String} = Vector{String}())
+    ip::String = getip(c)
+    name = gen_ref()
+    cm[comp.name] = "ontransitionend" => "sendpage(\"$(name)\");"
     if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][ip], "$(id)" => f)
+        push!(c[:Session][ip], name => f)
     else
-        c[:Session].events[ip] = Dict("$(id)" => f)
+        c[:Session].events[ip] = Dict(name => f)
     end
     if length(readonly) > 0
-        c[:Session].readonly["$(ip)$(id)"] = readonly
+        c[:Session].readonly["$(ip)$(name)"] = readonly
     end
 end
-
-"""
-**Session Interface** 0.3
-### next!(f::Function, cm::ComponentModifier)
-------------------
-This method can be used to chain animations (or transitions.) We can do this
-by calling next on our ComponentModifier, the same could also be done with a
-`Component{:script}` (usually made with) `script(::String, properties ...)` or
-the `script(::Function, ::String)` function from this module. Note that **transitions**
-have not been verified to work with this syntax (yet).
-#### example
-```
-
-```
-"""
-next!(f::Function, s::AbstractComponent, cm::ComponentModifier) = next!(f,
-        s.name, cm)
 
 """
 **Session Interface** 0.3
