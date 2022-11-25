@@ -480,7 +480,7 @@ function open_rpc!(c::Connection, name::String; tickrate::Int64 = 500)
     push!(c[:Session].peers,
      name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
-        cm.changes = c[:Session].peers[name][getip(c)]
+        push!(cm.changes, join(c[:Session].peers[name][getip(c)]))
         c[:Session].peers[name][getip(c)] = Vector{String}()
     end
 end
@@ -493,7 +493,7 @@ function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], getip(c) => Vector{String}())
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
         location::String = find_client(c)
-        cm.changes = c[:Session].peers[location][getip(c)]
+        push!(cm.changes, join(c[:Session].peers[location][getip(c)]))
         c[:Session].peers[location][getip(c)] = Vector{String}()
     end
 end
