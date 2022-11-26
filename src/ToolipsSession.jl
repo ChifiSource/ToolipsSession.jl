@@ -118,7 +118,17 @@ end
 Kills a Connection's saved events.
 #### example
 ```
+using Toolips
+using ToolipsSession
 
+route("/") do c::Connection
+    on(c, "load") do cm::ComponentModifier
+        alert!(cm, "this text will never appear.")
+    end
+    println(length(keys(c[:Session].iptable)))
+    kill!(c)
+    println(length(keys(c[:Session].iptable)))
+end
 ```
 """
 function kill!(c::Connection)
@@ -328,6 +338,43 @@ function on(f::Function, c::Connection, event::AbstractString,
     end
 end
 
+function on(f::Function, c::Connection, cm::ComponentModifier, event::AbstractString,
+    readonly::Vector{String} = Vector{String}())
+    push!(cm.changes, """document.addEventListener('$event', sendpage('$event'));""")
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][getip(c)], "$event" => f)
+    else
+        c[:Session][getip(c)] = Dict("$event" => f)
+    end
+    if length(readonly) > 0
+        c[:Session].readonly["$ip$event"] = readonly
+    end
+end
+
+function on(f::Function, c::Connection, cm::ComponentModifier, comp::Component{<:Any}
+     event::AbstractString, readonly::Vector{String} = Vector{String}())
+     name::String = comp.name
+     push!(cm.changes, """document.getElementById('$name').addEventListener('$event', sendpage('$name$event'));""")
+     if getip(c) in keys(c[:Session].iptable)
+         push!(c[:Session][getip(c)], "$name$event" => f)
+     else
+         c[:Session][getip(c)] = Dict("$name$event" => f)
+     end
+     if length(readonly) > 0
+         c[:Session].readonly["$ip$name$event"] = readonly
+     end
+end
+
+function on(f::Function, cm::ComponentModifier, event::String)
+
+end
+
+function on(f::Function, cm::ComponentModifier, comp::Component{<:Any}, event::String)
+    mod = ClientModifier()
+    f(mod)
+    
+end
+
 """
 **Session Interface** 0.3
 ### bind!(f::Function, c::AbstractConnection, key::String, readonly::Vector{String} = [];
@@ -339,16 +386,17 @@ end
 
 ```
 """
-function bind!(f::Function, c::AbstractConnection, comp::Component{<:Any}, key::String,
-    eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}();
+function bind!(f::Function, c::AbstractConnection, comp::Component{<:Any},
+    key::String, eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
     on::Symbol = :down, client::Bool = false)
     cm::Modifier = ClientModifier()
-    ref = gen_ref()
+    eventstr::String = join([begin " event.$(event)Key && "
+                            end for event in eventkeys])
     if client
         f(cm)
         write!(c, """<script>
-    document.addEventListener('key$on', function(event) {
-        if (event.key == "$key") {
+    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
+        if ($eventstr event.key == "$(key)") {
         $(join(cm.changes))
         }
     });</script>
@@ -356,20 +404,20 @@ function bind!(f::Function, c::AbstractConnection, comp::Component{<:Any}, key::
         return
     end
     write!(c, """<script>
-document.addEventListener('key$on', function(event) {
-    if (event.key == "$key") {
-    sendpage(event.key);
-    }
+    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
+        if ($eventstr event.key == "$(key)") {
+        sendpage('$(comp.name * key)');
+        }
 });</script>
     """)
     ip::String = getip(c)
     if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][ip], ref => f)
+        push!(c[:Session][ip], comp.name * key => f)
     else
-        c[:Session][ip] = Dict(ref => f)
+        c[:Session][ip] = Dict(comp.name * key => f)
     end
     if length(readonly) > 0
-        c[:Session].readonly["$ip$ref"] = readonly
+        c[:Session].readonly["$ip$key"] = readonly
     end
 end
 
@@ -394,7 +442,7 @@ function bind!(f::Function, c::AbstractConnection, key::String, eventkeys::Symbo
         f(cm)
         write!(c, """<script>
     document.addEventListener('key$on', function(event) {
-        if ($eventstr event.key == "$(key[2])") {
+        if ($eventstr event.key == "$(key)") {
         $(join(cm.changes))
         }
     });</script>
@@ -403,7 +451,7 @@ function bind!(f::Function, c::AbstractConnection, key::String, eventkeys::Symbo
     end
     write!(c, """<script>
 document.addEventListener('key$on', function(event) {
-    if ($eventstr event.key == "$(key[2])") {
+    if ($eventstr event.key == "$(key)") {
     sendpage(event.key);
     }
 });</script>
@@ -416,6 +464,42 @@ document.addEventListener('key$on', function(event) {
     end
     if length(readonly) > 0
         c[:Session].readonly["$ip$key"] = readonly
+    end
+end
+
+function bind!(c::Connection, cm::ComponentModifier, key::String, eventkeys::Symbol ...;
+    readonly::Vector{String} = Vector{String}(),
+    on::Symbol = :down, client::Bool = false)
+    name::String = comp.name
+    push!(cm.changes, """    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
+            if ($eventstr event.key == "$(key)") {
+            sendpage('$(comp.name * key)');
+            };""")
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][getip(c)], "$name$event" => f)
+    else
+        c[:Session][getip(c)] = Dict("$name$event" => f)
+    end
+    if length(readonly) > 0
+        c[:Session].readonly["$ip$name$event"] = readonly
+    end
+end
+
+function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
+    key::String, eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
+    on::Symbol = :down, client::Bool = false)
+    name::String = comp.name
+    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
+        if ($eventstr event.key == "$(key)") {
+        sendpage('$(comp.name * key)')
+        }
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][getip(c)], "$name$event" => f)
+    else
+        c[:Session][getip(c)] = Dict("$name$event" => f)
+    end
+    if length(readonly) > 0
+        c[:Session].readonly["$ip$name$event"] = readonly
     end
 end
 
@@ -441,6 +525,7 @@ function script(f::Function, name::String)
     news::Component{:script} = script(name, text = """function $script() {
     $(join(cm.changes))
     }""")
+    news
 end
 
 """
