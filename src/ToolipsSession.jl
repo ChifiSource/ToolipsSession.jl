@@ -339,10 +339,11 @@ end
 
 ```
 """
-function bind!(f::Function, c::AbstractConnection, key::String,
-    readonly::Vector{String} = Vector{String}();
+function bind!(f::Function, c::AbstractConnection, comp::Component{<:Any}, key::String,
+    eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}();
     on::Symbol = :down, client::Bool = false)
     cm::Modifier = ClientModifier()
+    ref = gen_ref()
     if client
         f(cm)
         write!(c, """<script>
@@ -363,12 +364,12 @@ document.addEventListener('key$on', function(event) {
     """)
     ip::String = getip(c)
     if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][ip], key => f)
+        push!(c[:Session][ip], ref => f)
     else
-        c[:Session][ip] = Dict(key => f)
+        c[:Session][ip] = Dict(ref => f)
     end
     if length(readonly) > 0
-        c[:Session].readonly["$ip$key"] = readonly
+        c[:Session].readonly["$ip$ref"] = readonly
     end
 end
 
