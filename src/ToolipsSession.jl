@@ -506,7 +506,7 @@ end
 function rpc!(c::Connection, cm::ComponentModifier)
     mods::String = find_client(c)
     [push!(mod, join(cm.changes)) for mod in values(c[:Session].peers[mods])]
-    cm.changes = Vector{String}()
+    deleteat!(cm.changes, 1:length(cm.changes))
 end
 
 function rpc!(f::Function, c::Connection)
