@@ -351,7 +351,7 @@ function on(f::Function, c::Connection, cm::ComponentModifier, event::AbstractSt
     end
 end
 
-function on(f::Function, c::Connection, cm::ComponentModifier, comp::Component{<:Any}
+function on(f::Function, c::Connection, cm::ComponentModifier, comp::Component{<:Any},
      event::AbstractString, readonly::Vector{String} = Vector{String}())
      name::String = comp.name
      push!(cm.changes, """document.getElementById('$name').addEventListener('$event', sendpage('$name$event'));""")
@@ -372,7 +372,7 @@ end
 function on(f::Function, cm::ComponentModifier, comp::Component{<:Any}, event::String)
     mod = ClientModifier()
     f(mod)
-    
+
 end
 
 """
@@ -467,14 +467,16 @@ document.addEventListener('key$on', function(event) {
     end
 end
 
-function bind!(c::Connection, cm::ComponentModifier, key::String, eventkeys::Symbol ...;
-    readonly::Vector{String} = Vector{String}(),
+function bind!(f::Function, c::Connection, cm::ComponentModifier, key::String,
+    eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
     on::Symbol = :down, client::Bool = false)
     name::String = comp.name
-    push!(cm.changes, """    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
+    eventstr::String = join([begin " event.$(event)Key && "
+                            end for event in eventkeys])
+    push!(cm.changes, """    document.getElementById('$(comp.name)').addEventListener('key$on', (event) => {
             if ($eventstr event.key == "$(key)") {
             sendpage('$(comp.name * key)');
-            };""")
+            }}`);""")
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], "$name$event" => f)
     else
@@ -485,18 +487,20 @@ function bind!(c::Connection, cm::ComponentModifier, key::String, eventkeys::Sym
     end
 end
 
-function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
+function bind!(f::Function, c::Connection, cm::ComponentModifier, comp::Component{<:Any},
     key::String, eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
     on::Symbol = :down, client::Bool = false)
     name::String = comp.name
-    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
-        if ($eventstr event.key == "$(key)") {
-        sendpage('$(comp.name * key)')
-        }
+    eventstr::String = join([begin " event.$(event)Key && "
+                            end for event in eventkeys])
+push!(cm.changes, """document.getElementById('$(name)').onkeydown = function(event){
+        if ($eventstr event.key == '$(key)') {
+        sendpage('$(name * key)')
+        }};""")
     if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], "$name$event" => f)
+        push!(c[:Session][getip(c)], "$name$key" => f)
     else
-        c[:Session][getip(c)] = Dict("$name$event" => f)
+        c[:Session][getip(c)] = Dict("$name$key" => f)
     end
     if length(readonly) > 0
         c[:Session].readonly["$ip$name$event"] = readonly
