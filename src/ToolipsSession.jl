@@ -395,20 +395,22 @@ function bind!(f::Function, c::AbstractConnection, comp::Component{<:Any},
     if client
         f(cm)
         write!(c, """<script>
+        setTimeout(function () {
     document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
         if ($eventstr event.key == "$(key)") {
         $(join(cm.changes))
         }
-    });</script>
+    });}, 1000)</script>
     """)
         return
     end
     write!(c, """<script>
+    setTimeout(function () {
     document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
         if ($eventstr event.key == "$(key)") {
         sendpage('$(comp.name * key)');
         }
-});</script>
+});}, 1000)</script>
     """)
     ip::String = getip(c)
     if getip(c) in keys(c[:Session].iptable)
@@ -441,20 +443,22 @@ function bind!(f::Function, c::AbstractConnection, key::String, eventkeys::Symbo
     if client
         f(cm)
         write!(c, """<script>
+        setTimeout(function () {
     document.addEventListener('key$on', function(event) {
         if ($eventstr event.key == "$(key)") {
         $(join(cm.changes))
         }
-    });</script>
+    }, 1000);</script>
     """)
         return
     end
     write!(c, """<script>
+    setTimeoutl(function () {
 document.addEventListener('key$on', function(event) {
     if ($eventstr event.key == "$(key)") {
-    sendpage(event.key);
+    $(join(cm.changes))
     }
-});</script>
+}, 1000);</script>
     """)
     ip::String = getip(c)
     if getip(c) in keys(c[:Session].iptable)
