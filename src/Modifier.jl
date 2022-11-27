@@ -1255,7 +1255,6 @@ function update!(cm::ComponentModifier, ppane::AbstractComponent,
     set_text!(cm, ppane.name, spoof.http.text)
 end
 
-
 function insert_child!()
 
 end
@@ -1279,4 +1278,12 @@ function append_first!(cm::ComponentModifier, name::String, child::AbstractCompo
     end
     push!(cm.changes,
     "document.getElementById('$name').appendBefore(element, document.getElementById('$name').firstChild);")
+end
+
+function set_selection!(cm::ComponentModifier, comp::Component{<:Any}, r::UnitRange{Int64, Int64})
+    push!(cm.changes, "document.getElementById('$name').setSelectionRange($(r[1]), $(r[2]))")
+end
+
+function focus!(cm::ComponentModifier, comp::Component{<:Any})
+    push!(cm.changes, "document.getElementById('$(comp.name)').focus();")
 end
