@@ -1280,7 +1280,7 @@ function append_first!(cm::ComponentModifier, name::String, child::AbstractCompo
     "document.getElementById('$name').appendBefore(element, document.getElementById('$name').firstChild);")
 end
 
-function set_selection!(cm::ComponentModifier, comp::Component{<:Any}, r::UnitRange{Int64, Int64})
+function set_selection!(cm::ComponentModifier, comp::Component{<:Any}, r::UnitRange{Int64})
     push!(cm.changes, "document.getElementById('$name').setSelectionRange($(r[1]), $(r[2]))")
 end
 
