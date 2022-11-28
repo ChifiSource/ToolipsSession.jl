@@ -326,9 +326,10 @@ end
 function on(f::Function, c::Connection, event::AbstractString,
     readonly::Vector{String} = Vector{String}())
     ref = gen_ref()
+    ip::String = getip(c)
     write!(c,
         "<script>document.addEventListener('$event', sendpage('$ref'));</script>")
-    if getip(c) in keys(c[:Session].iptable)
+    if ip in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], "$ref" => f)
     else
         c[:Session][getip(c)] = Dict("$ref" => f)
@@ -340,7 +341,9 @@ end
 
 function on(f::Function, c::Connection, cm::ComponentModifier, event::AbstractString,
     readonly::Vector{String} = Vector{String}())
-    push!(cm.changes, """document.addEventListener('$event', sendpage('$event'));""")
+    ip::String = getip(c)
+    push!(cm.changes, """setTimeout(function () {
+    document.addEventListener('$event', function () {sendpage('$event');});}, 1000);""")
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], "$event" => f)
     else
@@ -354,7 +357,11 @@ end
 function on(f::Function, c::Connection, cm::ComponentModifier, comp::Component{<:Any},
      event::AbstractString, readonly::Vector{String} = Vector{String}())
      name::String = comp.name
-     push!(cm.changes, """document.getElementById('$name').addEventListener('$event', sendpage('$name$event'));""")
+     ip::String = getip(c)
+     push!(cm.changes, """setTimeout(function () {
+     document.getElementById('$name').addEventListener('$event',
+     function () {sendpage('$name$event');});
+     }, 1000);""")
      if getip(c) in keys(c[:Session].iptable)
          push!(c[:Session][getip(c)], "$name$event" => f)
      else
@@ -477,10 +484,13 @@ function bind!(f::Function, c::Connection, cm::ComponentModifier, key::String,
     name::String = comp.name
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
-    push!(cm.changes, """    document.getElementById('$(comp.name)').addEventListener('key$on', (event) => {
+    push!(cm.changes, """
+    setTimeout(function () {
+    document.getElementById('$(comp.name)').addEventListener('key$on', (event) => {
             if ($eventstr event.key == "$(key)") {
             sendpage('$(comp.name * key)');
-            }}`);""")
+            }
+            }}, 1000);""")
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], "$name$event" => f)
     else
@@ -497,10 +507,12 @@ function bind!(f::Function, c::Connection, cm::ComponentModifier, comp::Componen
     name::String = comp.name
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
-push!(cm.changes, """document.getElementById('$(name)').onkeydown = function(event){
+push!(cm.changes, """setTimeout(function () {
+document.getElementById('$(name)').onkeydown = function(event){
         if ($eventstr event.key == '$(key)') {
         sendpage('$(name * key)')
-        }};""")
+        }
+        }}, 1000);""")
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], "$name$key" => f)
     else

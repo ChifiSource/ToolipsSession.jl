@@ -646,23 +646,10 @@ end
 ```
 """
 function append!(cm::AbstractComponentModifier, name::String, child::Servable)
-    ctag = child.tag
-    exstr = "var element = document.createElement($ctag);"
-    for prop in child.properties
-        if prop[1] == :children
-            spoofconn::SpoofConnection = SpoofConnection()
-            write!(spoofconn, prop[2])
-            txt = spoofconn.http.text
-            push!(cm.changes, "element.innerHTML = `$txt`;")
-        elseif prop[1] == :text
-            txt = prop[2]
-            push!(cm.changes, "element.innerHTML = `$txt`;")
-        else
-            key, val = prop[1], prop[2]
-            push(cm.changes, "element.setAttribute('$key',`$val`);")
-        end
-    end
-    push!(cm.changes, "document.getElementById('$name').appendChild(element);")
+    spoof = SpoofConnection()
+    write!(spoof, child)
+    text = replace(spoof.http.text, "\"" => "\\\"", "'" => "\\'", "`" => "\\`")
+    push!(cm.changes, "document.getElementById('$name').append(`$text`);")
 end
 
 """
