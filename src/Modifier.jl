@@ -55,9 +55,9 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
             textr::UnitRange = maximum(tag) + 1:minimum(findnext("</$nametag", s, tag[1])[1]) - 1
             tagtext = s[textr]
             tagtext = replace(tagtext, "<br>" => "\n")
-            tagtext = replace(tagtext, "&nbsp" => " ")
-            tagtext = replace(tagtext, "&ensp" => "  ")
-            tagtext = replace(tagtext, "&emsp" => "    ")
+            tagtext = replace(tagtext, "&nbsp;" => "\n")
+            tagtext = replace(tagtext, "&ensp;" => "  ")
+            tagtext = replace(tagtext, "&emsp;" => "    ")
         catch
             tagtext = ""
         end
@@ -646,10 +646,23 @@ end
 ```
 """
 function append!(cm::AbstractComponentModifier, name::String, child::Servable)
-    spoof = SpoofConnection()
-    write!(spoof, child)
-    text = replace(spoof.http.text, "\"" => "\\\"", "'" => "\\'", "`" => "\\`")
-    push!(cm.changes, "document.getElementById('$name').append(`$text`);")
+    ctag = child.tag
+    exstr = "var element = document.createElement($ctag);"
+    for prop in child.properties
+        if prop[1] == :children
+            spoofconn::SpoofConnection = SpoofConnection()
+            write!(spoofconn, prop[2])
+            txt = spoofconn.http.text
+            push!(cm.changes, "element.innerHTML = `$txt`;")
+        elseif prop[1] == :text
+            txt = prop[2]
+            push!(cm.changes, "element.innerHTML = `$txt`;")
+        else
+            key, val = prop[1], prop[2]
+            push!(cm.changes, "element.setAttribute('$key',`$val`);")
+        end
+    end
+    push!(cm.changes, "document.getElementById('$name').appendChild(element);")
 end
 
 """
@@ -1111,6 +1124,7 @@ end
 """
 function script!(f::Function, c::Connection, cm::AbstractComponentModifier, name::String,
      readonly::Vector{String} = Vector{String}(); time::Integer = 1000)
+     ip = getip(c)
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], name => f)
     else
@@ -1118,7 +1132,7 @@ function script!(f::Function, c::Connection, cm::AbstractComponentModifier, name
     end
     push!(cm.changes, "new Promise(resolve => setTimeout(sendpage('$name'), $time));")
     if length(readonly) > 0
-        c[:Session].readonly["$ip$key"] = readonly
+        c[:Session].readonly["$ip$name"] = readonly
     end
 end
 

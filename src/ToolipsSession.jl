@@ -481,23 +481,23 @@ end
 function bind!(f::Function, c::Connection, cm::ComponentModifier, key::String,
     eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
     on::Symbol = :down, client::Bool = false)
-    name::String = comp.name
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
+    ref = gen_ref()
     push!(cm.changes, """
     setTimeout(function () {
-    document.getElementById('$(comp.name)').addEventListener('key$on', (event) => {
+    document.addEventListener('key$on', (event) => {
             if ($eventstr event.key == "$(key)") {
-            sendpage('$(comp.name * key)');
+            sendpage('$ref');
             }
-            }}, 1000);""")
+            });}, 1000);""")
     if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], "$name$event" => f)
+        push!(c[:Session][getip(c)], ref => f)
     else
-        c[:Session][getip(c)] = Dict("$name$event" => f)
+        c[:Session][getip(c)] = Dict(ref => f)
     end
     if length(readonly) > 0
-        c[:Session].readonly["$ip$name$event"] = readonly
+        c[:Session].readonly["$ip$ref"] = readonly
     end
 end
 
