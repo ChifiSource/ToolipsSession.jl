@@ -339,6 +339,29 @@ function on(f::Function, c::Connection, event::AbstractString,
     end
 end
 
+"""
+**Session Interface**
+### on(f::Function, c::Connection, cm::ComponentModifier, event::AbstractString, readonly::Vector{String} = Vector{String}())
+------------------
+Creates a new event for the current IP in a session. Performs the function on
+    the event. The function should take a ComponentModifier as an argument.
+    readonly will provide certain names to be read into the ComponentModifier.
+    This can help to improve Session's performance, as it will need to parse
+    less Components. The ComponentModifier version can be done while in a callback.
+    Remember: AbstractComponentModifiers mean callbacks, Connections mean initial requests.
+#### example
+```
+route("/") do c::Connection
+    myp = p("hello", text = "wow")
+    on(c, "load") do cm::ComponentModifier
+        on(c, cm, "click") do cm::ComponentModifier
+            set_text!(cm, myp, "not so wow")
+        end
+    end
+    write!(c, myp)
+end
+```
+"""
 function on(f::Function, c::Connection, cm::ComponentModifier, event::AbstractString,
     readonly::Vector{String} = Vector{String}())
     ip::String = getip(c)
@@ -354,6 +377,29 @@ function on(f::Function, c::Connection, cm::ComponentModifier, event::AbstractSt
     end
 end
 
+"""
+**Session Interface**
+### on(f::Function, c::Connection, cm::ComponentModifier, event::AbstractString, readonly::Vector{String} = Vector{String}())
+------------------
+Creates a new event for the current IP in a session. Performs the function on
+    the event. The function should take a ComponentModifier as an argument.
+    readonly will provide certain names to be read into the ComponentModifier.
+    This can help to improve Session's performance, as it will need to parse
+    less Components. The ComponentModifier version can be done while in a callback.
+    Remember: AbstractComponentModifiers mean callbacks, Connections mean initial requests.
+#### example
+```
+route("/") do c::Connection
+    myp = p("hello", text = "wow")
+    on(c, "load") do cm::ComponentModifier
+        on(c, cm, "click") do cm::ComponentModifier
+            set_text!(cm, myp, "not so wow")
+        end
+    end
+    write!(c, myp)
+end
+```
+"""
 function on(f::Function, c::Connection, cm::ComponentModifier, comp::Component{<:Any},
      event::AbstractString, readonly::Vector{String} = Vector{String}())
      name::String = comp.name
@@ -387,10 +433,9 @@ function bind!(f::Function, c::Connection, km::KeyMap,
     firsbind = first(km.keys)
     ref = gen_ref()
     first_line = """<script>
-    document.addEventListener('key$on', function(event) {""")
-    for binding in km.keys[2:length(keys(km.keys))
-        eventstr::String = join([begin " event.$(event)Key && "
-    end for event in binding[2][1])
+    document.addEventListener('key$on', function(event) {"""
+    for binding in km.keys[2:length(keys(km.keys))]
+        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         key = binding[1]
         first_line = first_line * """ if ($eventstr event.key == "$(key)") {
                 sendpage('$(key * ref)');
@@ -416,10 +461,9 @@ function bind!(f::Function, c::Connection, comp::Component{<:Any}, km::KeyMap,
     ref = gen_ref()
     first_line = """<script>
     setTimeout(function () {
-    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {""")
-    for binding in km.keys[2:length(keys(km.keys))
-        eventstr::String = join([begin " event.$(event)Key && "
-    end for event in binding[2][1])
+    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {"""
+    for binding in km.keys[2:length(keys(km.keys))]
+        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         key = binding[1]
         first_line = first_line * """ if ($eventstr event.key == "$(key)") {
                 sendpage('$(comp.name * key * ref)');
@@ -448,10 +492,10 @@ function bind!(f::Function, c::Connection, cm::AbstractComponentModifier,
     ref = gen_ref()
     first_line = """
     setTimeout(function () {
-    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {""")
-    for binding in km.keys[2:length(keys(km.keys))
+    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {"""
+    for binding in km.keys[2:length(keys(km.keys))]
         eventstr::String = join([begin " event.$(event)Key && "
-    end for event in binding[2][1])
+    end for event in binding[2][1]])
         key = binding[1]
         first_line = first_line * """ if ($eventstr event.key == "$(key)") {
                 sendpage('$(comp.name * key * ref)');
