@@ -694,27 +694,6 @@ easy to use method system for working between many different peers and communica
 
 ```
 """
-function open_rpc!(c::Connection; tickrate::Int64 = 500)
-    push!(c[:Session].peers,
-     getip(c) => Dict{String, Modifier}(getip(c) => ComponentModifier("")))
-    script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
-        cm.changes = c[:Session].peers[getip(c)][getip(c)].changes
-    end
-end
-
-"""
-**Session Interface**
-### create_peers(c::Connection)
-------------------
-Creates a new peer `Connection` inside of ToolipsSession. This is still
-expiremental and in an early stage of development, but soon this will be an
-easy to use method system for working between many different peers and communicating
-    data easily.
-#### example
-```
-
-```
-"""
 function open_rpc!(c::Connection, name::String; tickrate::Int64 = 500)
     push!(c[:Session].peers,
      name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))

@@ -646,9 +646,8 @@ end
 ```
 """
 function append!(cm::AbstractComponentModifier, name::String, child::Servable)
-    ctag = child.tag
     spoofconn = Toolips.SpoofConnection()
-    write!(spoofconn, prop[2])
+    write!(spoofconn, child)
     txt = replace(spoofconn.http.text, "`" => "\\`", "\"" => "\\\"", "''" => "\\'")
     push!(cm.changes, "document.getElementById('$name').insertAdjacentText('beforeend', '$txt')")
 end
