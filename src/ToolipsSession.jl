@@ -420,15 +420,16 @@ end
 
 abstract type AbstractInputMap end
 
-mutable struct KeyMap
-    keys::Dict{String, Pair{Tuple{Symbol}, Function}}
+mutable struct KeyMap <: AbstractInputMap
+    keys::Dict{String, Pair{Tuple, Function}}
+    KeyMap() = new(Dict{String, Pair{Tuple, Function}}())
 end
 
 function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...)
     km.keys[key] = event => f
 end
 
-function bind!(f::Function, c::Connection, km::KeyMap,
+function bind!(c::Connection, km::KeyMap,
     readonly::Vector{String} = Vector{String}())
     firsbind = first(km.keys)
     ref = gen_ref()
@@ -455,7 +456,7 @@ function bind!(f::Function, c::Connection, km::KeyMap,
 end
 
 
-function bind!(f::Function, c::Connection, comp::Component{<:Any}, km::KeyMap,
+function bind!(c::Connection, comp::Component{<:Any}, km::KeyMap,
     readonly::Vector{String} = Vector{String}())
     firsbind = first(km.keys)
     ref = gen_ref()
