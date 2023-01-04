@@ -206,6 +206,7 @@ mutable struct Session <: ServerExtension
                 end
                 durstr = string(transition_duration, "s")
                 write!(c, """<script>
+                const parser = new DOMParser();
                 function sendpage(ref) {
                 var ref2 = '?CM?:' + ref;
             var bodyHtml = document.getElementsByTagName('body')[0].innerHTML;
