@@ -648,7 +648,7 @@ end
 function append!(cm::AbstractComponentModifier, name::String, child::Servable)
     spoofconn = Toolips.SpoofConnection()
     write!(spoofconn, child)
-    txt = replace(spoofconn.http.text, "`" => "\\`", "\"" => "\\\"", "''" => "\\'")
+    txt = replace(spoofconn.http.text, "`" => "\\`", "\"" => "\\\"", "'" => "\\'")
     push!(cm.changes, "document.getElementById('$name').innerHTML = document.getElementById('$name').innerHTML + '$txt';")
 end
 
