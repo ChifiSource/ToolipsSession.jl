@@ -739,6 +739,16 @@ function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
     end
 end
 
+function join_rpc!(f::Function, c::Connection, host::String; tickrate::Int64 = 500)
+    push!(c[:Session].peers[host], getip(c) => Vector{String}())
+    script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
+        location::String = find_client(c)
+        push!(cm.changes, join(c[:Session].peers[location][getip(c)]))
+        c[:Session].peers[location][getip(c)] = Vector{String}()
+    end
+    f(cm)
+end
+
 function find_client(c::Connection)
     clientlocation = findfirst(x -> getip(c) in keys(x), c[:Session].peers)
     clientlocation::String
