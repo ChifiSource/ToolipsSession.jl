@@ -781,7 +781,7 @@ function home(c::Connection)
 end
 ```
 """
-function style!(cm::AbstractComponentModifier, s::String, p::Pair{String, Any} ...)
+function style!(cm::AbstractComponentModifier, s::String, p::Pair{String, String} ...)
     p = [pair[1] => string(pair[2]) for pair in p]
     style!(cm, s, p)
 end
