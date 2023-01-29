@@ -427,9 +427,9 @@ end
 Input bindings
 ==#
 
-abstract type AbstractInputMap end
+abstract type InputMap end
 
-mutable struct KeyMap <: AbstractInputMap
+mutable struct KeyMap <: InputMap
     keys::Dict{String, Pair{Tuple, Function}}
     KeyMap() = new(Dict{String, Pair{Tuple, Function}}())
 end
