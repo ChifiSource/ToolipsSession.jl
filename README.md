@@ -52,6 +52,7 @@ include("dev.jl")
 ```
 ###### new in 0.3.0
 - new `bind` method replaces old keys, can now use event and hotkeys quite easily with this method.
+- `KeyMap`s and `InputMap`s
 - simplified `on`.
 - multi-client remote procedure `ComponentModifier` sessions. (`rpc!`, `open_rpc!`, `join_rpc!`, `disconnect_rpc!`, `close_rpc!`, `is_host`, `is_client`, `is_dead`)
 - new `script!` and `script` interface for creating client functions and observable functions in a consistent way.
