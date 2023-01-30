@@ -59,8 +59,7 @@ include("dev.jl")
 - Client Modifiers
 - `Modifier` Abstract type moved to [toolips](https://github.com/ChifiSource/Toolips.jl)
 - `next!` method to set next animations and changes.
-- `observe!` has become `script` in accordance with new syntax.
-- `insert_child!` allows the inserting of children.
+- `observe!` has become `script`and `script!` in accordance with new syntax.
 - `append_first!` allows us to append a child to the top of the children.
 - `push!` `ComponentModifier` bindings to put scripts into documents.
 - `update!` allows any Julia type to be written to the "text/html" MIME. Eventually, this function will include an auto-mime algorithm similar to the one seen in Olive.jl [here](https://github.com/ChifiSource/Olive.jl/blob/main/src/Core.jl) (towards the bottom of the file).
