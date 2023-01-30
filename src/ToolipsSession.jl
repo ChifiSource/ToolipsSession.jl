@@ -30,6 +30,7 @@ that might help you out:
 --- random functions
 --- Session extension
 --- on
+--- KeyMap
 --- bind
 --- script interface
 --- rpc
@@ -276,7 +277,7 @@ on
 
 """
 **Interface**
-### on(f::Function, c::Connection, s::Component, event::AbstractString, readonly::Vector{String} = Vector{String})
+### on(f::Function, c::Connection, s::AbstractComponent, event::AbstractString, readonly::Vector{String} = Vector{String})
 ------------------
 Creates a new event for the current IP in a session. Performs the function on
     the event. The function should take a ComponentModifier as an argument.
@@ -426,18 +427,85 @@ end
 #==
 Input bindings
 ==#
-
+"""
+### abstract type InputMap
+Input maps are bound using the `bind` function and allow for multiple inputs to
+be registered into a `Connection` at once. Notable example from this module is `keymap`
+##### Consistencies
+- bound to `bind!(f::Function, ip::InputMap, args ...)`
+- bound to `bind!(c::Connection, ip::InputMap)`
+"""
 abstract type InputMap end
 
+"""
+### KeyMap
+- keys::Dict{String, Pair{Tuple, Function}}
+
+The `KeyMap` allows one to `bind!` more than one key press with incredible ease.
+##### example
+```
+r = route("/") do c::Connection
+    km = KeyMap()
+    bind!(km, "S", :ctrl) do cm::ComponentModifier
+        alert!(cm, "saved!")
+    end
+    bind!(km, "C", :ctrl) do cm::ComponentModifier
+        alert!(cm, "copied!")
+    end
+    bind!(c, km)
+end
+```
+------------------
+##### constructors
+- KeyMap()
+"""
 mutable struct KeyMap <: InputMap
     keys::Dict{String, Pair{Tuple, Function}}
     KeyMap() = new(Dict{String, Pair{Tuple, Function}}())
 end
 
+"""
+**Session**
+### bind!(f::Function, km::KeyMap, key::String, event::Symbol ...)
+------------------
+binds the `key` with the event keys (:ctrl, :shift, :alt) to `f` in `km`.
+#### example
+```
+r = route("/") do c::Connection
+    km = KeyMap()
+    bind!(km, "S", :ctrl) do cm::ComponentModifier
+        alert!(cm, "saved!")
+    end
+    bind!(km, "C", :ctrl) do cm::ComponentModifier
+        alert!(cm, "copied!")
+    end
+    bind!(c, km)
+end
+```
+"""
 function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...)
     km.keys[key] = event => f
 end
 
+"""
+**Session**
+### bind!(c::Connection, cm::ComponentModifier, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
+------------------
+Binds the `KeyMap` `km` to the `Connection` in a `ComponentModifier` callback.
+#### example
+```
+r = route("/") do c::Connection
+    km = KeyMap()
+    bind!(km, "S", :ctrl) do cm::ComponentModifier
+        alert!(cm, "saved!")
+    end
+    bind!(km, "C", :ctrl) do cm::ComponentModifier
+        alert!(cm, "copied!")
+    end
+    bind!(c, km)
+end
+```
+"""
 function bind!(c::Connection, cm::ComponentModifier, km::KeyMap,
     readonly::Vector{String} = Vector{String}(); on::Symbol = :down)
     firsbind = first(km.keys)
@@ -463,7 +531,16 @@ function bind!(c::Connection, cm::ComponentModifier, km::KeyMap,
     push!(cm.changes, first_line)
 end
 
+"""
+**Session**
+### bind!(c::Connection, comp::Component, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
+------------------
+Binds the `KeyMap` `km` to the `comp`.
+#### example
+```
 
+```
+"""
 function bind!(c::Connection, comp::Component{<:Any}, km::KeyMap,
     readonly::Vector{String} = Vector{String}())
     firsbind = first(km.keys)
@@ -491,6 +568,42 @@ function bind!(c::Connection, comp::Component{<:Any}, km::KeyMap,
     write!(c, first_line)
 end
 
+"""
+**Session**
+### bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any}, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
+------------------
+Binds the `KeyMap` `km` to the `comp` in a `ComponentModifier` callback.
+#### example
+```
+
+```
+"""
+function bind!(f::Function, c::Connection, cm::AbstractComponentModifier,
+    comp::Component{<:Any}, keymap::KeyMap,
+     readonly::Vector{String} = Vector{String}(),
+    on::Symbol = :down, client::Bool = false)
+    ref = gen_ref()
+    first_line = """<script>
+    setTimeout(function () {
+    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {"""
+    for binding in km.keys[2:length(keys(km.keys))]
+        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
+        key = binding[1]
+        first_line = first_line * """ if ($eventstr event.key == "$(key)") {
+                sendpage('$(comp.name * key * ref)');
+                }"""
+    end
+    first_line = first_line * "});}, 1000);"
+    push!(cm.changes, first_line)
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][getip(c)], ref => f)
+    else
+        c[:Session][getip(c)] = Dict(ref => f)
+    end
+    if length(readonly) > 0
+        c[:Session].readonly["$ip$ref"] = readonly
+    end
+end
 
 
 """
@@ -499,6 +612,7 @@ end
     on::Symbol = :down, client::Bool == false)  -> _
 ------------------
 
+Binds a key event to a `Component`.
 #### example
 ```
 
@@ -546,7 +660,7 @@ end
 ### bind!(f::Function, c::AbstractConnection, key::String, readonly::Vector{String} = [];
     on::Symbol = :down, client::Bool == false)  -> _
 ------------------
-
+Binds a key event to a `Connection`.
 #### example
 ```
 
@@ -589,6 +703,17 @@ document.addEventListener('key$on', function(event) {
     end
 end
 
+"""
+**Session Interface** 0.3
+### bind!(f::Function, c::Connection, cm::AbstractComponentModifier, key::String, eventkeys::Symbol ...; readonly::Vector{String} = [];
+    on::Symbol = :down, client::Bool == false)  -> _
+------------------
+Binds a key event to a `Connection` in a `ComponentModifier` callback.
+#### example
+```
+
+```
+"""
 function bind!(f::Function, c::Connection, cm::AbstractComponentModifier, key::String,
     eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
     on::Symbol = :down, client::Bool = false)
@@ -612,6 +737,17 @@ function bind!(f::Function, c::Connection, cm::AbstractComponentModifier, key::S
     end
 end
 
+"""
+**Session Interface** 0.3
+### bind!(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Component{<:Any}, key::String, eventkeys::Symbol ...; readonly::Vector{String} = [];
+    on::Symbol = :down, client::Bool == false)  -> _
+------------------
+Binds a key event to a `Component` in a `ComponentModifier` callback.
+#### example
+```
+
+```
+"""
 function bind!(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Component{<:Any},
     key::String, eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
     on::Symbol = :down, client::Bool = false)
@@ -634,37 +770,19 @@ document.getElementById('$(name)').onkeydown = function(event){
     end
 end
 
-function bind!(f::Function, c::Connection, cm::AbstractComponentModifier,
-    comp::Component{<:Any}, keymap::KeyMap,
-     readonly::Vector{String} = Vector{String}(),
-    on::Symbol = :down, client::Bool = false)
-    ref = gen_ref()
-    first_line = """<script>
-    setTimeout(function () {
-    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {"""
-    for binding in km.keys[2:length(keys(km.keys))]
-        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
-        key = binding[1]
-        first_line = first_line * """ if ($eventstr event.key == "$(key)") {
-                sendpage('$(comp.name * key * ref)');
-                }"""
-    end
-    first_line = first_line * "});}, 1000);"
-    push!(cm.changes, first_line)
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], ref => f)
-    else
-        c[:Session][getip(c)] = Dict(ref => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$ref"] = readonly
-    end
-end
-
 #==
 script!
 ==#
+"""
+**Session Interface** 0.3
+### script!(::Function, ::Connection, ::String, readonly::Vector{String} = Vector{String}; time::Integer = 500)  -> _
+------------------
+Creates an "observer" which calls back to this function at each interval of `time`.
+#### example
+```
 
+```
+"""
 function script!(f::Function, c::Connection, name::String,
     readonly::Vector{String} = Vector{String}(); time::Integer = 500)
     if getip(c) in keys(c[:Session].iptable)
@@ -696,18 +814,16 @@ rpc
 
 """
 **Session Interface**
-### create_peers(c::Connection)
+### open_rpc!(c::Connection, name::String = getip(c); tickrate::Int64 = 500)
 ------------------
-Creates a new peer `Connection` inside of ToolipsSession. This is still
-expiremental and in an early stage of development, but soon this will be an
-easy to use method system for working between many different peers and communicating
-    data easily.
+Creates a new rpc session inside of ToolipsSession. Other clients can then join and
+have the same `ComponentModifier` functions run.
 #### example
 ```
 
 ```
 """
-function open_rpc!(c::Connection, name::String; tickrate::Int64 = 500)
+function open_rpc!(c::Connection, name::String = getip(c); tickrate::Int64 = 500)
     push!(c[:Session].peers,
      name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
@@ -716,6 +832,17 @@ function open_rpc!(c::Connection, name::String; tickrate::Int64 = 500)
     end
 end
 
+"""
+**Session Interface**
+### open_rpc!(f::Function, c::Connection, name::String; tickrate::Int64 = 500)
+------------------
+Does the same thing as `open_rpc!(::Connection, ::String; tickrate::Int64)`,
+but also runs `f` on each tick.
+#### example
+```
+
+```
+"""
 function open_rpc!(f::Function, c::Connection, name::String; tickrate::Int64 = 500)
     push!(c[:Session].peers,
      name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
@@ -726,10 +853,30 @@ function open_rpc!(f::Function, c::Connection, name::String; tickrate::Int64 = 5
     end
 end
 
+"""
+**Session Interface**
+### close_rpc!(c::Connection)
+------------------
+Removes the current RPC session from `c`.
+#### example
+```
+
+```
+"""
 function close_rpc!(c::Connection)
     delete!(c[:Session].peers, getip(c))
 end
 
+"""
+**Session Interface**
+### join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
+------------------
+Joins an rpc session by name.
+#### example
+```
+
+```
+"""
 function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], getip(c) => Vector{String}())
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
@@ -739,9 +886,20 @@ function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
     end
 end
 
+"""
+**Session Interface**
+### join_rpc!(f::Function, c::Connection, host::String; tickrate::Int64 = 500)
+------------------
+Joins an rpc session by name, runs `f` on each tick.
+#### example
+```
+
+```
+"""
 function join_rpc!(f::Function, c::Connection, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], getip(c) => Vector{String}())
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
+        f(cm)
         location::String = find_client(c)
         push!(cm.changes, join(c[:Session].peers[location][getip(c)]))
         c[:Session].peers[location][getip(c)] = Vector{String}()
@@ -749,17 +907,51 @@ function join_rpc!(f::Function, c::Connection, host::String; tickrate::Int64 = 5
     f(cm)
 end
 
+"""
+**Session Interface**
+### find_client(c::Connection)
+------------------
+Finds the RPC session name of this client.
+#### example
+```
+
+```
+"""
 function find_client(c::Connection)
     clientlocation = findfirst(x -> getip(c) in keys(x), c[:Session].peers)
     clientlocation::String
 end
 
+"""
+**Session Interface**
+### rpc!(c::Connection, cm::ComponentModifier)
+------------------
+Does an rpc for all other connection clients, also clears `ComponentModifier` changes.
+ You can use this interchangeably with local function calls by calling `rpc!` first
+then calling your regular `ComponentModifier` functions.
+#### example
+```
+
+```
+"""
 function rpc!(c::Connection, cm::ComponentModifier)
     mods::String = find_client(c)
     [push!(mod, join(cm.changes)) for mod in values(c[:Session].peers[mods])]
     deleteat!(cm.changes, 1:length(cm.changes))
 end
 
+"""
+**Session Interface**
+### rpc!(f::Function, c::Connection)
+------------------
+Does RPC with a new `ComponentModifier` and will rpc everything inside of `f`.
+#### example
+```
+rpc!(c) do cm::ComponentModifier
+
+end
+```
+"""
 function rpc!(f::Function, c::Connection)
     cm = ComponentModifier("")
     f(cm)
@@ -769,22 +961,63 @@ function rpc!(f::Function, c::Connection)
     end
 end
 
+"""
+**Session Interface**
+### disconnect_rpc!(c::Connection)
+------------------
+Removes the client from the current rpc session.
+#### example
+```
+
+```
+"""
 function disconnect_rpc!(c::Connection)
     mods::String = find_client(c)
-    delete!(c[:Session].peers[mods][getip(c)])
+    delete!(c[:Session].peers[mods], getip(c))
 end
 
+"""
+**Session Interface**
+### is_host(c::Connection) -> ::Bool
+------------------
+Checks if the current `Connection` is hosting an rpc session.
+#### example
+```
+
+```
+"""
 is_host(c::Connection) = getip(c) in keys(c[:Session].peers)
 
+"""
+**Session Interface**
+### is_client(c::Connection, s::String) -> ::Bool
+------------------
+Checks if the client is in the `s` RPC session..
+#### example
+```
+
+```
+"""
 is_client(c::Connection, s::String) = getip(c) in keys(c[:Session].peers[s])
 
+"""
+**Session Interface**
+### is_dead(c::Connection) -> ::Bool
+------------------
+Checks if the current `Connection` is still connected to `Session`
+#### example
+```
+
+```
+"""
 is_dead(c::Connection) = getip(c) in keys(c[:Session].iptable)
 
 export Session, on, bind!, script!, script, ComponentModifier, ClientModifier
+export KeyMap
 export playanim!, alert!, redirect!, modify!, move!, remove!, set_text!
 export update!, insert_child!, append_first!, animate!, pauseanim!, next!
 export set_children!, get_text, style!, free_redirects!, confirm_redirects!
-export scroll_by!, scroll_to!
+export scroll_by!, scroll_to!, focus!, set_selection!
 export rpc!, disconnect_rpc!, find_client, join_rpc!, close_rpc!, open_rpc!
 export join_rpc!, is_client, is_dead, is_host
 end # module
