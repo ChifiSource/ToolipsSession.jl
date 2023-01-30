@@ -1227,51 +1227,57 @@ end
 
 """
 **Session Interface** 0.3
-### next!(f::Function, name::String, cm::ComponentModifier, a::Animation)
+### append_first!(cm::ComponentModifier, name::String, child::AbstractComponent)
 ------------------
-This method can be used to chain animations (or transitions.) Using the `Animation`
-dispatch for this will simply set the next animation on completion of the previous.
+Used to appened an element as first child.
 #### example
 ```
 
 ```
 """
-function update!(cm::ComponentModifier, ppane::AbstractComponent,
-    comp::AbstractComponent)
-    spoof = SpoofConnection()
-    write!(spoof, comp)
-    set_text!(cm, ppane.name, spoof.http.text)
-end
-
-function insert_child!()
-
-end
-
 function append_first!(cm::ComponentModifier, name::String, child::AbstractComponent)
-    ctag = child.tag
-    exstr = "var element = document.createElement($ctag);"
-    for prop in child.properties
-        if prop[1] == :children
-            spoofconn::SpoofConnection = SpoofConnection()
-            write!(spoofconn, prop[2])
-            txt = spoofconn.http.text
-            push!(cm.changes, "element.innerHTML = `$txt`;")
-        elseif prop[1] == :text
-            txt = prop[2]
-            push!(cm.changes, "element.innerHTML = `$txt`;")
-        else
-            key, val = prop[1], prop[2]
-            push(cm.changes, "element.setAttribute('$key',`$val`);")
-        end
-    end
-    push!(cm.changes,
-    "document.getElementById('$name').appendBefore(element, document.getElementById('$name').firstChild);")
+    spoofconn = Toolips.SpoofConnection()
+    write!(spoofconn, child)
+    txt = replace(spoofconn.http.text, "`" => "\\`", "\"" => "\\\"", "'" => "\\'")
+    push!(cm.changes, "document.getElementById('$name').innerHTML = '$txt' + document.getElementById('$name').innerHTML;")
 end
 
+"""
+**Session Interface** 0.3
+### set_selection!(cm::ComponentModifier, comp::Component{<:Any}, r::UnitRange{Int64})
+------------------
+Sets the selection to `r`.
+#### example
+```
+
+```
+"""
 function set_selection!(cm::ComponentModifier, comp::Component{<:Any}, r::UnitRange{Int64})
-    push!(cm.changes, "document.getElementById('$name').setSelectionRange($(r[1]), $(r[2]))")
+    push!(cm.changes, "document.getElementById('$name').setSelectionRange($(r[1]), $(maximum(r)))")
 end
 
-function focus!(cm::ComponentModifier, comp::Component{<:Any})
-    push!(cm.changes, "document.getElementById('$(comp.name)').focus();")
+"""
+**Session Interface** 0.3
+### set_selection!(cm::ComponentModifier, comp::Component{<:Any}, r::UnitRange{Int64})
+------------------
+Focuses on `comp`.
+#### example
+```
+
+```
+"""
+focus!(cm::ComponentModifier, comp::Component{<:Any}) = focus!(cm, comp.name)
+
+"""
+**Session Interface** 0.3
+### focus!(cm::ComponentModifier, name::String, r::UnitRange{Int64})
+------------------
+Focuses on Component named `name`.
+#### example
+```
+
+```
+"""
+function focus!(cm::ComponentModifier, name::String)
+    push!(cm.changes, "document.getElementById('$name)').focus();")
 end
