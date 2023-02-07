@@ -274,41 +274,6 @@ setindex!(m::Session, d::Any, s::AbstractString) = m.events[s] = d
 #==
 on
 ==#
-
-"""
-**Interface**
-### on(f::Function, c::Connection, s::AbstractComponent, event::AbstractString, readonly::Vector{String} = Vector{String})
-------------------
-Creates a new event for the current IP in a session. Performs the function on
-    the event. The function should take a ComponentModifier as an argument.
-#### example
-```
-route("/") do c::Connection
-    myp = p("hello", text = "wow")
-    on(c, myp, "click")
-        if cm[myp][:text] == "wow"
-            c[:Logger].log("wow.")
-        end
-    end
-    write!(c, myp)
-end
-```
-"""
-function on(f::Function, c::Connection, s::AbstractComponent,
-     event::AbstractString, readonly::Vector{String} = Vector{String}())
-    name::String = s.name
-    ip::String = string(getip(c))
-    s["on$event"] = "sendpage('$event$name');"
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][ip], "$event$name" => f)
-    else
-        c[:Session].events[ip] = Dict("$event$name" => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$event$name"] = readonly
-    end
-end
-
 """
 **Session Interface**
 ### on(f::Function, c::Connection, event::AbstractString, readonly::Vector{String} = Vector{String}())
@@ -339,6 +304,40 @@ function on(f::Function, c::Connection, event::AbstractString,
         push!(c[:Session][getip(c)], "$ref" => f)
     else
         c[:Session][getip(c)] = Dict("$ref" => f)
+    end
+    if length(readonly) > 0
+        c[:Session].readonly["$ip$event$name"] = readonly
+    end
+end
+
+"""
+**Interface**
+### on(f::Function, c::Connection, s::AbstractComponent, event::AbstractString, readonly::Vector{String} = Vector{String})
+------------------
+Creates a new event for the current IP in a session. Performs the function on
+    the event. The function should take a ComponentModifier as an argument.
+#### example
+```
+route("/") do c::Connection
+    myp = p("hello", text = "wow")
+    on(c, myp, "click")
+        if cm[myp][:text] == "wow"
+            c[:Logger].log("wow.")
+        end
+    end
+    write!(c, myp)
+end
+```
+"""
+function on(f::Function, c::Connection, s::AbstractComponent,
+     event::AbstractString, readonly::Vector{String} = Vector{String}())
+    name::String = s.name
+    ip::String = string(getip(c))
+    s["on$event"] = "sendpage('$event$name');"
+    if getip(c) in keys(c[:Session].iptable)
+        push!(c[:Session][ip], "$event$name" => f)
+    else
+        c[:Session].events[ip] = Dict("$event$name" => f)
     end
     if length(readonly) > 0
         c[:Session].readonly["$ip$event$name"] = readonly
@@ -407,7 +406,8 @@ end
 ```
 """
 function on(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Component{<:Any},
-     event::AbstractString, readonly::Vector{String} = Vector{String}())
+     event::AbstractString, readonly::Vector{String} = Vector{String}();
+     client::Bool = false)
      name::String = comp.name
      ip::String = getip(c)
      push!(cm.changes, """setTimeout(function () {
@@ -541,70 +541,32 @@ Binds the `KeyMap` `km` to the `comp`.
 
 ```
 """
-function bind!(c::Connection, comp::Component{<:Any}, km::KeyMap,
-    readonly::Vector{String} = Vector{String}())
+function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
+    km::KeyMap, readonly::Vector{String} = Vector{String}(); on::Symbol = :up)
     firsbind = first(km.keys)
     ref = gen_ref()
-    first_line = """<script>
-    setTimeout(function () {
-    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {"""
-    for binding in km.keys[2:length(keys(km.keys))]
-        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
-        key = binding[1]
-        first_line = first_line * """ if ($eventstr event.key == "$(key)") {
-                sendpage('$(comp.name * key * ref)');
-                }"""
-    end
-    first_line = first_line * "});}, 1000);</script>"
     ip::String = getip(c)
-    if ip in keys(c[:Session].iptable)
-        push!(c[:Session][ip], comp.name * key * ref => f)
-    else
-        c[:Session][ip] = Dict(comp.name * key * ref => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$key"] = readonly
-    end
-    write!(c, first_line)
-end
-
-"""
-**Session**
-### bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any}, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
-------------------
-Binds the `KeyMap` `km` to the `comp` in a `ComponentModifier` callback.
-#### example
-```
-
-```
-"""
-function bind!(f::Function, c::Connection, cm::AbstractComponentModifier,
-    comp::Component{<:Any}, keymap::KeyMap,
-     readonly::Vector{String} = Vector{String}(),
-    on::Symbol = :down, client::Bool = false)
-    ref = gen_ref()
-    first_line = """<script>
+    first_line = """
     setTimeout(function () {
     document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {"""
-    for binding in km.keys[2:length(keys(km.keys))]
+    for binding in km.keys
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         key = binding[1]
-        first_line = first_line * """ if ($eventstr event.key == "$(key)") {
-                sendpage('$(comp.name * key * ref)');
+        first_line = first_line * """ if ($eventstr event.key == "$(binding[1])") {
+                sendpage('$(comp.name * binding[1] * ref)');
                 }"""
+        if ip in keys(c[:Session].iptable)
+            push!(c[:Session][ip], comp.name * key * ref => binding[2][2])
+        else
+            c[:Session][ip] = Dict(comp.name * key * ref => binding[2][2])
+        end
+        if length(readonly) > 0
+            c[:Session].readonly["$ip$key$(comp.name)"] = readonly
+        end
     end
     first_line = first_line * "});}, 1000);"
     push!(cm.changes, first_line)
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], ref => f)
-    else
-        c[:Session][getip(c)] = Dict(ref => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$ref"] = readonly
-    end
 end
-
 
 """
 **Session Interface** 0.3

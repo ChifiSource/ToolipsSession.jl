@@ -1279,5 +1279,5 @@ Focuses on Component named `name`.
 ```
 """
 function focus!(cm::ComponentModifier, name::String)
-    push!(cm.changes, "document.getElementById('$name)').focus();")
+    push!(cm.changes, "document.getElementById('$name').focus();")
 end
