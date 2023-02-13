@@ -487,6 +487,51 @@ function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...)
     km.keys[key] = event => f
 end
 
+
+"""
+**Session**
+### bind!(c::Connection, cm::ComponentModifier, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
+------------------
+Binds the `KeyMap` `km` to the `Connection` in a `ComponentModifier` callback.
+#### example
+```
+r = route("/") do c::Connection
+    km = KeyMap()
+    bind!(km, "S", :ctrl) do cm::ComponentModifier
+        alert!(cm, "saved!")
+    end
+    bind!(km, "C", :ctrl) do cm::ComponentModifier
+        alert!(cm, "copied!")
+    end
+    bind!(c, km)
+end
+```
+"""
+function bind!(c::Connection, km::KeyMap,
+    # TODO
+    readonly::Vector{String} = Vector{String}(); on::Symbol = :down)
+    firsbind = first(km.keys)
+    ip::String = getip(c)
+    first_line = """setTimeout(function () {
+    document.addEventListener('key$on', function(event) {"""
+    for binding in km.keys
+        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
+        ref = gen_ref()
+        first_line = first_line * """ if ($eventstr event.key == "$(binding[1])") {
+                sendpage('$ref');
+        }"""
+        if ip in keys(c[:Session].iptable)
+            push!(c[:Session][ip], ref => binding[2][2])
+        else
+            c[:Session][ip] = Dict(ref => binding[2][2])
+        end
+        if length(readonly) > 0
+            c[:Session].readonly["$ip$key"] = readonly
+        end
+    end
+    first_line = first_line * "});}, 1000);"
+end
+
 """
 **Session**
 ### bind!(c::Connection, cm::ComponentModifier, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
@@ -634,7 +679,9 @@ function bind!(f::Function, c::AbstractConnection, key::String, eventkeys::Symbo
     cm::Modifier = ClientModifier()
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
+    ref = gen_ref()
     if client
+        cm = ClientModifier()
         f(cm)
         write!(c, """<script>
         setTimeout(function () {
@@ -647,21 +694,21 @@ function bind!(f::Function, c::AbstractConnection, key::String, eventkeys::Symbo
         return
     end
     write!(c, """<script>
-    setTimeoutl(function () {
+    setTimeout(function () {
 document.addEventListener('key$on', function(event) {
     if ($eventstr event.key == "$(key)") {
-    $(join(cm.changes))
+    sendpage('$ref');
     }
-}, 1000);</script>
+});}, 1000);</script>
     """)
     ip::String = getip(c)
     if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][ip], key => f)
+        push!(c[:Session][ip], ref => f)
     else
-        c[:Session][ip] = Dict(key => f)
+        c[:Session][ip] = Dict(ref => f)
     end
     if length(readonly) > 0
-        c[:Session].readonly["$ip$key"] = readonly
+        c[:Session].readonly["$ip$ref"] = readonly
     end
 end
 
