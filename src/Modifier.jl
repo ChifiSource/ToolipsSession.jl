@@ -1176,10 +1176,6 @@ function script!(f::Function, c::Connection, cm::AbstractComponentModifier, name
     end
 end
 
-function push!(cm::AbstractComponentModifier, s::Servable ...)
-
-end
-
 """
 **Session Interface** 0.3
 ### next!(f::Function, cm::ComponentModifier)
@@ -1276,23 +1272,6 @@ function update!(cm::ComponentModifier, ppane::AbstractComponent, plot::Any)
     data = replace(data,
      """<?xml version=\"1.0\" encoding=\"utf-8\"?>\n""" => "")
     set_text!(cm, ppane.name, data)
-end
-
-"""
-**Session Interface** 0.3
-### append_first!(cm::ComponentModifier, name::String, child::AbstractComponent)
-------------------
-Used to appened an element as first child.
-#### example
-```
-
-```
-"""
-function append_first!(cm::ComponentModifier, name::String, child::AbstractComponent)
-    spoofconn = Toolips.SpoofConnection()
-    write!(spoofconn, child)
-    txt = replace(spoofconn.http.text, "`" => "\\`", "\"" => "\\\"", "'" => "\\'")
-    push!(cm.changes, "document.getElementById('$name').innerHTML = '$txt' + document.getElementById('$name').innerHTML;")
 end
 
 """
