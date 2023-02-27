@@ -55,6 +55,7 @@ include("dev.jl")
 - fixes for `focus!`
 - new `bind!` bindings
 - some documentation updates
+- `0.3.0` patches
 ###### new in 0.3.0
 - new `bind` method replaces old keys, can now use event and hotkeys quite easily with this method.
 - `KeyMap`s and `InputMap`s
