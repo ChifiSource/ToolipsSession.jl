@@ -649,7 +649,7 @@ function append!(cm::AbstractComponentModifier, name::String, child::Servable)
     spoofconn = Toolips.SpoofConnection()
     write!(spoofconn, child)
     txt = replace(spoofconn.http.text, "`" => "\\`", "\"" => "\\\"", "'" => "\\'")
-    push!(cm.changes, "document.getElementById('$name').appendChild(document.createRange().createContextualFragment('$txt'));")
+    push!(cm.changes, "document.getElementById('$name').appendChild(document.createRange().createContextualFragment(`$txt`));")
 end
 
 """
@@ -702,7 +702,7 @@ function insert!(cm::AbstractComponentModifier, name::String, i::Int64, child::S
     spoofconn = Toolips.SpoofConnection()
     write!(spoofconn, child)
     txt = replace(spoofconn.http.text, "`" => "\\`", "\"" => "\\\"", "'" => "\\'")
-    push!(cm.changes, "document.getElementById('$name').insertBefore(document.createRange().createContextualFragment('$txt'), document.getElementById('$name').children[$(i - 1)]);")
+    push!(cm.changes, "document.getElementById('$name').insertBefore(document.createRange().createContextualFragment(`$txt`), document.getElementById('$name').children[$(i - 1)]);")
 end
 
 """
