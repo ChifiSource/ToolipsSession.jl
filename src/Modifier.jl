@@ -1178,7 +1178,7 @@ end
 
 """
 **Session Interface** 0.3
-### next!(f::Function, cm::ComponentModifier)
+### next!(f::Function, c::AbstractConnection, comp::Component{<:Any}, cm::ComponentModifier, readonly::Vector{String} = Vector{String}())
 ------------------
 This method can be used to chain animations (or transitions.) We can do this
 by calling next on our ComponentModifier, the same could also be done with a

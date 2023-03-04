@@ -587,13 +587,13 @@ Binds the `KeyMap` `km` to the `comp`.
 ```
 """
 function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
-    km::KeyMap, readonly::Vector{String} = Vector{String}(); on::Symbol = :up)
+    km::KeyMap, readonly::Vector{String} = Vector{String}(); on::Symbol = :down)
     firsbind = first(km.keys)
     ref = gen_ref()
     ip::String = getip(c)
     first_line = """
     setTimeout(function () {
-    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {"""
+    document.getElementById('$(comp.name)').addEventListener('key$on', function (event) {"""
     for binding in km.keys
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         key = binding[1]
@@ -609,7 +609,7 @@ function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
             c[:Session].readonly["$ip$key$(comp.name)"] = readonly
         end
     end
-    first_line = first_line * "});}, 1000);"
+    first_line = first_line * "}.bind(event));}, 3000);"
     push!(cm.changes, first_line)
 end
 
@@ -763,7 +763,8 @@ function bind!(f::Function, c::Connection, cm::AbstractComponentModifier, comp::
     name::String = comp.name
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
-push!(cm.changes, """setTimeout(function () {
+    println("herherh")
+push!(cm.changes, """alert("$(name)"); setTimeout(function () {
 document.getElementById('$(name)').onkeydown = function(event){
         if ($eventstr event.key == '$(key)') {
         sendpage('$(name * key)')
@@ -793,14 +794,15 @@ Creates an "observer" which calls back to this function at each interval of `tim
 ```
 """
 function script!(f::Function, c::Connection, name::String,
-    readonly::Vector{String} = Vector{String}(); time::Integer = 500)
+    readonly::Vector{String} = Vector{String}(); time::Integer = 500,
+    type::String = "Interval")
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], name => f)
     else
         c[:Session][getip(c)] = Dict(name => f)
     end
     obsscript = script(name, text = """
-    setInterval(function () { sendpage('$name'); }, $time);
+    set$(type)(function () { sendpage('$name'); }, $time);
    """)
    if length(readonly) > 0
        c[:Session].readonly["$ip$name"] = readonly
