@@ -609,7 +609,7 @@ function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
             c[:Session].readonly["$ip$key$(comp.name)"] = readonly
         end
     end
-    first_line = first_line * "}.bind(event));}, 3000);"
+    first_line = first_line * "}.bind(event));}, 500);"
     push!(cm.changes, first_line)
 end
 

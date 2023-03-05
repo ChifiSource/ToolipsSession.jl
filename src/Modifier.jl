@@ -106,6 +106,13 @@ mutable struct ClientModifier <: AbstractComponentModifier
     c::Connection -> write!(c, join(changes)))::ClientModifier
 end
 
+function funccm(cm::ClientModifier, name::String)
+    """function $name(){
+        $(join(cm.changes))
+    }
+    """
+end
+
 """
 ### ComponentModifier <: AbstractComponentModifier
 - rootc::Dict
@@ -1174,6 +1181,14 @@ function script!(f::Function, c::Connection, cm::AbstractComponentModifier, name
     if length(readonly) > 0
         c[:Session].readonly["$ip$name"] = readonly
     end
+end
+
+function script!(f::Function, cm::AbstractComponentModifier, name::String;
+    time::Integer = 1000)
+    mod = ClientModifier()
+    f(mod)
+    push!(cm.changes,
+    "new Promise(resolve => setTimeout($(funccm(mod, name)), $time));")
 end
 
 """
