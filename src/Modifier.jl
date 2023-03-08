@@ -54,10 +54,9 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
         try
             textr::UnitRange = maximum(tag) + 1:minimum(findnext("</$nametag", s, tag[1])[1]) - 1
             tagtext = s[textr]
-            tagtext = replace(tagtext, "<br>" => "\n")
-            tagtext = replace(tagtext, "&nbsp;" => " ")
-            tagtext = replace(tagtext, "&ensp;" => "  ")
-            tagtext = replace(tagtext, "&emsp;" => "    ")
+            tagtext = replace(tagtext, "&nbsp;" => " ", "</br>" => "\n",
+            "<br>" => "\n", "&ensp;" => "  ", "&emsp;" => "    ", "&gt;" => ">",
+            "&lt;" => "<")
         catch
             tagtext = ""
         end

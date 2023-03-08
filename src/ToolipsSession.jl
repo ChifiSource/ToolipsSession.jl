@@ -508,7 +508,6 @@ end
 ```
 """
 function bind!(c::Connection, km::KeyMap,
-    # TODO
     readonly::Vector{String} = Vector{String}(); on::Symbol = :down)
     firsbind = first(km.keys)
     ip::String = getip(c)
@@ -530,6 +529,8 @@ function bind!(c::Connection, km::KeyMap,
         end
     end
     first_line = first_line * "});}, 1000);"
+    scr = script(gen_ref(), text = first_line)
+    write!(c, scr)
 end
 
 """
