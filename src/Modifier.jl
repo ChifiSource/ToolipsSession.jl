@@ -1,7 +1,7 @@
 using Toolips
 import Toolips: StyleComponent, get, kill!, animate!, SpoofConnection
 import Toolips: style!, Servable, Connection, Modifier
-import Base: setindex!, getindex, push!, append!
+import Base: setindex!, getindex, push!, append!, insert!
 
 """
 ### abstract type AbstractComponentModifier <: Servable
@@ -54,10 +54,9 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
         try
             textr::UnitRange = maximum(tag) + 1:minimum(findnext("</$nametag", s, tag[1])[1]) - 1
             tagtext = s[textr]
-            tagtext = replace(tagtext, "<br>" => "\n")
-            tagtext = replace(tagtext, "&nbsp;" => "\n")
-            tagtext = replace(tagtext, "&ensp;" => "  ")
-            tagtext = replace(tagtext, "&emsp;" => "    ")
+            tagtext = replace(tagtext, "&nbsp;" => " ", "</br>" => "\n",
+            "<br>" => "\n", "&ensp;" => "  ", "&emsp;" => "    ", "&gt;" => ">",
+            "&lt;" => "<")
         catch
             tagtext = ""
         end
@@ -104,6 +103,13 @@ mutable struct ClientModifier <: AbstractComponentModifier
     f::Function
     ClientModifier() = new(Vector{String}(),
     c::Connection -> write!(c, join(changes)))::ClientModifier
+end
+
+function funccm(cm::ClientModifier, name::String)
+    """function $name(){
+        $(join(cm.changes))
+    }
+    """
 end
 
 """
@@ -649,7 +655,60 @@ function append!(cm::AbstractComponentModifier, name::String, child::Servable)
     spoofconn = Toolips.SpoofConnection()
     write!(spoofconn, child)
     txt = replace(spoofconn.http.text, "`" => "\\`", "\"" => "\\\"", "'" => "\\'")
-    push!(cm.changes, "document.getElementById('$name').innerHTML = document.getElementById('$name').innerHTML + '$txt';")
+    push!(cm.changes, "document.getElementById('$name').appendChild(document.createRange().createContextualFragment(`$txt`));")
+end
+
+"""
+**Session Interface**
+### insert!(cm::AbstractComponentModifier, into::Servable, i::Int64, child::Servable)
+------------------
+inserts `child` into `into` at index `i`. Note that this uses Julian indexing
+(indexes start at 1).
+#### example
+```
+function home(c::Connection)
+    write!(c, h("insertheading", text = "insert"))
+    insertbutt = button("insertbutton", text = "insert")
+    example_div = div("examp3")
+    push!(example_div, h("exampleh1", 5, text = "first"), h("exampleh3", 5, text = "third"))
+    on(c, insertbutt, "click") do cm
+        ToolipsSession.insert!(cm, example_div 2, h("examph2", 5, text = "second"))
+    end
+    write!(c, insertbutt)
+    write!(c, example_div)
+end
+```
+"""
+function insert!(cm::AbstractComponentModifier, into::Servable, i::Int64, child::Servable)
+    insert!(cm, into.name, i, child)
+end
+
+"""
+**Session Interface**
+### insert!(cm::AbstractComponentModifier, name::String, i::Int64, child::Servable)
+------------------
+inserts `child` into `into` at index `i` by name. Note that this uses Julian indexing
+(indexes start at 1).
+#### example
+```
+function home(c::Connection)
+    write!(c, h("insertheading", text = "insert"))
+    insertbutt = button("insertbutton", text = "insert")
+    example_div = div("examp3")
+    push!(example_div, h("exampleh1", 5, text = "first"), h("exampleh3", 5, text = "third"))
+    on(c, insertbutt, "click") do cm
+        ToolipsSession.insert!(cm, "examp3" 2, h("examph2", 5, text = "second"))
+    end
+    write!(c, insertbutt)
+    write!(c, example_div)
+end
+```
+"""
+function insert!(cm::AbstractComponentModifier, name::String, i::Int64, child::Servable)
+    spoofconn = Toolips.SpoofConnection()
+    write!(spoofconn, child)
+    txt = replace(spoofconn.http.text, "`" => "\\`", "\"" => "\\\"", "'" => "\\'")
+    push!(cm.changes, "document.getElementById('$name').insertBefore(document.createRange().createContextualFragment(`$txt`), document.getElementById('$name').children[$(i - 1)]);")
 end
 
 """
@@ -1123,13 +1182,17 @@ function script!(f::Function, c::Connection, cm::AbstractComponentModifier, name
     end
 end
 
-function push!(cm::AbstractComponentModifier, s::Servable ...)
-
+function script!(f::Function, cm::AbstractComponentModifier, name::String;
+    time::Integer = 1000)
+    mod = ClientModifier()
+    f(mod)
+    push!(cm.changes,
+    "new Promise(resolve => setTimeout($(funccm(mod, name)), $time));")
 end
 
 """
 **Session Interface** 0.3
-### next!(f::Function, cm::ComponentModifier)
+### next!(f::Function, c::AbstractConnection, comp::Component{<:Any}, cm::ComponentModifier, readonly::Vector{String} = Vector{String}())
 ------------------
 This method can be used to chain animations (or transitions.) We can do this
 by calling next on our ComponentModifier, the same could also be done with a
@@ -1227,23 +1290,6 @@ end
 
 """
 **Session Interface** 0.3
-### append_first!(cm::ComponentModifier, name::String, child::AbstractComponent)
-------------------
-Used to appened an element as first child.
-#### example
-```
-
-```
-"""
-function append_first!(cm::ComponentModifier, name::String, child::AbstractComponent)
-    spoofconn = Toolips.SpoofConnection()
-    write!(spoofconn, child)
-    txt = replace(spoofconn.http.text, "`" => "\\`", "\"" => "\\\"", "'" => "\\'")
-    push!(cm.changes, "document.getElementById('$name').innerHTML = '$txt' + document.getElementById('$name').innerHTML;")
-end
-
-"""
-**Session Interface** 0.3
 ### set_selection!(cm::ComponentModifier, comp::Component{<:Any}, r::UnitRange{Int64})
 ------------------
 Sets the selection to `r`.
@@ -1279,5 +1325,5 @@ Focuses on Component named `name`.
 ```
 """
 function focus!(cm::ComponentModifier, name::String)
-    push!(cm.changes, "document.getElementById('$name)').focus();")
+    push!(cm.changes, "document.getElementById('$name').focus();")
 end
