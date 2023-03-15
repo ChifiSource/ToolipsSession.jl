@@ -36,6 +36,7 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
     for tag::UnitRange in tagpos
        if contains(s[tag], "/") || ~(contains(s[tag], " id="))
             continue
+            @warn "couldn't find tag"
         end
         tagr::UnitRange = findnext(" ", s, tag[1])
         nametag::String = s[minimum(tag) + 1:maximum(tagr) - 1]
@@ -45,18 +46,22 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
             nameranger::UnitRange = namestart[2] + 2:(findnext(" ", s, namestart[1])[1] - 1)
             if ~(replace(s[nameranger], "\"" => "") in readonly)
                 continue
+                @warn "couldn't get name"
             end
         catch
             continue
+            @warn "couldn't get name"
         end
         end
         tagtext::String = ""
+        textr::UnitRange = 0:0
         try
-            textr::UnitRange = maximum(tag) + 1:minimum(findnext("</$nametag", s, tag[1])[1]) - 1
+            textr = maximum(tag) + 1:minimum(findnext("</$nametag", s, tag[1])[1]) - 1
             tagtext = s[textr]
             tagtext = replace(tagtext, "&nbsp;" => " ", "</br>" => "\n",
             "<br>" => "\n", "&ensp;" => "  ", "&emsp;" => "    ", "&gt;" => ">",
-            "&lt;" => "<")
+            "&lt;" => "<", "<div>" => "\n", "</div>" => "\n", "&bsol;" => "\\", "\"" => "\"",
+            "&#63;" => "?")
         catch
             tagtext = ""
         end
@@ -69,12 +74,21 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
             end
         end for segment in propvec]
         name::String = properties["id"]
-
         delete!(properties, "id")
         push!(properties, "text" => tagtext)
         push!(comps, name => Component(name, string(nametag), properties))
     end
     return(comps)::Dict{String, Component}
+end
+
+
+mutable struct ScriptedComponent <: Toolips.AbstractComponent
+    name::String
+    properties::Dict{Any, Any}
+end
+
+write!(c::AbstractConnection, sc::ScriptedComponent) = begin
+
 end
 
 """
@@ -99,19 +113,46 @@ end
 - ComponentModifier(html::String)
 """
 mutable struct ClientModifier <: AbstractComponentModifier
+    name::String
+    rootc::Dict{String, ScriptedComponent}
     changes::Vector{String}
-    f::Function
-    ClientModifier() = new(Vector{String}(),
-    c::Connection -> write!(c, join(changes)))::ClientModifier
+    ClientModifier(name::String = gen_ref()) = begin
+        new(name, Dict{String, ScriptedComponent}(),
+        Vector{String}())::ClientModifier
+    end
 end
 
-function funccm(cm::ClientModifier, name::String)
-    """function $name(){
+function funccl(cm::ClientModifier = ClientModifier(), name::String = cm.name)
+    """function $(name)(){
         $(join(cm.changes))
     }
     """
 end
 
+function script(f::Function, s::String = gen_ref())
+    cl = ClientModifier(s)
+    f(cl)
+    script(cl.name, text = funccl(cl))
+end
+
+script(cl::ClientModifier) = begin
+    script(cl.name, text = funccl(cl))
+end
+
+function getindex(cl::ClientModifier, s::String)
+
+end
+
+function setindex!(cl::ClientModifier, s::String, p::Pair{String, String})
+
+end
+
+function check(f::Function, cl::ClientModifier, var1,
+    operator::Function, var2)
+    push!(cl.changes, "if ($var1)")
+end
+
+write!(c::AbstractConnection, cm::ClientModifier) = write!(c, funccl(cm))
 """
 ### ComponentModifier <: AbstractComponentModifier
 - rootc::Dict
@@ -143,25 +184,20 @@ end
 """
 mutable struct ComponentModifier <: AbstractComponentModifier
     rootc::Dict{String, AbstractComponent}
-    f::Function
     changes::Vector{String}
     function ComponentModifier(html::String)
         rootc::Dict{String, AbstractComponent} = htmlcomponent(html)
         changes::Vector{String} = Vector{String}()
-        f(c::Connection) = begin
-            write!(c, join(changes))
-        end
-        new(rootc, f, changes)::ComponentModifier
+        new(rootc, changes)::ComponentModifier
     end
     function ComponentModifier(html::String, readonly::Vector{String})
         rootc::Dict{String, AbstractComponent} = htmlcomponent(html, readonly)
         changes::Vector{String} = Vector{String}()
-        f(c::Connection) = begin
-            write!(c, join(changes))
-        end
-        new(rootc, f, changes)::ComponentModifier
+        new(rootc, changes)::ComponentModifier
     end
 end
+
+write!(c::Connection, ac::AbstractComponentModifier) = write!(c, join(ac.changes))
 
 """
 **Session Interface**
@@ -1187,7 +1223,7 @@ function script!(f::Function, cm::AbstractComponentModifier, name::String;
     mod = ClientModifier()
     f(mod)
     push!(cm.changes,
-    "new Promise(resolve => setTimeout($(funccm(mod, name)), $time));")
+    "new Promise(resolve => setTimeout($(funccl(mod, name)), $time));")
 end
 
 """

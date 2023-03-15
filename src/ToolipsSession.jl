@@ -16,7 +16,7 @@ also methods contained for modifying Servables.
 module ToolipsSession
 using Toolips
 import Toolips: ServerExtension, Servable, AbstractComponent, Modifier
-import Toolips: AbstractRoute, kill!, AbstractConnection, script
+import Toolips: AbstractRoute, kill!, AbstractConnection, script, write!
 import Base: setindex!, getindex, push!
 using Random, Dates
 
@@ -274,6 +274,17 @@ setindex!(m::Session, d::Any, s::AbstractString) = m.events[s] = d
 #==
 on
 ==#
+function on(f::Function, component::Component{<:Any}, event::String)
+    cl = ClientModifier("$(component.name)$(event)")
+    f(cl)
+    component["on$event"] = cl.name
+    push!(component.extras, script(cl))
+end
+# TODO more CL bindings :)
+function on(f::Function, event::String)
+
+end
+
 """
 **Session Interface**
 ### on(f::Function, c::Connection, event::AbstractString, readonly::Vector{String} = Vector{String}())
@@ -487,6 +498,9 @@ function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...)
     km.keys[key] = event => f
 end
 
+function bind!(f::Function, km::KeyMap, vs::Vector{String})
+    km.keys[vs[1]] = Tuple(vs[2:length(vs)]) => f
+end
 
 """
 **Session**
@@ -810,16 +824,6 @@ function script!(f::Function, c::Connection, name::String,
    end
    write!(c, obsscript)
 end
-
-function script(f::Function, name::String)
-    cm::ClientModifier = ClientModifier()
-    f(cm)
-    news::Component{:script} = script(name, text = """function $script() {
-    $(join(cm.changes))
-    }""")
-    news
-end
-
 #==
 rpc
 ==#
