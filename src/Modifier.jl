@@ -58,10 +58,7 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
         try
             textr = maximum(tag) + 1:minimum(findnext("</$nametag", s, tag[1])[1]) - 1
             tagtext = s[textr]
-            tagtext = replace(tagtext, "&nbsp;" => " ", "</br>" => "\n",
-            "<br>" => "\n", "&ensp;" => "  ", "&emsp;" => "    ", "&gt;" => ">",
-            "&lt;" => "<", "<div>" => "\n", "</div>" => "\n", "&bsol;" => "\\", "\"" => "\"",
-            "&#63;" => "?")
+            tagtext = julia_format(tagtext)
         catch
             tagtext = ""
         end
@@ -591,9 +588,7 @@ end
 ```
 """
 function set_text!(c::Modifier, s::String, txt::String)
-    txt = replace(txt, "`" => "\\`")
-    txt = replace(txt, "\"" => "\\\"")
-    txt = replace(txt, "''" => "\\'")
+    txt = Toolips.web_format(txt)
     push!(c.changes, "document.getElementById('$s').innerHTML = `$txt`;")
 end
 
