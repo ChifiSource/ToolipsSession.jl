@@ -588,7 +588,7 @@ end
 ```
 """
 function set_text!(c::Modifier, s::String, txt::String)
-    txt = Toolips.web_format(txt)
+    txt = replace(txt, "`" => "\\`", "\"" => "\\\"", "''" => "\\'")
     push!(c.changes, "document.getElementById('$s').innerHTML = `$txt`;")
 end
 
