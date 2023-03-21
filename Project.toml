@@ -9,6 +9,6 @@ ParseNotEval = "8aa82b3d-5f10-4499-b4c6-079a0c256bc8"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Toolips = "a47e2ad8-fcf7-417c-9746-32b9bdf220bd"
 [compat]
-Toolips = "0.2.5"
+Toolips = "0.2.2"
 julia = "1.5"
 ParseNotEval = "0.1.0"
