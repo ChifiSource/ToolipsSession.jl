@@ -72,9 +72,10 @@ data is posted to for a response.
 function document_linker(c::Connection)
     s::String = getpost(c)
     ip::String = getip(c)
-    refbod = split(s, "??SEP??")
-    ref::String = string(refbod[1])
-    s = refbod[2]
+    reftag::UnitRange{Int64} = findfirst("??CM??", s)
+    ref_r::UnitRange{Int64} = 1:minimum(reftag) -1
+    ref::String = s[ref_r]
+    s = replace(s, "??CM??:$ref" => "")
     if ip in keys(c[:Session].iptable)
         c[:Session].iptable[ip] = now()
     end
@@ -84,7 +85,8 @@ function document_linker(c::Connection)
         else
             cm = ComponentModifier(s)
         end
-        c[:Session][ip][ref](cm)
+        f::Function = c[:Session][ip][ref]
+        f(cm)
         write!(c, " ")
         write!(c, cm)
     end
@@ -209,7 +211,7 @@ mutable struct Session <: ServerExtension
                 const parser = new DOMParser();
                 function sendpage(ref) {
             var bodyHtml = document.getElementsByTagName('body')[0].innerHTML;
-                sendinfo(ref + '??SEP??' + bodyHtml);
+                sendinfo(ref + '??CM??' + bodyHtml);
                 }
                 function sendinfo(txt) {
                 let xhr = new XMLHttpRequest();
