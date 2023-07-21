@@ -81,16 +81,6 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
     return(comps)::Dict{String, Component}
 end
 
-
-mutable struct ScriptedComponent <: Toolips.AbstractComponent
-    name::String
-    properties::Dict{Any, Any}
-end
-
-write!(c::AbstractConnection, sc::ScriptedComponent) = begin
-
-end
-
 """
 ### ClientModifier <: AbstractComponentModifier
 - changes::Vector{String}
@@ -114,11 +104,9 @@ end
 """
 mutable struct ClientModifier <: AbstractComponentModifier
     name::String
-    rootc::Dict{String, ScriptedComponent}
     changes::Vector{String}
     ClientModifier(name::String = gen_ref()) = begin
-        new(name, Dict{String, ScriptedComponent}(),
-        Vector{String}())::ClientModifier
+        new(name, Vector{String}())::ClientModifier
     end
 end
 
@@ -149,10 +137,13 @@ end
 
 function check(f::Function, cl::ClientModifier, var1,
     operator::Function, var2)
-    push!(cl.changes, "if ($var1)")
+    newcl = ClientModifier()
+    f(newcl)
+    push!(cl.changes, "if ($var1 $operator $var2) {$(join(newcel.changes))}")
 end
 
 write!(c::AbstractConnection, cm::ClientModifier) = write!(c, funccl(cm))
+
 """
 ### ComponentModifier <: AbstractComponentModifier
 - rootc::Dict

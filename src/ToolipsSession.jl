@@ -276,13 +276,20 @@ on
 ==#
 function on(f::Function, component::Component{<:Any}, event::String)
     cl = ClientModifier("$(component.name)$(event)")
-    f(cl)
-    component["on$event"] = cl.name
+    evstr = replace(join(cl.changes), " " => "", "\n" => "")
+    component["on$event"] = evstr
     push!(component.extras, script(cl))
 end
 # TODO more CL bindings :)
-function on(f::Function, event::String)
-
+function on(f::Function, cm::ComponentModifier, comp::Component{<:Any}, event::String)
+    name = comp.name
+    cl = ClientModifier(); f(cl)
+    push!(cm.changes, """setTimeout(function () {
+        document.getElementById('$name').addEventListener('$event',
+        function (e) {
+            $(join(cl.changes))
+        });
+        }, 1000);""")
 end
 
 """
@@ -495,11 +502,6 @@ end
 ```
 """
 function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...)
-    if key in keys(km.keys)
-        l = length(findall(k -> k == key, collect(keys(km.keys))))
-        km.keys["$key;$l"] = event => f
-        return
-    end
     km.keys[key] = event => f
 end
 
@@ -535,11 +537,7 @@ function bind!(c::Connection, km::KeyMap,
     for binding in km.keys
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         ref = gen_ref()
-        bindk = binding[1]
-        if contains(bindk, ";")
-            bindk = split(bindk, ";")[1]
-        end
-        first_line = first_line * """ if ($eventstr event.key == "$(bindk)") {
+        first_line = first_line * """ if ($eventstr event.key == "$(binding[1])") {
                 sendpage('$ref');
         }"""
         if ip in keys(c[:Session].iptable)
@@ -584,11 +582,7 @@ function bind!(c::Connection, cm::ComponentModifier, km::KeyMap,
     for binding in km.keys
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         ref = gen_ref()
-        bindk = binding[1]
-        if contains(bindk, ";")
-            bindk = split(bindk, ";")[1]
-        end
-        first_line = first_line * """ if ($eventstr event.key == "$(bindk)") {
+        first_line = first_line * """ if ($eventstr event.key == "$(binding[1])") {
                 sendpage('$ref');
         }"""
         if ip in keys(c[:Session].iptable)
@@ -625,16 +619,13 @@ function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
     for binding in km.keys
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         key = binding[1]
-        if contains(key, ";")
-            key = split(key, ";")[1]
-        end
-        first_line = first_line * """ if ($eventstr event.key == "$(key)") {
+        first_line = first_line * """ if ($eventstr event.key == "$(binding[1])") {
                 sendpage('$(comp.name * binding[1] * ref)');
                 }"""
         if ip in keys(c[:Session].iptable)
-            push!(c[:Session][ip], comp.name * binding[1] * ref => binding[2][2])
+            push!(c[:Session][ip], comp.name * key * ref => binding[2][2])
         else
-            c[:Session][ip] = Dict(comp.name * binding[1] * ref => binding[2][2])
+            c[:Session][ip] = Dict(comp.name * key * ref => binding[2][2])
         end
         if length(readonly) > 0
             c[:Session].readonly["$ip$key$(comp.name)"] = readonly
