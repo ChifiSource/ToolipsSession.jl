@@ -479,7 +479,8 @@ end
 """
 mutable struct KeyMap <: InputMap
     keys::Dict{String, Pair{Tuple, Function}}
-    KeyMap() = new(Dict{String, Pair{Tuple, Function}}())
+    prevents::Vector{String}
+    KeyMap() = new(Dict{String, Pair{Tuple, Function}}(), Vector{String}())
 end
 
 """
@@ -501,12 +502,33 @@ r = route("/") do c::Connection
 end
 ```
 """
-function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...)
+function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)
+    if prevent_default == true
+        push!(km.prevents, key * join([string(ev) for ev in event]))
+    end
+    if key in keys(km.keys)
+        l = length(findall(k -> k == key, collect(keys(km.keys))))
+        km.keys["$key;$l"] = event => f
+        return
+    end
     km.keys[key] = event => f
 end
 
-function bind!(f::Function, km::KeyMap, vs::Vector{String})
-    km.keys[vs[1]] = Tuple(vs[2:length(vs)]) => f
+function bind!(f::Function, km::KeyMap, vs::Vector{String}; prevent_default::Bool = true)
+    if length(vs) > 1
+        event = Tuple(vs[2:length(vs)])
+    else
+        event = Tuple()
+    end
+    key = vs[1]
+    if prevent_default == true
+        push!(km.prevents, key * join([string(ev) for ev in event]))
+    end
+    if key in keys(km.keys)
+        l = length(findall(k -> k == key, collect(keys(km.keys))))
+        key ="$key;$l"
+    end
+    km.keys[key] = event => f
 end
 
 """
@@ -535,9 +557,18 @@ function bind!(c::Connection, km::KeyMap,
     first_line = """setTimeout(function () {
     document.addEventListener('key$on', function(event) {"""
     for binding in km.keys
+        default::String = ""
+        key = binding[1]
+        if contains(key, ";")
+            key = split(key, ";")[1]
+        end
+        if key * join([string(bin) for bin in binding[2][1]]) in km.prevents
+            default = "event.preventDefault();"
+            println(binding[1] * join([string(bin) for bin in binding[2][1]]))
+        end
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         ref = gen_ref()
-        first_line = first_line * """ if ($eventstr event.key == "$(binding[1])") {
+        first_line = first_line * """ if ($eventstr event.key == "$(binding[1])") {$default
                 sendpage('$ref');
         }"""
         if ip in keys(c[:Session].iptable)
@@ -580,9 +611,19 @@ function bind!(c::Connection, cm::ComponentModifier, km::KeyMap,
     first_line = """setTimeout(function () {
     document.addEventListener('key$on', function(event) {"""
     for binding in km.keys
+        default::String = ""
+        key = binding[1]
+        if contains(key, ";")
+            key = split(key, ";")[1]
+        end
+        if key * join([string(ev) for ev in binding[2][1]]) in km.prevents
+            if binding[2] == km.prevents[binding[1]]
+                default = "event.preventDefault();"
+            end
+        end
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         ref = gen_ref()
-        first_line = first_line * """ if ($eventstr event.key == "$(binding[1])") {
+        first_line = first_line * """ if ($eventstr event.key == "$(binding[1])") {$default
                 sendpage('$ref');
         }"""
         if ip in keys(c[:Session].iptable)
@@ -611,16 +652,23 @@ Binds the `KeyMap` `km` to the `comp`.
 function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
     km::KeyMap, readonly::Vector{String} = Vector{String}(); on::Symbol = :down)
     firsbind = first(km.keys)
-    ref = gen_ref()
     ip::String = getip(c)
     first_line = """
     setTimeout(function () {
     document.getElementById('$(comp.name)').addEventListener('key$on', function (event) {"""
     for binding in km.keys
-        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
+        default::String = ""
         key = binding[1]
-        first_line = first_line * """ if ($eventstr event.key == "$(binding[1])") {
-                sendpage('$(comp.name * binding[1] * ref)');
+        if contains(key, ";")
+            key = split(key, ";")[1]
+        end
+        if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
+            default = "event.preventDefault();"
+        end
+        ref = gen_ref()
+        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
+        first_line = first_line * """ if ($eventstr event.key == "$key") {$default
+                sendpage('$(comp.name * key * ref)');
                 }"""
         if ip in keys(c[:Session].iptable)
             push!(c[:Session][ip], comp.name * key * ref => binding[2][2])
