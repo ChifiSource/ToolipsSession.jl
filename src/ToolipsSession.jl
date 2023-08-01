@@ -1066,9 +1066,27 @@ function rpc!(f::Function, c::Connection)
     f(cm)
     mods::String = find_client(c)
     for mod in values(c[:Session].peers[mods])
-        push!(mod.changes, join(cm.changes))
+        push!(mod, join(cm.changes))
     end
 end
+
+function call!(c::Connection, cm::ComponentModifier)
+    mods::String = find_client(c)
+    [if mod[1] != getip(c); push!(mod[2], join(cm.changes)); end for mod in c[:Session].peers[mods]]
+    deleteat!(cm.changes, 1:length(cm.changes))
+end
+
+function call!(f::Function, c::Connection)
+    cm = ComponentModifier("")
+    f(cm)
+    mods::String = find_client(c)
+    for mod in c[:Session].peers[mods]
+        if mod[1] != getip(c)
+            push!(mod[2], join(cm.changes))
+        end
+    end
+end
+
 
 """
 **Session Interface**
