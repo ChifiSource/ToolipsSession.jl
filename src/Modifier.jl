@@ -1196,14 +1196,14 @@ end
 ```
 """
 function script!(f::Function, c::Connection, cm::AbstractComponentModifier, name::String,
-     readonly::Vector{String} = Vector{String}(); time::Integer = 1000)
+     readonly::Vector{String} = Vector{String}(); time::Integer = 1000, type::String = "Interval")
      ip = getip(c)
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], name => f)
     else
         c[:Session][getip(c)] = Dict(name => f)
     end
-    push!(cm.changes, "new Promise(resolve => setTimeout(sendpage('$name'), $time));")
+    push!(cm.changes, "set$type(function () { sendpage('$name'); }, $time);")
     if length(readonly) > 0
         c[:Session].readonly["$ip$name"] = readonly
     end

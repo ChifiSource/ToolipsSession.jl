@@ -564,7 +564,6 @@ function bind!(c::Connection, km::KeyMap,
         end
         if key * join([string(bin) for bin in binding[2][1]]) in km.prevents
             default = "event.preventDefault();"
-            println(binding[1] * join([string(bin) for bin in binding[2][1]]))
         end
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         ref = gen_ref()
@@ -833,8 +832,7 @@ function bind!(f::Function, c::Connection, cm::AbstractComponentModifier, comp::
     name::String = comp.name
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
-    println("herherh")
-push!(cm.changes, """alert("$(name)"); setTimeout(function () {
+push!(cm.changes, """setTimeout(function () {
 document.getElementById('$(name)').onkeydown = function(event){
         if ($eventstr event.key == '$(key)') {
         sendpage('$(name * key)')
@@ -905,6 +903,27 @@ end
 
 """
 **Session Interface**
+### open_rpc!(c::Connection, name::String = getip(c); tickrate::Int64 = 500)
+------------------
+Creates a new rpc session inside of ToolipsSession. Other clients can then join and
+have the same `ComponentModifier` functions run.
+#### example
+```
+
+```
+"""
+function open_rpc!(c::Connection, cm::ComponentModifier, 
+    name::String = getip(c); tickrate::Int64 = 500)
+    push!(c[:Session].peers,
+     name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
+    script!(c, cm, name, time = tickrate) do cm::ComponentModifier
+        push!(cm.changes, join(c[:Session].peers[name][getip(c)]))
+        c[:Session].peers[name][getip(c)] = Vector{String}()
+    end
+end
+
+"""
+**Session Interface**
 ### open_rpc!(f::Function, c::Connection, name::String; tickrate::Int64 = 500)
 ------------------
 Does the same thing as `open_rpc!(::Connection, ::String; tickrate::Int64)`,
@@ -917,7 +936,7 @@ but also runs `f` on each tick.
 function open_rpc!(f::Function, c::Connection, name::String; tickrate::Int64 = 500)
     push!(c[:Session].peers,
      name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
-    script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
+    script!(c, name, time = tickrate) do cm::ComponentModifier
         f(cm)
         push!(cm.changes, join(c[:Session].peers[name][getip(c)]))
         c[:Session].peers[name][getip(c)] = Vector{String}()
@@ -951,6 +970,25 @@ Joins an rpc session by name.
 function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], getip(c) => Vector{String}())
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
+        location::String = find_client(c)
+        push!(cm.changes, join(c[:Session].peers[location][getip(c)]))
+        c[:Session].peers[location][getip(c)] = Vector{String}()
+    end
+end
+
+"""
+**Session Interface**
+### join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
+------------------
+Joins an rpc session by name.
+#### example
+```
+
+```
+"""
+function join_rpc!(c::Connection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
+    push!(c[:Session].peers[host], getip(c) => Vector{String}())
+    script!(c, cm, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
         location::String = find_client(c)
         push!(cm.changes, join(c[:Session].peers[location][getip(c)]))
         c[:Session].peers[location][getip(c)] = Vector{String}()
