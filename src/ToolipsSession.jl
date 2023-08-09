@@ -39,6 +39,11 @@ that might help you out:
 --- ComponentModifiers
 --- Modifier functions
 ------------------
+TODO
+`clears` will allow for certain events to be autocleared from the event table using `clear!` to 
+    clear a symbol. This will make it easier to manage memory for compound events.
+    For example, in Olive we are opening multiple projects, well these projects are often 
+    stored in the function pipeline.
 ==#
 
 """
@@ -72,10 +77,11 @@ data is posted to for a response.
 function document_linker(c::Connection)
     s::String = getpost(c)
     ip::String = getip(c)
-    reftag::UnitRange{Int64} = findfirst("??CM??", s)
-    ref_r::UnitRange{Int64} = 1:minimum(reftag) -1
+    reftag::UnitRange{Int64} = findfirst("â•ƒCM", s)
+    reftagend = findnext("â•ƒ", s, maximum(reftag))
+    ref_r::UnitRange{Int64} = maximum(reftag) + 1:minimum(reftagend) - 1
     ref::String = s[ref_r]
-    s = replace(s, "??CM??:$ref" => "")
+    s = replace(s, "╃CM$(ref)╃" => "")
     if ip in keys(c[:Session].iptable)
         c[:Session].iptable[ip] = now()
     end
@@ -211,7 +217,7 @@ mutable struct Session <: ServerExtension
                 const parser = new DOMParser();
                 function sendpage(ref) {
             var bodyHtml = document.getElementsByTagName('body')[0].innerHTML;
-                sendinfo(ref + '??CM??' + bodyHtml);
+                sendinfo('╃CM' + ref + '╃' + bodyHtml);
                 }
                 function sendinfo(txt) {
                 let xhr = new XMLHttpRequest();
@@ -873,7 +879,7 @@ function script!(f::Function, c::Connection, name::String,
     set$(type)(function () { sendpage('$name'); }, $time);
    """)
    if length(readonly) > 0
-       c[:Session].readonly["$ip$name"] = readonly
+       c[:Session].readonly["$(getip(c))$name"] = readonly
    end
    write!(c, obsscript)
 end
@@ -1146,5 +1152,5 @@ export update!, insert_child!, append_first!, animate!, pauseanim!, next!
 export set_children!, get_text, style!, free_redirects!, confirm_redirects!
 export scroll_by!, scroll_to!, focus!, set_selection!
 export rpc!, disconnect_rpc!, find_client, join_rpc!, close_rpc!, open_rpc!
-export join_rpc!, is_client, is_dead, is_host
+export join_rpc!, is_client, is_dead, is_host, call!
 end # module
