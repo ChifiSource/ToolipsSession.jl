@@ -279,8 +279,8 @@ end
 function clear!(c::Connection, key::String)
     readonly = c[:Session].readonly
     if key in keys(readonly)
-        [kill!(c, k) for k in readdonly[key]]
-        delete!(readonly, key)
+        [kill!(c, k) for k in readdonly[getip(c) * key]]
+        delete!(readonly, getip(c) * key)
     end
 end
 
@@ -563,7 +563,7 @@ function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_
     km.keys[key] = event => f
 end
 
-function bind!(f::Function, km::KeyMap; prevent_default::Bool = true)
+function bind!(f::Function, km::KeyMap, vs::Vector{String}; prevent_default::Bool = true)
     if length(vs) > 1
         event = Tuple(vs[2:length(vs)])
     else
@@ -600,7 +600,7 @@ end
 ```
 """
 function bind!(c::Connection, km::KeyMap,
-    readonly::Vector{String} = Vector{String}(); on::Symbol = :down, mark::String = "none")
+    readonly::Vector{String} = Vector{String}(); on::Symbol = :down, prevent_default::Bool = true, mark::String = "none")
     firsbind = first(km.keys)
     ip::String = getip(c)
     first_line = """setTimeout(function () {
@@ -660,7 +660,7 @@ end
 ```
 """
 function bind!(c::Connection, cm::ComponentModifier, km::KeyMap,
-    readonly::Vector{String} = Vector{String}(); on::Symbol = :down, mark::String = "none")
+    readonly::Vector{String} = Vector{String}(); on::Symbol = :down, prevent_default::Bool = true, mark::String = "none")
     firsbind = first(km.keys)
     ip::String = getip(c)
     first_line = """setTimeout(function () {
@@ -712,7 +712,8 @@ Binds the `KeyMap` `km` to the `comp`.
 ```
 """
 function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
-    km::KeyMap, readonly::Vector{String} = Vector{String}(); on::Symbol = :down, mark::String = "none")
+    km::KeyMap, readonly::Vector{String} = Vector{String}(); on::Symbol = :down,
+    prevent_default::Bool = true, mark::String = "none")
     firsbind = first(km.keys)
     ip::String = getip(c)
     first_line = """
@@ -809,7 +810,7 @@ Binds a key event to a `Connection`.
 """
 function bind!(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol ...;
     readonly::Vector{String} = Vector{String}(),
-    on::Symbol = :down, mark::String = "none")
+    on::Symbol = :down, prevent_default::Bool = true, mark::String = "none")
     cm::Modifier = ClientModifier()
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
