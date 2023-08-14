@@ -27,23 +27,22 @@ Hello, welcome to the Session source. Here is an overview of the organization
 that might help you out:
 ------------------
 - ToolipsSession.jl
---- random functions
+--- linker
 --- Session extension
+--- kill!
+--- clear!
 --- on
 --- KeyMap
---- bind
+--- bind!
 --- script interface
 --- rpc
 ------------------
 - Modifier.jl
+--- Base Modifier
+--- Client Modifiers
 --- ComponentModifiers
 --- Modifier functions
 ------------------
-TODO
-`clears` will allow for certain events to be autocleared from the event table using `clear!` to 
-    clear a symbol. This will make it easier to manage memory for compound events.
-    For example, in Olive we are opening multiple projects, well these projects are often 
-    stored in the function pipeline.
 ==#
 
 """
@@ -98,51 +97,6 @@ function document_linker(c::Connection)
     end
 end
 
-"""
-**Session Interface**
-### kill!(c::Connection, event::AbstractString, s::Servable) -> _
-------------------
-Removes a given event call from a connection's Session.
-#### example
-```
-route("/") do c::Connection
-    myp = p("hello", text = "wow")
-    on(c, "load") do cm::ComponentModifier
-        set_text!(cm, myp, "not so wow")
-    end
-    write!(c, myp)
-end
-```
-"""
-function kill!(c::Connection, fname::AbstractString, s::Servable)
-    refname = s.name * fname
-    delete!(c[:Session][getip()], refname)
-end
-
-"""
-**Session Interface**
-### kill!(c::Connection)
-------------------
-Kills a Connection's saved events.
-#### example
-```
-using Toolips
-using ToolipsSession
-
-route("/") do c::Connection
-    on(c, "load") do cm::ComponentModifier
-        alert!(cm, "this text will never appear.")
-    end
-    println(length(keys(c[:Session].iptable)))
-    kill!(c)
-    println(length(keys(c[:Session].iptable)))
-end
-```
-"""
-function kill!(c::Connection)
-    delete!(c[:Session].iptable, getip(c))
-    delete!(c[:Session].events, getip(c))
-end
 
 """
 ### Session
@@ -276,6 +230,35 @@ end
 ```
 """
 setindex!(m::Session, d::Any, s::AbstractString) = m.events[s] = d
+
+"""
+**Session Interface**
+### kill!(c::Connection)
+------------------
+Kills a Connection's saved events.
+#### example
+```
+using Toolips
+using ToolipsSession
+
+route("/") do c::Connection
+    on(c, "load") do cm::ComponentModifier
+        alert!(cm, "this text will never appear.")
+    end
+    println(length(keys(c[:Session].iptable)))
+    kill!(c)
+    println(length(keys(c[:Session].iptable)))
+end
+```
+"""
+function kill!(c::Connection)
+    delete!(c[:Session].iptable, getip(c))
+    delete!(c[:Session].events, getip(c))
+end
+
+function clear!(c::Connection, symb::Symbol)
+
+end
 
 #==
 on

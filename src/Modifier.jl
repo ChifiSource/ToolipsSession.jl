@@ -81,6 +81,21 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
     return(comps)::Dict{String, Component}
 end
 
+abstract type AbstractVar end
+
+mutable struct ComponentProperty <: AbstractVar
+    name::String
+    value::Pair{String, String}
+end
+
+struct Var <: AbstractVar value::String end
+
+function funccl(cp::ComponentProperty)
+    "document.getElementById('$(cp.name)').$(cp.value[1]) = $(cp.value[2]);"
+end
+
+funccl(v::Var) = "$(v.value)"
+
 """
 ### ClientModifier <: AbstractComponentModifier
 - changes::Vector{String}
@@ -105,8 +120,9 @@ end
 mutable struct ClientModifier <: AbstractComponentModifier
     name::String
     changes::Vector{String}
+    event::Var
     ClientModifier(name::String = gen_ref()) = begin
-        new(name, Vector{String}())::ClientModifier
+        new(name, Vector{String}(), Var("event"))::ClientModifier
     end
 end
 
@@ -127,19 +143,31 @@ script(cl::ClientModifier) = begin
     script(cl.name, text = funccl(cl))
 end
 
+function getindex(cl::ClientModifier, s::String, prop::String)
+    ComponentProperty(s, prop)
+end
+
 function getindex(cl::ClientModifier, s::String)
-
+    push!(cl.changes, "$(s.name) = document.getElementbyId('$s');")
+    Var(s)::Var
 end
 
-function setindex!(cl::ClientModifier, s::String, p::Pair{String, String})
+getindex(cl::ClientModifier, s::Component{<:Any}, prop::String) = getindex(cl, s.name, prop)
 
+function getindex(cm::AbstractComponentModifier, s::String, prop::String)
+    cm[s]
 end
 
-function check(f::Function, cl::ClientModifier, var1,
-    operator::Function, var2)
+setindex!(cm::AbstractComponentModifier, cp::AbstractVar, a::Any) = begin
+    push!(cm.changes, "$(funccl(cp)) = $a;")
+end
+
+
+function check(f::Function, cl::ClientModifier, var1::AbstractVar,
+    operator::Function, var2::AbstractVar)
     newcl = ClientModifier()
     f(newcl)
-    push!(cl.changes, "if ($var1 $operator $var2) {$(join(newcel.changes))}")
+    push!(cl.changes, "if ($var1 $operator $var2) {$(join(newcl.changes))}")
 end
 
 write!(c::AbstractConnection, cm::ClientModifier) = write!(c, funccl(cm))
