@@ -289,7 +289,8 @@ on
 ==#
 
 function on(f::Function, event::String)
-
+    cl = ClientModifier(); f(cl)
+    script("doc$event", text = join(cl.changes))
 end
 
 function on(f::Function, component::Component{<:Any}, event::String)
@@ -303,7 +304,7 @@ end
 function on(f::Function, cm::ComponentModifier, comp::Component{<:Any}, event::String)
     name = comp.name
     cl = ClientModifier(); f(cl)
-    push!(cm.changes, """setTimeout(function () {
+    push!(cm.changes, """setTimeout(function (event) {
         document.getElementById('$name').addEventListener('$event',
         function (e) {
             $(join(cl.changes))
@@ -339,18 +340,18 @@ function on(f::Function, c::Connection, event::AbstractString,
     write!(c,
         "<script>document.addEventListener('$event', sendpage('$ref'));</script>")
     if ip in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], "$ref" => f)
+        push!(c[:Session][getip(c)], ref => f)
     else
-        c[:Session][getip(c)] = Dict("$ref" => f)
+        c[:Session][getip(c)] = Dict(ref => f)
     end
     if length(readonly) > 0
-        c[:Session].readonly["$ip$event$name"] = readonly
+        c[:Session].readonly["$ip$ref"] = readonly
     end
     if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], ref)
+        if getip(c) * mark in keys(c[:Session].readonly)
+            push!(c[:Session].readonly[getip(c) * mark], ref)
         else
-            push!(c[:Session].readonly, mark => [ref])
+            push!(c[:Session].readonly, getip(c) * mark => [ref])
         end
     end
 end
@@ -388,10 +389,10 @@ function on(f::Function, c::Connection, s::AbstractComponent,
         c[:Session].readonly["$ip$event$name"] = readonly
     end
     if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], ref)
+        if getip(c) * mark in keys(c[:Session].readonly)
+            push!(c[:Session].readonly[getip(c) * mark], "$event$name")
         else
-            push!(c[:Session].readonly, mark => [ref])
+            push!(c[:Session].readonly, getip(c) * mark => ["$event$name"])
         end
     end
 end
@@ -433,10 +434,10 @@ function on(f::Function, c::Connection, cm::AbstractComponentModifier, event::Ab
         c[:Session].readonly["$ip$event"] = readonly
     end
     if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], ref)
+        if getip(c) * mark in keys(c[:Session].readonly)
+            push!(c[:Session].readonly[getip(c) * mark], event)
         else
-            push!(c[:Session].readonly, mark => [ref])
+            push!(c[:Session].readonly, getip(c) * mark => [event])
         end
     end
 end
@@ -482,10 +483,10 @@ function on(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Com
          c[:Session].readonly["$ip$name$event"] = readonly
      end
      if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], ref)
+        if getip(c) * mark in keys(c[:Session].readonly)
+            push!(c[:Session].readonly[getip(c) * mark], "$name$event")
         else
-            push!(c[:Session].readonly, mark => [ref])
+            push!(c[:Session].readonly, getip(c) * mark => ["$name$event"])
         end
     end
 end
@@ -550,7 +551,7 @@ r = route("/") do c::Connection
 end
 ```
 """
-function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true, mark::String = "none")
+function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)
     if prevent_default == true
         push!(km.prevents, key * join([string(ev) for ev in event]))
     end
@@ -559,17 +560,10 @@ function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_
         km.keys["$key;$l"] = event => f
         return
     end
-    if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], ref)
-        else
-            push!(c[:Session].readonly, mark => [ref])
-        end
-    end
     km.keys[key] = event => f
 end
 
-function bind!(f::Function, km::KeyMap, vs::Vector{String}; prevent_default::Bool = true, mark::String = "none")
+function bind!(f::Function, km::KeyMap; prevent_default::Bool = true)
     if length(vs) > 1
         event = Tuple(vs[2:length(vs)])
     else
@@ -582,13 +576,6 @@ function bind!(f::Function, km::KeyMap, vs::Vector{String}; prevent_default::Boo
     if key in keys(km.keys)
         l = length(findall(k -> k == key, collect(keys(km.keys))))
         key ="$key;$l"
-    end
-    if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], ref)
-        else
-            push!(c[:Session].readonly, mark => [ref])
-        end
     end
     km.keys[key] = event => f
 end
@@ -638,14 +625,14 @@ function bind!(c::Connection, km::KeyMap,
             c[:Session][ip] = Dict(ref => binding[2][2])
         end
         if length(readonly) > 0
-            c[:Session].readonly["$ip$key"] = readonly
+            c[:Session].readonly[getip(c) * ref] = readonly
         end
-    end
-    if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], ref)
-        else
-            push!(c[:Session].readonly, mark => [ref])
+        if mark != "none"
+            if getip(c) * mark in keys(c[:Session].readonly)
+                push!(c[:Session].readonly[getip(c) * mark], ref)
+            else
+                push!(c[:Session].readonly, getip(c) * mark => [ref])
+            end
         end
     end
     first_line = first_line * "});}, 1000);"
@@ -700,14 +687,14 @@ function bind!(c::Connection, cm::ComponentModifier, km::KeyMap,
             c[:Session][ip] = Dict(ref => binding[2][2])
         end
         if length(readonly) > 0
-            c[:Session].readonly["$ip$key"] = readonly
+            c[:Session].readonly[getip(c) * ref] = readonly
         end
-    end
-    if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], ref)
-        else
-            push!(c[:Session].readonly, mark => [ref])
+        if mark != "none"
+            if getip(c) * mark in keys(c[:Session].readonly)
+                push!(c[:Session].readonly[getip(c) * mark], ref)
+            else
+                push!(c[:Session].readonly, getip(c) * mark => [ref])
+            end
         end
     end
     first_line = first_line * "});}, 1000);"
@@ -751,14 +738,14 @@ function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
             c[:Session][ip] = Dict(comp.name * key * ref => binding[2][2])
         end
         if length(readonly) > 0
-            c[:Session].readonly["$ip$key$(comp.name)"] = readonly
+            c[:Session].readonly["$(getip(c))$(comp.name)$key$ref"] = readonly
         end
-    end
-    if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], ref)
-        else
-            push!(c[:Session].readonly, mark => [ref])
+        if mark != "none"
+            if getip(c) * mark in keys(c[:Session].readonly)
+                push!(c[:Session].readonly[getip(c) * mark], "$(comp.name * key * ref)")
+            else
+                push!(c[:Session].readonly, getip(c) * mark => ["$(comp.name * key * ref)"])
+            end
         end
     end
     first_line = first_line * "}.bind(event));}, 500);"
@@ -802,9 +789,9 @@ function bind!(f::Function, c::AbstractConnection, comp::Component{<:Any},
     end
     if mark != "none"
         if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], ref)
+            push!(c[:Session].readonly[mark], comp.name * key)
         else
-            push!(c[:Session].readonly, mark => [ref])
+            push!(c[:Session].readonly, mark => [comp.name * key])
         end
     end
 end
@@ -842,7 +829,7 @@ document.addEventListener('key$on', function(event) {
         c[:Session][ip] = Dict(ref => f)
     end
     if length(readonly) > 0
-        c[:Session].readonly["$ip$ref"] = readonly
+        c[:Session].readonly["$ref"] = readonly
     end
     if mark != "none"
         if mark in keys(c[:Session].readonly)

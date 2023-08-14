@@ -140,7 +140,7 @@ function script(f::Function, s::String = gen_ref())
 end
 
 script(cl::ClientModifier) = begin
-    script(cl.name, text = funccl(cl))
+    script(cl.name, text = join(cl.changes))
 end
 
 function getindex(cl::ClientModifier, s::String, prop::String)
