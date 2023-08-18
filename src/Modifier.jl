@@ -1,6 +1,6 @@
 using Toolips
 import Toolips: StyleComponent, get, kill!, animate!, SpoofConnection
-import Toolips: style!, Servable, Connection, Modifier
+import Toolips: style!, Servable, Connection, Modifier, string
 import Base: setindex!, getindex, push!, append!, insert!
 
 """
@@ -58,10 +58,9 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
         try
             textr = maximum(tag) + 1:minimum(findnext("</$nametag", s, tag[1])[1]) - 1
             tagtext = s[textr]
-            tagtext = replace(tagtext, "&nbsp;" => " ", "</br>" => "\n",
-            "<br>" => "\n", "&ensp;" => "  ", "&emsp;" => "    ", "&gt;" => ">",
-            "&lt;" => "<", "<div>" => "\n", "</div>" => "\n", "&bsol;" => "\\", "\"" => "\"",
-            "&#63;" => "?")
+            tagtext = replace(tagtext, "&nbsp;" => " ", "<br>" => "\n", "&ensp;" => "  ", 
+            "&emsp;" => "    ", "&gt;" => ">", "&lt;" => "<", "<div>" => "\n", "</div>" => "\n", 
+            "&bsol;" => "\\", "\"" => "\"", "&#63;" => "?")
         catch
             tagtext = ""
         end
@@ -133,18 +132,8 @@ function funccl(cm::ClientModifier = ClientModifier(), name::String = cm.name)
     """
 end
 
-function script(f::Function, s::String = gen_ref())
-    cl = ClientModifier(s)
-    f(cl)
-    script(cl.name, text = funccl(cl))
-end
-
-script(cl::ClientModifier) = begin
-    script(cl.name, text = join(cl.changes))
-end
-
 function getindex(cl::ClientModifier, s::String, prop::String)
-    ComponentProperty(s, prop)
+    ComponentProperty(s, prop => "")
 end
 
 function getindex(cl::ClientModifier, s::String)

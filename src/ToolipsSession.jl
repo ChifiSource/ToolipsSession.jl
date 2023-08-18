@@ -248,7 +248,7 @@ end
 ```
 """
 function kill!(c::Connection, event::String)
-    delete!(c[:Session][getip()], event)
+    delete!(c[:Session][getip(c)], event)
 end
 
 """
@@ -278,8 +278,8 @@ end
 
 function clear!(c::Connection, key::String)
     readonly = c[:Session].readonly
-    if key in keys(readonly)
-        [kill!(c, k) for k in readdonly[getip(c) * key]]
+    if getip(c) * key in keys(readonly)
+        [kill!(c, k) for k in readonly[getip(c) * key]]
         delete!(readonly, getip(c) * key)
     end
 end
@@ -957,6 +957,16 @@ function script!(f::Function, c::Connection, name::String,
     end
 end
    write!(c, obsscript)
+end
+
+function script(f::Function, s::String = gen_ref())
+    cl = ClientModifier(s)
+    f(cl)
+    script(cl.name, text = funccl(cl))
+end
+
+script(cl::ClientModifier) = begin
+    script(cl.name, text = join(cl.changes))
 end
 
 #==
