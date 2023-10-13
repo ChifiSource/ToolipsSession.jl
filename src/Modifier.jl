@@ -1,6 +1,6 @@
 using Toolips
 import Toolips: StyleComponent, get, kill!, animate!, SpoofConnection
-import Toolips: style!, Servable, Connection, Modifier
+import Toolips: style!, Servable, Connection, Modifier, string
 import Base: setindex!, getindex, push!, append!, insert!
 
 """
@@ -58,10 +58,9 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
         try
             textr = maximum(tag) + 1:minimum(findnext("</$nametag", s, tag[1])[1]) - 1
             tagtext = s[textr]
-            tagtext = replace(tagtext, "&nbsp;" => " ", "</br>" => "\n",
-            "<br>" => "\n", "&ensp;" => "  ", "&emsp;" => "    ", "&gt;" => ">",
-            "&lt;" => "<", "<div>" => "\n", "</div>" => "\n", "&bsol;" => "\\", "\"" => "\"",
-            "&#63;" => "?")
+            tagtext = replace(tagtext, "&nbsp;" => " ", "<br>" => "\n", "&ensp;" => "  ", 
+            "&emsp;" => "    ", "&gt;" => ">", "&lt;" => "<", "<div>" => "\n", "</div>" => "\n", 
+            "&bsol;" => "\\", "\"" => "\"", "&#63;" => "?")
         catch
             tagtext = ""
         end
@@ -81,15 +80,21 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
     return(comps)::Dict{String, Component}
 end
 
+abstract type AbstractVar end
 
-mutable struct ScriptedComponent <: Toolips.AbstractComponent
+string(av::AbstractVar) = funccl(av)
+mutable struct ComponentProperty <: AbstractVar
     name::String
-    properties::Dict{Any, Any}
+    value::Pair{String, String}
 end
 
-write!(c::AbstractConnection, sc::ScriptedComponent) = begin
+struct Var <: AbstractVar value::String end
 
+function funccl(cp::ComponentProperty)
+    "document.getElementById('$(cp.name)').$(cp.value[1]);"
 end
+
+funccl(v::Var) = "$(v.value)"
 
 """
 ### ClientModifier <: AbstractComponentModifier
@@ -114,11 +119,10 @@ end
 """
 mutable struct ClientModifier <: AbstractComponentModifier
     name::String
-    rootc::Dict{String, ScriptedComponent}
     changes::Vector{String}
+    event::Var
     ClientModifier(name::String = gen_ref()) = begin
-        new(name, Dict{String, ScriptedComponent}(),
-        Vector{String}())::ClientModifier
+        new(name, Vector{String}(), Var("event"))::ClientModifier
     end
 end
 
@@ -129,30 +133,35 @@ function funccl(cm::ClientModifier = ClientModifier(), name::String = cm.name)
     """
 end
 
-function script(f::Function, s::String = gen_ref())
-    cl = ClientModifier(s)
-    f(cl)
-    script(cl.name, text = funccl(cl))
-end
-
-script(cl::ClientModifier) = begin
-    script(cl.name, text = funccl(cl))
+function getindex(cl::ClientModifier, s::String, prop::String)
+    ComponentProperty(s, prop => "")
 end
 
 function getindex(cl::ClientModifier, s::String)
-
+    push!(cl.changes, "$(s.name) = document.getElementbyId('$s');")
+    Var(s)::Var
 end
 
-function setindex!(cl::ClientModifier, s::String, p::Pair{String, String})
+getindex(cl::ClientModifier, s::Component{<:Any}, prop::String) = getindex(cl, s.name, prop)
 
+function getindex(cm::AbstractComponentModifier, s::String, prop::String)
+    cm[s]
 end
 
-function check(f::Function, cl::ClientModifier, var1,
-    operator::Function, var2)
-    push!(cl.changes, "if ($var1)")
+setindex!(cm::AbstractComponentModifier, a::Any, cp::AbstractVar) = begin
+    push!(cm.changes, "$(funccl(cp)) = $a;")
+end
+
+
+function check(f::Function, cl::ClientModifier, var1::AbstractVar,
+    operator::Function, var2::AbstractVar)
+    newcl = ClientModifier()
+    f(newcl)
+    push!(cl.changes, "if ($var1 $operator $var2) {$(join(newcl.changes))}")
 end
 
 write!(c::AbstractConnection, cm::ClientModifier) = write!(c, funccl(cm))
+
 """
 ### ComponentModifier <: AbstractComponentModifier
 - rootc::Dict
@@ -1205,14 +1214,14 @@ end
 ```
 """
 function script!(f::Function, c::Connection, cm::AbstractComponentModifier, name::String,
-     readonly::Vector{String} = Vector{String}(); time::Integer = 1000)
+     readonly::Vector{String} = Vector{String}(); time::Integer = 1000, type::String = "Interval")
      ip = getip(c)
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], name => f)
     else
         c[:Session][getip(c)] = Dict(name => f)
     end
-    push!(cm.changes, "new Promise(resolve => setTimeout(sendpage('$name'), $time));")
+    push!(cm.changes, "set$type(function () { sendpage('$name'); }, $time);")
     if length(readonly) > 0
         c[:Session].readonly["$ip$name"] = readonly
     end

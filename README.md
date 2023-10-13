@@ -50,6 +50,15 @@ end
 ```julia
 include("dev.jl")
 ```
+###### new in 0.3.4
+- fixed linker event reference losses
+- added `ClientModifier` interface
+- added `clear!` interface
+- `KeyMap`/`InputMap`(s)
+- added marking (for event removal)
+- added `on` bindings
+- refined `script!`/`script`
+- added `call!` for RPC. (call! does on all peers (not current client), rpc! does for everyone, regular cm does local)
 ###### new in 0.3.1
 - new `insert!` for `ComponentModiifer`
 - fixes for `focus!`

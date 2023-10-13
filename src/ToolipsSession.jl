@@ -27,15 +27,19 @@ Hello, welcome to the Session source. Here is an overview of the organization
 that might help you out:
 ------------------
 - ToolipsSession.jl
---- random functions
+--- linker
 --- Session extension
+--- kill!
+--- clear!
 --- on
 --- KeyMap
---- bind
+--- bind!
 --- script interface
 --- rpc
 ------------------
 - Modifier.jl
+--- Base Modifier
+--- Client Modifiers
 --- ComponentModifiers
 --- Modifier functions
 ------------------
@@ -72,10 +76,11 @@ data is posted to for a response.
 function document_linker(c::Connection)
     s::String = getpost(c)
     ip::String = getip(c)
-    reftag::UnitRange{Int64} = findfirst("??CM??", s)
-    ref_r::UnitRange{Int64} = 1:minimum(reftag) -1
+    reftag::UnitRange{Int64} = findfirst("â•ƒCM", s)
+    reftagend = findnext("â•ƒ", s, maximum(reftag))
+    ref_r::UnitRange{Int64} = maximum(reftag) + 1:minimum(reftagend) - 1
     ref::String = s[ref_r]
-    s = replace(s, "??CM??:$ref" => "")
+    s = replace(s, "╃CM$(ref)╃" => "")
     if ip in keys(c[:Session].iptable)
         c[:Session].iptable[ip] = now()
     end
@@ -92,51 +97,6 @@ function document_linker(c::Connection)
     end
 end
 
-"""
-**Session Interface**
-### kill!(c::Connection, event::AbstractString, s::Servable) -> _
-------------------
-Removes a given event call from a connection's Session.
-#### example
-```
-route("/") do c::Connection
-    myp = p("hello", text = "wow")
-    on(c, "load") do cm::ComponentModifier
-        set_text!(cm, myp, "not so wow")
-    end
-    write!(c, myp)
-end
-```
-"""
-function kill!(c::Connection, fname::AbstractString, s::Servable)
-    refname = s.name * fname
-    delete!(c[:Session][getip()], refname)
-end
-
-"""
-**Session Interface**
-### kill!(c::Connection)
-------------------
-Kills a Connection's saved events.
-#### example
-```
-using Toolips
-using ToolipsSession
-
-route("/") do c::Connection
-    on(c, "load") do cm::ComponentModifier
-        alert!(cm, "this text will never appear.")
-    end
-    println(length(keys(c[:Session].iptable)))
-    kill!(c)
-    println(length(keys(c[:Session].iptable)))
-end
-```
-"""
-function kill!(c::Connection)
-    delete!(c[:Session].iptable, getip(c))
-    delete!(c[:Session].events, getip(c))
-end
 
 """
 ### Session
@@ -211,7 +171,7 @@ mutable struct Session <: ServerExtension
                 const parser = new DOMParser();
                 function sendpage(ref) {
             var bodyHtml = document.getElementsByTagName('body')[0].innerHTML;
-                sendinfo(ref + '??CM??' + bodyHtml);
+                sendinfo('╃CM' + ref + '╃' + bodyHtml);
                 }
                 function sendinfo(txt) {
                 let xhr = new XMLHttpRequest();
@@ -271,19 +231,154 @@ end
 """
 setindex!(m::Session, d::Any, s::AbstractString) = m.events[s] = d
 
+"""
+**Session Interface**
+### kill!(c::Connection, event::AbstractString) -> _
+------------------
+Removes a given event call from a connection's Session.
+#### example
+```
+route("/") do c::Connection
+    myp = p("hello", text = "wow")
+    on(c, "load") do cm::ComponentModifier
+        set_text!(cm, myp, "not so wow")
+    end
+    write!(c, myp)
+end
+```
+"""
+function kill!(c::Connection, event::String)
+    delete!(c[:Session][getip(c)], event)
+end
+
+"""
+**Session Interface**
+### kill!(c::Connection)
+------------------
+Kills a Connection's saved events.
+#### example
+```
+using Toolips
+using ToolipsSession
+
+route("/") do c::Connection
+    on(c, "load") do cm::ComponentModifier
+        alert!(cm, "this text will never appear.")
+    end
+    println(length(keys(c[:Session].iptable)))
+    kill!(c)
+    println(length(keys(c[:Session].iptable)))
+end
+```
+"""
+function kill!(c::Connection)
+    delete!(c[:Session].iptable, getip(c))
+    delete!(c[:Session].events, getip(c))
+end
+
+"""
+**Session Interface**
+### clear!(c::Connection, key::String)
+------------------
+Clears events marked with the key `key`. Mark these using `on` and `bind!`.
+#### example
+```
+function home(c::Connection)
+    overdiv = div("overdiv")
+    cleabutton = button("clear", text = "clear events")
+    butalert = button("alertbttn", text = "alert")
+    on(c, cleabutton, "click") do cm::ComponentModifier
+        ToolipsSession.clear!(c, "buttalert")
+    end
+    on(c, butalert, "click", mark = "buttalert") do cm::ComponentModifier
+        alert!(cm, "hi!")
+    end
+    push!(overdiv, cleabutton, butalert)
+    write!(c, overdiv)
+end
+```
+"""
+function clear!(c::Connection, key::String)
+    readonly = c[:Session].readonly
+    if getip(c) * key in keys(readonly)
+        [kill!(c, k) for k in readonly[getip(c) * key]]
+        delete!(readonly, getip(c) * key)
+    end
+end
+
 #==
 on
 ==#
+"""
+**Session Interface**
+### on(f::Function, event::String)
+------------------
+The `on` method and the `bind!` method are used to link callbacks for a Toolips website.
+- A `Function` will always be the first positional argument.
+- For server-side callbacks, the `Connection` will also be provided. For client-side callbacks, 
+do not provide the `Connection`. 
+- events and `Components` are provided in that order for `on`.
+- Keys, key combinations, or `InputMap`s are provided to `bind!`
+- there are `prevent_default` and `mark` key-word arguments.
+- server-side `bind!` has the `readonly` key-word argument and `on` 
+has this as the last positional argument. This argument is of type `Vector{String}`.
+
+This determines whether or not
+#### example
+```
+function home(c::Connection)
+
+end
+```
+"""
+function on(f::Function, event::String)
+    cl = ClientModifier(); f(cl)
+    script("doc$event", text = join(cl.changes))
+end
+
+"""
+**Session Interface**
+### on(f::Function, component::Component{<:Any}, event::String)
+------------------
+Binds a client-side event to `component`.
+#### example
+```
+function home(c::Connection)
+
+end
+```
+"""
 function on(f::Function, component::Component{<:Any}, event::String)
     cl = ClientModifier("$(component.name)$(event)")
     f(cl)
-    component["on$event"] = cl.name
-    push!(component.extras, script(cl))
+    evstr = replace(join(cl.changes), " " => "", "\n" => "")
+    component["on$event"] = "`$(cl.name)();`"
+    script("doc$event", text = join(cl.changes))
 end
-# TODO more CL bindings :)
-function on(f::Function, event::String)
+
+"""
+**Session Interface**
+### on(f::Function, cm::ComponentModifier, comp::Component{<:Any}, event::String)
+------------------
+Binds a client-side event to `component` **inside of a callback**.
+#### example
+```
+function home(c::Connection)
 
 end
+```
+"""
+function on(f::Function, cm::ComponentModifier, comp::Component{<:Any}, event::String)
+    name = comp.name
+    cl = ClientModifier(); f(cl)
+    push!(cm.changes, """setTimeout(function (event) {
+        document.getElementById('$name').addEventListener('$event',
+        function (e) {
+            $(join(cl.changes))
+        });
+        }, 1000);""")
+end
+
 
 """
 **Session Interface**
@@ -306,18 +401,25 @@ end
 ```
 """
 function on(f::Function, c::Connection, event::AbstractString,
-    readonly::Vector{String} = Vector{String}())
+    readonly::Vector{String} = Vector{String}(); mark::String = "none")
     ref = gen_ref()
     ip::String = getip(c)
     write!(c,
         "<script>document.addEventListener('$event', sendpage('$ref'));</script>")
     if ip in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], "$ref" => f)
+        push!(c[:Session][getip(c)], ref => f)
     else
-        c[:Session][getip(c)] = Dict("$ref" => f)
+        c[:Session][getip(c)] = Dict(ref => f)
     end
     if length(readonly) > 0
-        c[:Session].readonly["$ip$event$name"] = readonly
+        c[:Session].readonly["$ip$ref"] = readonly
+    end
+    if mark != "none"
+        if getip(c) * mark in keys(c[:Session].readonly)
+            push!(c[:Session].readonly[getip(c) * mark], ref)
+        else
+            push!(c[:Session].readonly, getip(c) * mark => [ref])
+        end
     end
 end
 
@@ -341,7 +443,7 @@ end
 ```
 """
 function on(f::Function, c::Connection, s::AbstractComponent,
-     event::AbstractString, readonly::Vector{String} = Vector{String}())
+     event::AbstractString, readonly::Vector{String} = Vector{String}(); mark::String = "none")
     name::String = s.name
     ip::String = string(getip(c))
     s["on$event"] = "sendpage('$event$name');"
@@ -352,6 +454,13 @@ function on(f::Function, c::Connection, s::AbstractComponent,
     end
     if length(readonly) > 0
         c[:Session].readonly["$ip$event$name"] = readonly
+    end
+    if mark != "none"
+        if getip(c) * mark in keys(c[:Session].readonly)
+            push!(c[:Session].readonly[getip(c) * mark], "$event$name")
+        else
+            push!(c[:Session].readonly, getip(c) * mark => ["$event$name"])
+        end
     end
 end
 
@@ -379,7 +488,7 @@ end
 ```
 """
 function on(f::Function, c::Connection, cm::AbstractComponentModifier, event::AbstractString,
-    readonly::Vector{String} = Vector{String}())
+    readonly::Vector{String} = Vector{String}(); mark::String = "none")
     ip::String = getip(c)
     push!(cm.changes, """setTimeout(function () {
     document.addEventListener('$event', function () {sendpage('$event');});}, 1000);""")
@@ -390,6 +499,13 @@ function on(f::Function, c::Connection, cm::AbstractComponentModifier, event::Ab
     end
     if length(readonly) > 0
         c[:Session].readonly["$ip$event"] = readonly
+    end
+    if mark != "none"
+        if getip(c) * mark in keys(c[:Session].readonly)
+            push!(c[:Session].readonly[getip(c) * mark], event)
+        else
+            push!(c[:Session].readonly, getip(c) * mark => [event])
+        end
     end
 end
 
@@ -418,7 +534,7 @@ end
 """
 function on(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Component{<:Any},
      event::AbstractString, readonly::Vector{String} = Vector{String}();
-     client::Bool = false)
+     mark::String = "none")
      name::String = comp.name
      ip::String = getip(c)
      push!(cm.changes, """setTimeout(function () {
@@ -433,10 +549,17 @@ function on(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Com
      if length(readonly) > 0
          c[:Session].readonly["$ip$name$event"] = readonly
      end
+     if mark != "none"
+        if getip(c) * mark in keys(c[:Session].readonly)
+            push!(c[:Session].readonly[getip(c) * mark], "$name$event")
+        else
+            push!(c[:Session].readonly, getip(c) * mark => ["$name$event"])
+        end
+    end
 end
 
 #==
-Input bindings
+bind!
 ==#
 """
 ### abstract type InputMap
@@ -472,7 +595,8 @@ end
 """
 mutable struct KeyMap <: InputMap
     keys::Dict{String, Pair{Tuple, Function}}
-    KeyMap() = new(Dict{String, Pair{Tuple, Function}}())
+    prevents::Vector{String}
+    KeyMap() = new(Dict{String, Pair{Tuple, Function}}(), Vector{String}())
 end
 
 """
@@ -494,12 +618,33 @@ r = route("/") do c::Connection
 end
 ```
 """
-function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...)
+function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)
+    if prevent_default == true
+        push!(km.prevents, key * join([string(ev) for ev in event]))
+    end
+    if key in keys(km.keys)
+        l = length(findall(k -> k == key, collect(keys(km.keys))))
+        km.keys["$key;$l"] = event => f
+        return
+    end
     km.keys[key] = event => f
 end
 
-function bind!(f::Function, km::KeyMap, vs::Vector{String})
-    km.keys[vs[1]] = Tuple(vs[2:length(vs)]) => f
+function bind!(f::Function, km::KeyMap, vs::Vector{String}; prevent_default::Bool = true)
+    if length(vs) > 1
+        event = Tuple(vs[2:length(vs)])
+    else
+        event = Tuple()
+    end
+    key = vs[1]
+    if prevent_default == true
+        push!(km.prevents, key * join([string(ev) for ev in event]))
+    end
+    if key in keys(km.keys)
+        l = length(findall(k -> k == key, collect(keys(km.keys))))
+        key ="$key;$l"
+    end
+    km.keys[key] = event => f
 end
 
 """
@@ -522,15 +667,23 @@ end
 ```
 """
 function bind!(c::Connection, km::KeyMap,
-    readonly::Vector{String} = Vector{String}(); on::Symbol = :down)
+    readonly::Vector{String} = Vector{String}(); on::Symbol = :down, prevent_default::Bool = true, mark::String = "none")
     firsbind = first(km.keys)
     ip::String = getip(c)
     first_line = """setTimeout(function () {
-    document.addEventListener('key$on', function(event) {"""
+    document.addEventListener('key$on', function(event) { if (1 == 2) {}"""
     for binding in km.keys
+        default::String = ""
+        key = binding[1]
+        if contains(key, ";")
+            key = split(key, ";")[1]
+        end
+        if key * join([string(bin) for bin in binding[2][1]]) in km.prevents
+            default = "event.preventDefault();"
+        end
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         ref = gen_ref()
-        first_line = first_line * """ if ($eventstr event.key == "$(binding[1])") {
+        first_line = first_line * """ elseif ($eventstr event.key == "$(binding[1])") {$default
                 sendpage('$ref');
         }"""
         if ip in keys(c[:Session].iptable)
@@ -539,7 +692,14 @@ function bind!(c::Connection, km::KeyMap,
             c[:Session][ip] = Dict(ref => binding[2][2])
         end
         if length(readonly) > 0
-            c[:Session].readonly["$ip$key"] = readonly
+            c[:Session].readonly[getip(c) * ref] = readonly
+        end
+        if mark != "none"
+            if getip(c) * mark in keys(c[:Session].readonly)
+                push!(c[:Session].readonly[getip(c) * mark], ref)
+            else
+                push!(c[:Session].readonly, getip(c) * mark => [ref])
+            end
         end
     end
     first_line = first_line * "});}, 1000);"
@@ -567,15 +727,25 @@ end
 ```
 """
 function bind!(c::Connection, cm::ComponentModifier, km::KeyMap,
-    readonly::Vector{String} = Vector{String}(); on::Symbol = :down)
+    readonly::Vector{String} = Vector{String}(); on::Symbol = :down, prevent_default::Bool = true, mark::String = "none")
     firsbind = first(km.keys)
     ip::String = getip(c)
     first_line = """setTimeout(function () {
-    document.addEventListener('key$on', function(event) {"""
+    document.addEventListener('key$on', function(event) { if (1 == 2) {}"""
     for binding in km.keys
+        default::String = ""
+        key = binding[1]
+        if contains(key, ";")
+            key = split(key, ";")[1]
+        end
+        if key * join([string(ev) for ev in binding[2][1]]) in km.prevents
+            if binding[2] == km.prevents[binding[1]]
+                default = "event.preventDefault();"
+            end
+        end
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         ref = gen_ref()
-        first_line = first_line * """ if ($eventstr event.key == "$(binding[1])") {
+        first_line = first_line * """else if ($eventstr event.key == "$(binding[1])") {$default
                 sendpage('$ref');
         }"""
         if ip in keys(c[:Session].iptable)
@@ -584,7 +754,14 @@ function bind!(c::Connection, cm::ComponentModifier, km::KeyMap,
             c[:Session][ip] = Dict(ref => binding[2][2])
         end
         if length(readonly) > 0
-            c[:Session].readonly["$ip$key"] = readonly
+            c[:Session].readonly[getip(c) * ref] = readonly
+        end
+        if mark != "none"
+            if getip(c) * mark in keys(c[:Session].readonly)
+                push!(c[:Session].readonly[getip(c) * mark], ref)
+            else
+                push!(c[:Session].readonly, getip(c) * mark => [ref])
+            end
         end
     end
     first_line = first_line * "});}, 1000);"
@@ -602,18 +779,27 @@ Binds the `KeyMap` `km` to the `comp`.
 ```
 """
 function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
-    km::KeyMap, readonly::Vector{String} = Vector{String}(); on::Symbol = :down)
+    km::KeyMap, readonly::Vector{String} = Vector{String}(); on::Symbol = :down,
+    prevent_default::Bool = true, mark::String = "none")
     firsbind = first(km.keys)
-    ref = gen_ref()
-    ip::String = getip(c)
+    ip = getip(c)
     first_line = """
     setTimeout(function () {
-    document.getElementById('$(comp.name)').addEventListener('key$on', function (event) {"""
+    document.getElementById('$(comp.name)').addEventListener('key$on', function (event) { if (1 == 2) {}"""
+    n = 1
     for binding in km.keys
-        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
+        default::String = ""
         key = binding[1]
-        first_line = first_line * """ if ($eventstr event.key == "$(binding[1])") {
-                sendpage('$(comp.name * binding[1] * ref)');
+        if contains(key, ";")
+            key = split(key, ";")[1]
+        end
+        if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
+            default = "event.preventDefault();"
+        end
+        ref = gen_ref()
+        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
+        first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
+                sendpage('$(comp.name * key * ref)');
                 }"""
         if ip in keys(c[:Session].iptable)
             push!(c[:Session][ip], comp.name * key * ref => binding[2][2])
@@ -621,7 +807,14 @@ function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
             c[:Session][ip] = Dict(comp.name * key * ref => binding[2][2])
         end
         if length(readonly) > 0
-            c[:Session].readonly["$ip$key$(comp.name)"] = readonly
+            c[:Session].readonly["$(getip(c))$(comp.name)$key$ref"] = readonly
+        end
+        if mark != "none"
+            if getip(c) * mark in keys(c[:Session].readonly)
+                push!(c[:Session].readonly[getip(c) * mark], "$(comp.name * key * ref)")
+            else
+                push!(c[:Session].readonly, getip(c) * mark => ["$(comp.name * key * ref)"])
+            end
         end
     end
     first_line = first_line * "}.bind(event));}, 500);"
@@ -642,22 +835,10 @@ Binds a key event to a `Component`.
 """
 function bind!(f::Function, c::AbstractConnection, comp::Component{<:Any},
     key::String, eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
-    on::Symbol = :down, client::Bool = false)
+    on::Symbol = :down, mark::String = "none")
     cm::Modifier = ClientModifier()
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
-    if client
-        f(cm)
-        write!(c, """<script>
-        setTimeout(function () {
-    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
-        if ($eventstr event.key == "$(key)") {
-        $(join(cm.changes))
-        }
-    });}, 1000)</script>
-    """)
-        return
-    end
     write!(c, """<script>
     setTimeout(function () {
     document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
@@ -675,6 +856,13 @@ function bind!(f::Function, c::AbstractConnection, comp::Component{<:Any},
     if length(readonly) > 0
         c[:Session].readonly["$ip$key"] = readonly
     end
+    if mark != "none"
+        if mark in keys(c[:Session].readonly)
+            push!(c[:Session].readonly[mark], comp.name * key)
+        else
+            push!(c[:Session].readonly, mark => [comp.name * key])
+        end
+    end
 end
 
 """
@@ -690,24 +878,11 @@ Binds a key event to a `Connection`.
 """
 function bind!(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol ...;
     readonly::Vector{String} = Vector{String}(),
-    on::Symbol = :down, client::Bool = false)
+    on::Symbol = :down, prevent_default::Bool = true, mark::String = "none")
     cm::Modifier = ClientModifier()
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
     ref = gen_ref()
-    if client
-        cm = ClientModifier()
-        f(cm)
-        write!(c, """<script>
-        setTimeout(function () {
-    document.addEventListener('key$on', function(event) {
-        if ($eventstr event.key == "$(key)") {
-        $(join(cm.changes))
-        }
-    }, 1000);</script>
-    """)
-        return
-    end
     write!(c, """<script>
     setTimeout(function () {
 document.addEventListener('key$on', function(event) {
@@ -723,7 +898,14 @@ document.addEventListener('key$on', function(event) {
         c[:Session][ip] = Dict(ref => f)
     end
     if length(readonly) > 0
-        c[:Session].readonly["$ip$ref"] = readonly
+        c[:Session].readonly["$ref"] = readonly
+    end
+    if mark != "none"
+        if mark in keys(c[:Session].readonly)
+            push!(c[:Session].readonly[mark], ref)
+        else
+            push!(c[:Session].readonly, mark => [ref])
+        end
     end
 end
 
@@ -740,7 +922,7 @@ Binds a key event to a `Connection` in a `ComponentModifier` callback.
 """
 function bind!(f::Function, c::Connection, cm::AbstractComponentModifier, key::String,
     eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
-    on::Symbol = :down, client::Bool = false)
+    on::Symbol = :down, mark::String = "none")
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
     ref = gen_ref()
@@ -759,6 +941,13 @@ function bind!(f::Function, c::Connection, cm::AbstractComponentModifier, key::S
     if length(readonly) > 0
         c[:Session].readonly["$ip$ref"] = readonly
     end
+    if mark != "none"
+        if mark in keys(c[:Session].readonly)
+            push!(c[:Session].readonly[mark], ref)
+        else
+            push!(c[:Session].readonly, mark => [ref])
+        end
+    end
 end
 
 """
@@ -774,12 +963,11 @@ Binds a key event to a `Component` in a `ComponentModifier` callback.
 """
 function bind!(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Component{<:Any},
     key::String, eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
-    on::Symbol = :down, client::Bool = false)
+    on::Symbol = :down, mark::String = "none")
     name::String = comp.name
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
-    println("herherh")
-push!(cm.changes, """alert("$(name)"); setTimeout(function () {
+push!(cm.changes, """setTimeout(function () {
 document.getElementById('$(name)').onkeydown = function(event){
         if ($eventstr event.key == '$(key)') {
         sendpage('$(name * key)')
@@ -792,6 +980,13 @@ document.getElementById('$(name)').onkeydown = function(event){
     end
     if length(readonly) > 0
         c[:Session].readonly["$ip$name$event"] = readonly
+    end
+    if mark != "none"
+        if mark in keys(c[:Session].readonly)
+            push!(c[:Session].readonly[mark], ref)
+        else
+            push!(c[:Session].readonly, mark => [ref])
+        end
     end
 end
 
@@ -810,7 +1005,7 @@ Creates an "observer" which calls back to this function at each interval of `tim
 """
 function script!(f::Function, c::Connection, name::String,
     readonly::Vector{String} = Vector{String}(); time::Integer = 500,
-    type::String = "Interval")
+    type::String = "Interval", mark = "none")
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], name => f)
     else
@@ -820,10 +1015,28 @@ function script!(f::Function, c::Connection, name::String,
     set$(type)(function () { sendpage('$name'); }, $time);
    """)
    if length(readonly) > 0
-       c[:Session].readonly["$ip$name"] = readonly
+       c[:Session].readonly["$(getip(c))$name"] = readonly
    end
+   if mark != "none"
+    if mark in keys(c[:Session].readonly)
+        push!(c[:Session].readonly[mark], ref)
+    else
+        push!(c[:Session].readonly, mark => [ref])
+    end
+end
    write!(c, obsscript)
 end
+
+function script(f::Function, s::String = gen_ref())
+    cl = ClientModifier(s)
+    f(cl)
+    script(cl.name, text = funccl(cl))
+end
+
+script(cl::ClientModifier) = begin
+    script(cl.name, text = join(cl.changes))
+end
+
 #==
 rpc
 ==#
@@ -850,6 +1063,27 @@ end
 
 """
 **Session Interface**
+### open_rpc!(c::Connection, name::String = getip(c); tickrate::Int64 = 500)
+------------------
+Creates a new rpc session inside of ToolipsSession. Other clients can then join and
+have the same `ComponentModifier` functions run.
+#### example
+```
+
+```
+"""
+function open_rpc!(c::Connection, cm::ComponentModifier, 
+    name::String = getip(c); tickrate::Int64 = 500)
+    push!(c[:Session].peers,
+     name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
+    script!(c, cm, name, time = tickrate) do cm::ComponentModifier
+        push!(cm.changes, join(c[:Session].peers[name][getip(c)]))
+        c[:Session].peers[name][getip(c)] = Vector{String}()
+    end
+end
+
+"""
+**Session Interface**
 ### open_rpc!(f::Function, c::Connection, name::String; tickrate::Int64 = 500)
 ------------------
 Does the same thing as `open_rpc!(::Connection, ::String; tickrate::Int64)`,
@@ -862,7 +1096,7 @@ but also runs `f` on each tick.
 function open_rpc!(f::Function, c::Connection, name::String; tickrate::Int64 = 500)
     push!(c[:Session].peers,
      name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
-    script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
+    script!(c, name, time = tickrate) do cm::ComponentModifier
         f(cm)
         push!(cm.changes, join(c[:Session].peers[name][getip(c)]))
         c[:Session].peers[name][getip(c)] = Vector{String}()
@@ -896,6 +1130,25 @@ Joins an rpc session by name.
 function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], getip(c) => Vector{String}())
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
+        location::String = find_client(c)
+        push!(cm.changes, join(c[:Session].peers[location][getip(c)]))
+        c[:Session].peers[location][getip(c)] = Vector{String}()
+    end
+end
+
+"""
+**Session Interface**
+### join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
+------------------
+Joins an rpc session by name.
+#### example
+```
+
+```
+"""
+function join_rpc!(c::Connection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
+    push!(c[:Session].peers[host], getip(c) => Vector{String}())
+    script!(c, cm, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
         location::String = find_client(c)
         push!(cm.changes, join(c[:Session].peers[location][getip(c)]))
         c[:Session].peers[location][getip(c)] = Vector{String}()
@@ -973,9 +1226,27 @@ function rpc!(f::Function, c::Connection)
     f(cm)
     mods::String = find_client(c)
     for mod in values(c[:Session].peers[mods])
-        push!(mod.changes, join(cm.changes))
+        push!(mod, join(cm.changes))
     end
 end
+
+function call!(c::Connection, cm::ComponentModifier)
+    mods::String = find_client(c)
+    [if mod[1] != getip(c); push!(mod[2], join(cm.changes)); end for mod in c[:Session].peers[mods]]
+    deleteat!(cm.changes, 1:length(cm.changes))
+end
+
+function call!(f::Function, c::Connection)
+    cm = ComponentModifier("")
+    f(cm)
+    mods::String = find_client(c)
+    for mod in c[:Session].peers[mods]
+        if mod[1] != getip(c)
+            push!(mod[2], join(cm.changes))
+        end
+    end
+end
+
 
 """
 **Session Interface**
@@ -1035,5 +1306,5 @@ export update!, insert_child!, append_first!, animate!, pauseanim!, next!
 export set_children!, get_text, style!, free_redirects!, confirm_redirects!
 export scroll_by!, scroll_to!, focus!, set_selection!
 export rpc!, disconnect_rpc!, find_client, join_rpc!, close_rpc!, open_rpc!
-export join_rpc!, is_client, is_dead, is_host
+export join_rpc!, is_client, is_dead, is_host, call!
 end # module
