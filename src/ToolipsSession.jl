@@ -233,7 +233,7 @@ setindex!(m::Session, d::Any, s::AbstractString) = m.events[s] = d
 
 """
 **Session Interface**
-### kill!(c::Connection, event::AbstractString, s::Servable) -> _
+### kill!(c::Connection, event::AbstractString) -> _
 ------------------
 Removes a given event call from a connection's Session.
 #### example
@@ -276,6 +276,28 @@ function kill!(c::Connection)
     delete!(c[:Session].events, getip(c))
 end
 
+"""
+**Session Interface**
+### clear!(c::Connection, key::String)
+------------------
+Clears events marked with the key `key`. Mark these using `on` and `bind!`.
+#### example
+```
+function home(c::Connection)
+    overdiv = div("overdiv")
+    cleabutton = button("clear", text = "clear events")
+    butalert = button("alertbttn", text = "alert")
+    on(c, cleabutton, "click") do cm::ComponentModifier
+        ToolipsSession.clear!(c, "buttalert")
+    end
+    on(c, butalert, "click", mark = "buttalert") do cm::ComponentModifier
+        alert!(cm, "hi!")
+    end
+    push!(overdiv, cleabutton, butalert)
+    write!(c, overdiv)
+end
+```
+"""
 function clear!(c::Connection, key::String)
     readonly = c[:Session].readonly
     if getip(c) * key in keys(readonly)
@@ -287,20 +309,65 @@ end
 #==
 on
 ==#
+"""
+**Session Interface**
+### on(f::Function, event::String)
+------------------
+The `on` method and the `bind!` method are used to link callbacks for a Toolips website.
+- A `Function` will always be the first positional argument.
+- For server-side callbacks, the `Connection` will also be provided. For client-side callbacks, 
+do not provide the `Connection`. 
+- events and `Components` are provided in that order for `on`.
+- Keys, key combinations, or `InputMap`s are provided to `bind!`
+- there are `prevent_default` and `mark` key-word arguments.
+- server-side `bind!` has the `readonly` key-word argument and `on` 
+has this as the last positional argument. This argument is of type `Vector{String}`.
 
+This determines whether or not
+#### example
+```
+function home(c::Connection)
+
+end
+```
+"""
 function on(f::Function, event::String)
     cl = ClientModifier(); f(cl)
     script("doc$event", text = join(cl.changes))
 end
 
+"""
+**Session Interface**
+### on(f::Function, component::Component{<:Any}, event::String)
+------------------
+Binds a client-side event to `component`.
+#### example
+```
+function home(c::Connection)
+
+end
+```
+"""
 function on(f::Function, component::Component{<:Any}, event::String)
     cl = ClientModifier("$(component.name)$(event)")
     f(cl)
     evstr = replace(join(cl.changes), " " => "", "\n" => "")
-    component["on$event"] = "'$evstr'"
+    component["on$event"] = "`$(cl.name)();`"
+    script("doc$event", text = join(cl.changes))
 end
 
+"""
+**Session Interface**
+### on(f::Function, cm::ComponentModifier, comp::Component{<:Any}, event::String)
+------------------
+Binds a client-side event to `component` **inside of a callback**.
+#### example
+```
+function home(c::Connection)
 
+end
+```
+"""
 function on(f::Function, cm::ComponentModifier, comp::Component{<:Any}, event::String)
     name = comp.name
     cl = ClientModifier(); f(cl)
@@ -604,7 +671,7 @@ function bind!(c::Connection, km::KeyMap,
     firsbind = first(km.keys)
     ip::String = getip(c)
     first_line = """setTimeout(function () {
-    document.addEventListener('key$on', function(event) {"""
+    document.addEventListener('key$on', function(event) { if (1 == 2) {}"""
     for binding in km.keys
         default::String = ""
         key = binding[1]
@@ -616,7 +683,7 @@ function bind!(c::Connection, km::KeyMap,
         end
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         ref = gen_ref()
-        first_line = first_line * """ if ($eventstr event.key == "$(binding[1])") {$default
+        first_line = first_line * """ elseif ($eventstr event.key == "$(binding[1])") {$default
                 sendpage('$ref');
         }"""
         if ip in keys(c[:Session].iptable)
@@ -664,7 +731,7 @@ function bind!(c::Connection, cm::ComponentModifier, km::KeyMap,
     firsbind = first(km.keys)
     ip::String = getip(c)
     first_line = """setTimeout(function () {
-    document.addEventListener('key$on', function(event) {"""
+    document.addEventListener('key$on', function(event) { if (1 == 2) {}"""
     for binding in km.keys
         default::String = ""
         key = binding[1]
@@ -678,7 +745,7 @@ function bind!(c::Connection, cm::ComponentModifier, km::KeyMap,
         end
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         ref = gen_ref()
-        first_line = first_line * """ if ($eventstr event.key == "$(binding[1])") {$default
+        first_line = first_line * """else if ($eventstr event.key == "$(binding[1])") {$default
                 sendpage('$ref');
         }"""
         if ip in keys(c[:Session].iptable)
@@ -715,10 +782,11 @@ function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
     km::KeyMap, readonly::Vector{String} = Vector{String}(); on::Symbol = :down,
     prevent_default::Bool = true, mark::String = "none")
     firsbind = first(km.keys)
-    ip::String = getip(c)
+    ip = getip(c)
     first_line = """
     setTimeout(function () {
-    document.getElementById('$(comp.name)').addEventListener('key$on', function (event) {"""
+    document.getElementById('$(comp.name)').addEventListener('key$on', function (event) { if (1 == 2) {}"""
+    n = 1
     for binding in km.keys
         default::String = ""
         key = binding[1]
@@ -730,7 +798,7 @@ function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
         end
         ref = gen_ref()
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
-        first_line = first_line * """ if ($eventstr event.key == "$key") {$default
+        first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
                 sendpage('$(comp.name * key * ref)');
                 }"""
         if ip in keys(c[:Session].iptable)

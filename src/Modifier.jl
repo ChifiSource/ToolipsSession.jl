@@ -82,6 +82,7 @@ end
 
 abstract type AbstractVar end
 
+string(av::AbstractVar) = funccl(av)
 mutable struct ComponentProperty <: AbstractVar
     name::String
     value::Pair{String, String}
@@ -90,7 +91,7 @@ end
 struct Var <: AbstractVar value::String end
 
 function funccl(cp::ComponentProperty)
-    "document.getElementById('$(cp.name)').$(cp.value[1]) = $(cp.value[2]);"
+    "document.getElementById('$(cp.name)').$(cp.value[1]);"
 end
 
 funccl(v::Var) = "$(v.value)"
@@ -147,7 +148,7 @@ function getindex(cm::AbstractComponentModifier, s::String, prop::String)
     cm[s]
 end
 
-setindex!(cm::AbstractComponentModifier, cp::AbstractVar, a::Any) = begin
+setindex!(cm::AbstractComponentModifier, a::Any, cp::AbstractVar) = begin
     push!(cm.changes, "$(funccl(cp)) = $a;")
 end
 
