@@ -351,9 +351,8 @@ end
 function on(f::Function, component::Component{<:Any}, event::String)
     cl = ClientModifier("$(component.name)$(event)")
     f(cl)
-    evstr = replace(join(cl.changes), " " => "", "\n" => "")
-    component["on$event"] = "`$(cl.name)();`"
-    script("doc$event", text = join(cl.changes))
+    component["on$event"] = "$(cl.name)(event);"
+    push!(component.extras, script(cl.name, text = funccl(cl)))
 end
 
 """
@@ -1167,7 +1166,7 @@ Joins an rpc session by name, runs `f` on each tick.
 """
 function join_rpc!(f::Function, c::Connection, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], getip(c) => Vector{String}())
-    script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
+    script!(c, cm, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
         f(cm)
         location::String = find_client(c)
         push!(cm.changes, join(c[:Session].peers[location][getip(c)]))
@@ -1303,7 +1302,7 @@ export Session, on, bind!, script!, script, ComponentModifier, ClientModifier
 export KeyMap
 export playanim!, alert!, redirect!, modify!, move!, remove!, set_text!
 export update!, insert_child!, append_first!, animate!, pauseanim!, next!
-export set_children!, get_text, style!, free_redirects!, confirm_redirects!
+export set_children!, get_text, style!, free_redirects!, confirm_redirects!, store!
 export scroll_by!, scroll_to!, focus!, set_selection!
 export rpc!, disconnect_rpc!, find_client, join_rpc!, close_rpc!, open_rpc!
 export join_rpc!, is_client, is_dead, is_host, call!

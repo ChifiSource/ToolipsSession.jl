@@ -127,10 +127,7 @@ mutable struct ClientModifier <: AbstractComponentModifier
 end
 
 function funccl(cm::ClientModifier = ClientModifier(), name::String = cm.name)
-    """function $(name)(){
-        $(join(cm.changes))
-    }
-    """
+    """function $(name)(event){$(join(cm.changes))}"""
 end
 
 function getindex(cl::ClientModifier, s::String, prop::String)
@@ -138,8 +135,9 @@ function getindex(cl::ClientModifier, s::String, prop::String)
 end
 
 function getindex(cl::ClientModifier, s::String)
-    push!(cl.changes, "$(s.name) = document.getElementbyId('$s');")
-    Var(s)::Var
+    id = gen_ref(4)
+    push!(cl.changes, "$id = document.getElementbyId('$s');")
+    Var(id)::Var
 end
 
 getindex(cl::ClientModifier, s::Component{<:Any}, prop::String) = getindex(cl, s.name, prop)
@@ -152,6 +150,10 @@ setindex!(cm::AbstractComponentModifier, a::Any, cp::AbstractVar) = begin
     push!(cm.changes, "$(funccl(cp)) = $a;")
 end
 
+function store!(cl::ClientModifier, s::String, a::Any)
+    push!(cl.changes, "$s = $a;")
+    Var(s)
+end
 
 function check(f::Function, cl::ClientModifier, var1::AbstractVar,
     operator::Function, var2::AbstractVar)
