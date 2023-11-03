@@ -100,6 +100,8 @@ iterate(comp::ComponentProperty) = iterate(comp.value[2])
 
 funccl(v::Var) = "$(v.value)"
 
+abstract type AbstractClientModifier <: AbstractComponentModifier
+
 """
 ### ClientModifier <: AbstractComponentModifier
 - changes::Vector{String}
@@ -121,7 +123,7 @@ end
 ##### constructors
 - ComponentModifier(html::String)
 """
-mutable struct ClientModifier <: AbstractComponentModifier
+mutable struct ClientModifier <: AbstractClientModifier
     name::String
     changes::Vector{String}
     event::Var

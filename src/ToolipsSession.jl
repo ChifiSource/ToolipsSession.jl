@@ -1129,9 +1129,8 @@ Joins an rpc session by name.
 function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], getip(c) => Vector{String}())
     script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
-        location::String = find_client(c)
-        push!(cm.changes, join(c[:Session].peers[location][getip(c)]))
-        c[:Session].peers[location][getip(c)] = Vector{String}()
+        push!(cm.changes, join(c[:Session].peers[host][getip(c)]))
+        c[:Session].peers[host][getip(c)] = Vector{String}()
     end
 end
 
@@ -1148,9 +1147,8 @@ Joins an rpc session by name.
 function join_rpc!(c::Connection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], getip(c) => Vector{String}())
     script!(c, cm, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
-        location::String = find_client(c)
-        push!(cm.changes, join(c[:Session].peers[location][getip(c)]))
-        c[:Session].peers[location][getip(c)] = Vector{String}()
+        push!(cm.changes, join(c[:Session].peers[host][getip(c)]))
+        c[:Session].peers[host][getip(c)] = Vector{String}()
     end
 end
 
