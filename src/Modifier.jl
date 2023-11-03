@@ -80,9 +80,11 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
     return(comps)::Dict{String, Component}
 end
 
-abstract type AbstractVar end
+abstract type AbstractVar <: AbstractString end
 
 string(av::AbstractVar) = funccl(av)
+iterate(var::AbstractVar) = iterate(var.value)
+
 mutable struct ComponentProperty <: AbstractVar
     name::String
     value::Pair{String, String}
@@ -93,6 +95,8 @@ struct Var <: AbstractVar value::String end
 function funccl(cp::ComponentProperty)
     "document.getElementById('$(cp.name)').$(cp.value[1]);"
 end
+
+iterate(comp::ComponentProperty) = iterate(comp.value[2])
 
 funccl(v::Var) = "$(v.value)"
 

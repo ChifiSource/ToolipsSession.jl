@@ -17,7 +17,7 @@ module ToolipsSession
 using Toolips
 import Toolips: ServerExtension, Servable, AbstractComponent, Modifier
 import Toolips: AbstractRoute, kill!, AbstractConnection, script, write!
-import Base: setindex!, getindex, push!
+import Base: setindex!, getindex, push!, iterate
 using Random, Dates
 
 include("Modifier.jl")
