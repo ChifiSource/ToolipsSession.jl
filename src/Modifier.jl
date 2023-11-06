@@ -30,9 +30,9 @@ comp["hello"]["align"]
     "center"
 ```
 """
-function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
+function htmlcomponent(s::String)
     tagpos::Vector{UnitRange{Int64}} = [f[1]:e[1] for (f, e) in zip(findall("<", s), findall(">", s))]
-    comps::Dict{String, Component} = Dict{String, Component}()
+    comps::Vector{Servable} = Vector{Servable}()
     for tag::UnitRange in tagpos
        if contains(s[tag], "/") || ~(contains(s[tag], " id="))
             continue
@@ -41,13 +41,9 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
         tagr::UnitRange = findnext(" ", s, tag[1])
         nametag::String = s[minimum(tag) + 1:maximum(tagr) - 1]
         namestart::UnitRange = findnext("id=", s, tag[1])
-        if ~(isnothing(namestart)) && length(readonly) > 0
+        if ~(isnothing(namestart))
             try
             nameranger::UnitRange = namestart[2] + 2:(findnext(" ", s, namestart[1])[1] - 1)
-            if ~(replace(s[nameranger], "\"" => "") in readonly)
-                continue
-                @warn "couldn't get name"
-            end
         catch
             continue
             @warn "couldn't get name"
@@ -75,9 +71,39 @@ function htmlcomponent(s::String, readonly::Vector{String} = Vector{String}())
         name::String = properties["id"]
         delete!(properties, "id")
         push!(properties, "text" => tagtext)
-        push!(comps, name => Component(name, string(nametag), properties))
+        push!(comps, Component(name, string(nametag), properties))
     end
-    return(comps)::Dict{String, Component}
+    return(comps)::Vector{Servable}
+end
+
+function htmlcomponent(s::String, readonly::Vector{String})
+    if readonly[1] == "none"
+        return Vector{Servable}()
+    end
+    Vector{Servable}(filter!(x -> ~(isnothing(x)), [begin
+        element_sect = findfirst(" id=\"$compname\"", s)
+        if ~(isnothing(element_sect))
+            starttag = findprev("<", s, element_sect[1])[1]
+            ndtag = findnext(" ", s, element_sect[1])[1]
+            argfinish = findnext(">", s, ndtag)[1] + 1
+            tg = s[starttag + 1:ndtag - 1]
+            finisher = findnext("</$tg>", s, argfinish)
+            fulltxt = s[argfinish:finisher[1] - 1]
+            propvec::Vector{SubString} = split(s[ndtag:argfinish - 2], " ")
+            properties::Dict{Any, Any} = Dict{Any, Any}(begin
+                ppair::Vector{SubString} = split(segment, "=")
+                if length(ppair) < 2
+                    println(ppair)
+                    string(ppair[1]) => string(ppair[1])
+                else
+                    string(ppair[1]) => replace(string(ppair[2]), "\"" => "")
+                end
+            end for segment in propvec)
+            push!(properties, "text" => fulltxt)
+            Component(compname, string(tg), properties)
+        else
+        end
+    end for compname in readonly]))::Vector{Servable}
 end
 
 abstract type AbstractVar <: AbstractString end
@@ -85,7 +111,7 @@ abstract type AbstractVar <: AbstractString end
 string(av::AbstractVar) = funccl(av)
 iterate(var::AbstractVar) = iterate(var.value)
 
-mutable struct ComponentProperty <: AbstractVar
+mutable struct ComponentProperty <: AbstractVar 
     name::String
     value::Pair{String, String}
 end
@@ -100,7 +126,7 @@ iterate(comp::ComponentProperty) = iterate(comp.value[2])
 
 funccl(v::Var) = "$(v.value)"
 
-abstract type AbstractClientModifier <: AbstractComponentModifier
+abstract type AbstractClientModifier <: AbstractComponentModifier end
 
 """
 ### ClientModifier <: AbstractComponentModifier
@@ -200,15 +226,15 @@ end
 - ComponentModifier(html::String, readonly::Vector{String})
 """
 mutable struct ComponentModifier <: AbstractComponentModifier
-    rootc::Dict{String, AbstractComponent}
+    rootc::Vector{Servable}
     changes::Vector{String}
     function ComponentModifier(html::String)
-        rootc::Dict{String, AbstractComponent} = htmlcomponent(html)
+        rootc::Vector{Servable} = htmlcomponent(html)
         changes::Vector{String} = Vector{String}()
         new(rootc, changes)::ComponentModifier
     end
     function ComponentModifier(html::String, readonly::Vector{String})
-        rootc::Dict{String, AbstractComponent} = htmlcomponent(html, readonly)
+        rootc::Vector{Servable} = htmlcomponent(html, readonly)
         changes::Vector{String} = Vector{String}()
         new(rootc, changes)::ComponentModifier
     end
