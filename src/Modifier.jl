@@ -89,7 +89,7 @@ function htmlcomponent(s::String, readonly::Vector{String})
             tg = s[starttag + 1:ndtag - 1]
             finisher = findnext("</$tg>", s, argfinish)
             fulltxt = s[argfinish:finisher[1] - 1]
-            propvec::Vector{SubString} = split(s[ndtag:argfinish - 2], " ")
+            propvec::Vector{SubString} = split(s[ndtag:argfinish - 2], "\" ")
             properties::Dict{Any, Any} = Dict{Any, Any}(begin
                 ppair::Vector{SubString} = split(segment, "=")
                 if length(ppair) < 2
@@ -1248,7 +1248,7 @@ end
 """
 function script!(f::Function, c::Connection, cm::AbstractComponentModifier, name::String,
      readonly::Vector{String} = Vector{String}(); time::Integer = 1000, type::String = "Interval")
-     ip = getip(c)
+    ip = getip(c)
     if getip(c) in keys(c[:Session].iptable)
         push!(c[:Session][getip(c)], name => f)
     else

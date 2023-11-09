@@ -1072,7 +1072,7 @@ have the same `ComponentModifier` functions run.
 ```
 """
 function open_rpc!(c::Connection, cm::ComponentModifier, 
-    name::String = getip(c); tickrate::Int64 = 500)
+    name::String = gen_ref(); tickrate::Int64 = 500)
     push!(c[:Session].peers,
      name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
     script!(c, cm, name, time = tickrate) do cm::ComponentModifier
@@ -1146,7 +1146,7 @@ Joins an rpc session by name.
 """
 function join_rpc!(c::Connection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], getip(c) => Vector{String}())
-    script!(c, cm, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
+    script!(c, cm, gen_ref(), time = tickrate) do cm::ComponentModifier
         push!(cm.changes, join(c[:Session].peers[host][getip(c)]))
         c[:Session].peers[host][getip(c)] = Vector{String}()
     end
