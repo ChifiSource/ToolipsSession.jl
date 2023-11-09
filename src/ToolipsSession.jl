@@ -1054,7 +1054,7 @@ have the same `ComponentModifier` functions run.
 function open_rpc!(c::Connection, name::String = getip(c); tickrate::Int64 = 500)
     push!(c[:Session].peers,
      name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
-    script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
+    script!(c, getip(c) * "rpc", ["none"], time = tickrate) do cm::ComponentModifier
         push!(cm.changes, join(c[:Session].peers[name][getip(c)]))
         c[:Session].peers[name][getip(c)] = Vector{String}()
     end
@@ -1075,7 +1075,7 @@ function open_rpc!(c::Connection, cm::ComponentModifier,
     name::String = gen_ref(); tickrate::Int64 = 500)
     push!(c[:Session].peers,
      name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
-    script!(c, cm, name, time = tickrate) do cm::ComponentModifier
+    script!(c, cm, name, time = tickrate, ["none"]) do cm::ComponentModifier
         push!(cm.changes, join(c[:Session].peers[name][getip(c)]))
         c[:Session].peers[name][getip(c)] = Vector{String}()
     end
@@ -1095,7 +1095,7 @@ but also runs `f` on each tick.
 function open_rpc!(f::Function, c::Connection, name::String; tickrate::Int64 = 500)
     push!(c[:Session].peers,
      name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
-    script!(c, name, time = tickrate) do cm::ComponentModifier
+    script!(c, name, ["none"], time = tickrate) do cm::ComponentModifier
         f(cm)
         push!(cm.changes, join(c[:Session].peers[name][getip(c)]))
         c[:Session].peers[name][getip(c)] = Vector{String}()
@@ -1128,7 +1128,7 @@ Joins an rpc session by name.
 """
 function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], getip(c) => Vector{String}())
-    script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
+    script!(c, getip(c) * "rpc", ["none"], time = tickrate) do cm::ComponentModifier
         push!(cm.changes, join(c[:Session].peers[host][getip(c)]))
         c[:Session].peers[host][getip(c)] = Vector{String}()
     end
@@ -1146,7 +1146,7 @@ Joins an rpc session by name.
 """
 function join_rpc!(c::Connection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], getip(c) => Vector{String}())
-    script!(c, cm, gen_ref(), time = tickrate) do cm::ComponentModifier
+    script!(c, cm, gen_ref(), ["none"], time = tickrate) do cm::ComponentModifier
         push!(cm.changes, join(c[:Session].peers[host][getip(c)]))
         c[:Session].peers[host][getip(c)] = Vector{String}()
     end
@@ -1164,7 +1164,7 @@ Joins an rpc session by name, runs `f` on each tick.
 """
 function join_rpc!(f::Function, c::Connection, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], getip(c) => Vector{String}())
-    script!(c, cm, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
+    script!(c, cm, getip(c) * "rpc", ["none"], time = tickrate) do cm::ComponentModifier
         f(cm)
         location::String = find_client(c)
         push!(cm.changes, join(c[:Session].peers[location][getip(c)]))
