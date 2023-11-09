@@ -17,7 +17,7 @@ module ToolipsSession
 using Toolips
 import Toolips: ServerExtension, Servable, AbstractComponent, Modifier
 import Toolips: AbstractRoute, kill!, AbstractConnection, script, write!
-import Base: setindex!, getindex, push!
+import Base: setindex!, getindex, push!, iterate
 using Random, Dates
 
 include("Modifier.jl")
@@ -351,9 +351,8 @@ end
 function on(f::Function, component::Component{<:Any}, event::String)
     cl = ClientModifier("$(component.name)$(event)")
     f(cl)
-    evstr = replace(join(cl.changes), " " => "", "\n" => "")
-    component["on$event"] = "`$(cl.name)();`"
-    script("doc$event", text = join(cl.changes))
+    component["on$event"] = "$(cl.name)(event);"
+    push!(component.extras, script(cl.name, text = funccl(cl)))
 end
 
 """
@@ -1055,7 +1054,7 @@ have the same `ComponentModifier` functions run.
 function open_rpc!(c::Connection, name::String = getip(c); tickrate::Int64 = 500)
     push!(c[:Session].peers,
      name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
-    script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
+    script!(c, getip(c) * "rpc", ["none"], time = tickrate) do cm::ComponentModifier
         push!(cm.changes, join(c[:Session].peers[name][getip(c)]))
         c[:Session].peers[name][getip(c)] = Vector{String}()
     end
@@ -1073,10 +1072,10 @@ have the same `ComponentModifier` functions run.
 ```
 """
 function open_rpc!(c::Connection, cm::ComponentModifier, 
-    name::String = getip(c); tickrate::Int64 = 500)
+    name::String = gen_ref(); tickrate::Int64 = 500)
     push!(c[:Session].peers,
      name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
-    script!(c, cm, name, time = tickrate) do cm::ComponentModifier
+    script!(c, cm, name, time = tickrate, ["none"]) do cm::ComponentModifier
         push!(cm.changes, join(c[:Session].peers[name][getip(c)]))
         c[:Session].peers[name][getip(c)] = Vector{String}()
     end
@@ -1096,7 +1095,7 @@ but also runs `f` on each tick.
 function open_rpc!(f::Function, c::Connection, name::String; tickrate::Int64 = 500)
     push!(c[:Session].peers,
      name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
-    script!(c, name, time = tickrate) do cm::ComponentModifier
+    script!(c, name, ["none"], time = tickrate) do cm::ComponentModifier
         f(cm)
         push!(cm.changes, join(c[:Session].peers[name][getip(c)]))
         c[:Session].peers[name][getip(c)] = Vector{String}()
@@ -1129,10 +1128,9 @@ Joins an rpc session by name.
 """
 function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], getip(c) => Vector{String}())
-    script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
-        location::String = find_client(c)
-        push!(cm.changes, join(c[:Session].peers[location][getip(c)]))
-        c[:Session].peers[location][getip(c)] = Vector{String}()
+    script!(c, getip(c) * "rpc", ["none"], time = tickrate) do cm::ComponentModifier
+        push!(cm.changes, join(c[:Session].peers[host][getip(c)]))
+        c[:Session].peers[host][getip(c)] = Vector{String}()
     end
 end
 
@@ -1148,10 +1146,9 @@ Joins an rpc session by name.
 """
 function join_rpc!(c::Connection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], getip(c) => Vector{String}())
-    script!(c, cm, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
-        location::String = find_client(c)
-        push!(cm.changes, join(c[:Session].peers[location][getip(c)]))
-        c[:Session].peers[location][getip(c)] = Vector{String}()
+    script!(c, cm, gen_ref(), ["none"], time = tickrate) do cm::ComponentModifier
+        push!(cm.changes, join(c[:Session].peers[host][getip(c)]))
+        c[:Session].peers[host][getip(c)] = Vector{String}()
     end
 end
 
@@ -1167,7 +1164,7 @@ Joins an rpc session by name, runs `f` on each tick.
 """
 function join_rpc!(f::Function, c::Connection, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], getip(c) => Vector{String}())
-    script!(c, getip(c) * "rpc", time = tickrate) do cm::ComponentModifier
+    script!(c, cm, getip(c) * "rpc", ["none"], time = tickrate) do cm::ComponentModifier
         f(cm)
         location::String = find_client(c)
         push!(cm.changes, join(c[:Session].peers[location][getip(c)]))
@@ -1303,7 +1300,7 @@ export Session, on, bind!, script!, script, ComponentModifier, ClientModifier
 export KeyMap
 export playanim!, alert!, redirect!, modify!, move!, remove!, set_text!
 export update!, insert_child!, append_first!, animate!, pauseanim!, next!
-export set_children!, get_text, style!, free_redirects!, confirm_redirects!
+export set_children!, get_text, style!, free_redirects!, confirm_redirects!, store!
 export scroll_by!, scroll_to!, focus!, set_selection!
 export rpc!, disconnect_rpc!, find_client, join_rpc!, close_rpc!, open_rpc!
 export join_rpc!, is_client, is_dead, is_host, call!
