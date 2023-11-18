@@ -88,7 +88,12 @@ function htmlcomponent(s::String, readonly::Vector{String})
             argfinish = findnext(">", s, ndtag)[1] + 1
             tg = s[starttag + 1:ndtag - 1]
             finisher = findnext("</$tg>", s, argfinish)
-            fulltxt = s[argfinish:finisher[1] - 1]
+            fulltxt = ""
+            try
+                fulltxt = s[argfinish:finisher[1] - 1]
+            catch
+                fulltxt = s[argfinish:finisher[1] - 2]
+            end
             propvec::Vector{SubString} = split(s[ndtag:argfinish - 2], "\" ")
             properties::Dict{Any, Any} = Dict{Any, Any}(begin
                 ppair::Vector{SubString} = split(segment, "=")
