@@ -80,7 +80,7 @@ function document_linker(c::Connection)
     reftagend = findnext("â•ƒ", s, maximum(reftag))
     ref_r::UnitRange{Int64} = maximum(reftag) + 1:minimum(reftagend) - 1
     ref::String = s[ref_r]
-    s = replace(s, "╃CM$(ref)╃" => "")
+    s = replace(s, "â•ƒCM" => "", "â•ƒ" => "")
     if ip in keys(c[:Session].iptable)
         c[:Session].iptable[ip] = now()
     end

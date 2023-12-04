@@ -16,6 +16,38 @@ in `Vector{Servable}`s.
 """
 abstract type AbstractComponentModifier <: Modifier end
 
+function html_properties(s::AbstractString)
+    propvec::Vector{SubString} = split(s, " ")
+    fulltxt::String = ""
+    properties::Dict{Any, Any} = Dict{Any, Any}(begin
+    ppair::Vector{SubString} = [string(seg) for seg in split(segment, "=")]
+    if length(ppair) < 2
+        string(ppair[1]) => string(ppair[1])
+    else
+        if e == length(propvec)
+            txtstart = findfirst(">", ppair[2])
+            if ~(isnothing(txtstart))
+                txtnd = findlast("<", ppair[2])[1] - 1
+                fulltxt = ppair[2][txtstart[1] + 1:txtnd]
+                lastprop = ppair[2][1:txtstart[1] - 1]
+                string(ppair[1]) => string(replace(lastprop, "\"" => ""))
+            else
+                string(ppair[1]) => string(replace(string(ppair[2]), "\"" => ""))
+            end
+        else
+            string(ppair[1]) => string(replace(string(ppair[2]), "\"" => ""))
+        end
+    end
+    end for (e, segment) in enumerate(propvec))
+    push!(properties, "text" => string(fulltxt))
+    name::String = ""
+    if " id" in keys(properties)
+        name = properties[" id"]
+        delete!(properties, " id")
+    end
+    properties::Dict{Any, Any}, name::String
+end
+
 """
 **Session Internals**
 ### htmlcomponent(f::Function, readonly::Vector{String};  )
@@ -31,49 +63,34 @@ comp["hello"]["align"]
 ```
 """
 function htmlcomponent(s::String)
-    tagpos::Vector{UnitRange{Int64}} = [f[1]:e[1] for (f, e) in zip(findall("<", s), findall(">", s))]
-    comps::Vector{Servable} = Vector{Servable}()
-    for tag::UnitRange in tagpos
-       if contains(s[tag], "/") || ~(contains(s[tag], " id="))
-            continue
-            @warn "couldn't find tag"
-        end
-        tagr::UnitRange = findnext(" ", s, tag[1])
-        nametag::String = s[minimum(tag) + 1:maximum(tagr) - 1]
-        namestart::UnitRange = findnext("id=", s, tag[1])
-        if ~(isnothing(namestart))
-            try
-            nameranger::UnitRange = namestart[2] + 2:(findnext(" ", s, namestart[1])[1] - 1)
-        catch
-            continue
-            @warn "couldn't get name"
-        end
-        end
-        tagtext::String = ""
-        textr::UnitRange = 0:0
-        try
-            textr = maximum(tag) + 1:minimum(findnext("</$nametag", s, tag[1])[1]) - 1
-            tagtext = s[textr]
-            tagtext = replace(tagtext, "&nbsp;" => " ", "<br>" => "\n", "&ensp;" => "  ", 
-            "&emsp;" => "    ", "&gt;" => ">", "&lt;" => "<", "<div>" => "\n", "</div>" => "\n", 
-            "&bsol;" => "\\", "\"" => "\"", "&#63;" => "?")
-        catch
-            tagtext = ""
-        end
-        propvec::Vector{SubString} = split(s[maximum(tagr) + 1:maximum(tag) - 1], " ")
-        properties::Dict{Any, Any} = Dict{Any, Any}()
-        [begin
-            ppair::Vector{SubString} = split(segment, "=")
-            if length(ppair) > 1
-                push!(properties, string(ppair[1]) => replace(string(ppair[2]), "\"" => ""))
+    splits::Vector{SubString} = split(s, "><")
+    servevec = Vector{Servable}()
+    servevec = Vector{Servable}(filter(x -> ~(isnothing(x)), [begin
+    element = string(element)
+        tagnd = findfirst(" ", element)
+        if ~(isnothing(tagnd))
+            tagstart::Int64 = 1
+            if contains(element, "<")
+                tagstart = 2
             end
-        end for segment in propvec]
-        name::String = properties["id"]
-        delete!(properties, "id")
-        push!(properties, "text" => tagtext)
-        push!(comps, Component(name, string(nametag), properties))
-    end
-    return(comps)::Vector{Servable}
+            tag::String = ""
+            try
+                tag = string(element[tagstart:minimum(tagnd)])
+            catch
+                tag = string(element[tagstart - 1:minimum(tagnd)])
+            end
+            properties, name = Dict{Any, Any}(), ""
+            try
+                properties::Dict{Any, Any}, name::String = html_properties(element[minimum(tagnd):length(element)])
+            catch
+                println("properties")
+            end
+            Component(name, tag, properties)::Component{<:Any}
+        else
+            nothing
+        end
+    end for element in splits[1:(length(splits) - 1)]]))::Vector{Servable}
+    servevec
 end
 
 function htmlcomponent(s::String, readonly::Vector{String})
@@ -83,8 +100,8 @@ function htmlcomponent(s::String, readonly::Vector{String})
     Vector{Servable}(filter!(x -> ~(isnothing(x)), [begin
         element_sect = findfirst(" id=\"$compname\"", s)
         if ~(isnothing(element_sect))
-            starttag = findprev("<", s, element_sect[1])[1]
-            ndtag = findnext(" ", s, element_sect[1])[1]
+            starttag::Int64 = findprev("<", s, element_sect[1])[1]
+            ndtag::Int64 = findnext(" ", s, element_sect[1])[1]
             argfinish = findnext(">", s, ndtag)[1] + 1
             tg = s[starttag + 1:ndtag - 1]
             finisher = findnext("</$tg>", s, argfinish)
@@ -94,21 +111,14 @@ function htmlcomponent(s::String, readonly::Vector{String})
             catch
                 fulltxt = s[argfinish:finisher[1] - 2]
             end
-            propvec::Vector{SubString} = split(s[ndtag:argfinish - 2], "\" ")
-            properties::Dict{Any, Any} = Dict{Any, Any}(begin
-                ppair::Vector{SubString} = split(segment, "=")
-                if length(ppair) < 2
-                    string(ppair[1]) => string(ppair[1])
-                else
-                    string(ppair[1]) => replace(string(ppair[2]), "\"" => "")
-                end
-            end for segment in propvec)
-            push!(properties, "text" => fulltxt)
+            proptxt::AbstractString = s[ndtag:argfinish - 2]
+            properties::Dict{Any, Any} , name = html_properties(proptxt)
             Component(compname, string(tg), properties)
         else
         end
     end for compname in readonly]))::Vector{Servable}
 end
+
 
 abstract type AbstractVar <: AbstractString end
 
