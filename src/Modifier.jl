@@ -20,30 +20,30 @@ function html_properties(s::AbstractString)
     propvec::Vector{SubString} = split(s, " ")
     fulltxt::String = ""
     properties::Dict{Any, Any} = Dict{Any, Any}(begin
-    ppair::Vector{SubString} = [string(seg) for seg in split(segment, "=")]
-    if length(ppair) < 2
-        string(ppair[1]) => string(ppair[1])
-    else
-        if e == length(propvec)
-            txtstart = findfirst(">", ppair[2])
-            if ~(isnothing(txtstart))
-                txtnd = findlast("<", ppair[2])[1] - 1
-                fulltxt = ppair[2][txtstart[1] + 1:txtnd]
-                lastprop = ppair[2][1:txtstart[1] - 1]
-                string(ppair[1]) => string(replace(lastprop, "\"" => ""))
+        ppair::Vector{SubString} = [string(seg) for seg in split(segment, "=")]
+        if length(ppair) != 2
+            string(ppair[1]) => string(ppair[1])
+        else
+            if contains(ppair[2], ">")
+                splts = split(ppair[2], ">")
+                if length(splts) == 2
+                    println(segment)
+                    fulltxt = string(splts[2])
+                    lastprop = string(splts[1])
+                    string(ppair[1]) => string(replace(lastprop, "\"" => ""))
+                else
+                    string(ppair[1]) => string(replace(string(ppair[2]), "\"" => ""))
+                end
             else
                 string(ppair[1]) => string(replace(string(ppair[2]), "\"" => ""))
             end
-        else
-            string(ppair[1]) => string(replace(string(ppair[2]), "\"" => ""))
         end
-    end
     end for (e, segment) in enumerate(propvec))
-    push!(properties, "text" => string(fulltxt))
+    push!(properties, "text" => fulltxt)
     name::String = ""
-    if " id" in keys(properties)
-        name = properties[" id"]
-        delete!(properties, " id")
+    if "id" in keys(properties)
+        name = properties["id"]
+        delete!(properties, "id")
     end
     properties::Dict{Any, Any}, name::String
 end
@@ -63,10 +63,15 @@ comp["hello"]["align"]
 ```
 """
 function htmlcomponent(s::String)
+    startpos = findfirst("<", s)
+    if isnothing(startpos)
+        return(Vector{Servable}())::Vector{Servable}
+    end
+    s = s[startpos[1]:length(s)]
     splits::Vector{SubString} = split(s, "><")
     servevec = Vector{Servable}()
     servevec = Vector{Servable}(filter(x -> ~(isnothing(x)), [begin
-    element = string(element)
+        element = string(element)
         tagnd = findfirst(" ", element)
         if ~(isnothing(tagnd))
             tagstart::Int64 = 1
@@ -75,22 +80,17 @@ function htmlcomponent(s::String)
             end
             tag::String = ""
             try
-                tag = string(element[tagstart:minimum(tagnd)])
+                tag = string(element[tagstart:minimum(tagnd) - 1])
             catch
-                tag = string(element[tagstart - 1:minimum(tagnd)])
+                tag = string(element[tagstart - 1:minimum(tagnd) - 1])
             end
             properties, name = Dict{Any, Any}(), ""
-            try
-                properties::Dict{Any, Any}, name::String = html_properties(element[minimum(tagnd):length(element)])
-            catch
-                println("properties")
-            end
+            properties::Dict{Any, Any}, name::String = html_properties(element[minimum(tagnd):length(element)])
             Component(name, tag, properties)::Component{<:Any}
         else
             nothing
         end
-    end for element in splits[1:(length(splits) - 1)]]))::Vector{Servable}
-    servevec
+    end for element in splits]))::Vector{Servable}
 end
 
 function htmlcomponent(s::String, readonly::Vector{String})
