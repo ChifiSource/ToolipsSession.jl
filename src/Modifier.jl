@@ -18,34 +18,15 @@ abstract type AbstractComponentModifier <: Modifier end
 
 function html_properties(s::AbstractString)
     propvec::Vector{SubString} = split(s, " ")
-    fulltxt::String = ""
     properties::Dict{Any, Any} = Dict{Any, Any}(begin
-        ppair::Vector{SubString} = [string(seg) for seg in split(segment, "=")]
-        if length(ppair) != 2
+        ppair::Vector{SubString} = split(segment, "=")
+        if length(ppair) < 2
             string(ppair[1]) => string(ppair[1])
         else
-            if contains(ppair[2], ">")
-                splts = split(ppair[2], ">")
-                if length(splts) == 2
-                    println(segment)
-                    fulltxt = string(splts[2])
-                    lastprop = string(splts[1])
-                    string(ppair[1]) => string(replace(lastprop, "\"" => ""))
-                else
-                    string(ppair[1]) => string(replace(string(ppair[2]), "\"" => ""))
-                end
-            else
-                string(ppair[1]) => string(replace(string(ppair[2]), "\"" => ""))
-            end
+            string(ppair[1]) => replace(string(ppair[2]), "\"" => "")
         end
-    end for (e, segment) in enumerate(propvec))
-    push!(properties, "text" => fulltxt)
-    name::String = ""
-    if "id" in keys(properties)
-        name = properties["id"]
-        delete!(properties, "id")
-    end
-    properties::Dict{Any, Any}, name::String
+    end for segment in propvec)
+    properties::Dict{Any, Any}
 end
 
 """
@@ -84,9 +65,21 @@ function htmlcomponent(s::String)
             catch
                 tag = string(element[tagstart - 1:minimum(tagnd) - 1])
             end
-            properties, name = Dict{Any, Any}(), ""
-            properties::Dict{Any, Any}, name::String = html_properties(element[minimum(tagnd):length(element)])
-            Component(name, tag, properties)::Component{<:Any}
+            properties::Dict{Any, Any} = html_properties(element[minimum(tagnd):length(element)])
+            name::String = ""
+            if "id" in keys(properties)
+                name = properties["id"]
+            end
+            finaltxt = splits[length(splits)]
+            argfinish = findfirst(">", finaltxt)[1] + 1
+            finisher = findnext("<", s, argfinish)
+            fulltxt = s[argfinish:finisher[1] - 1]
+            push!(properties, "text" => fulltxt)
+            if name == ""
+                nothing
+            else
+                Component(name, tag, properties)::Component{<:Any}
+            end
         else
             nothing
         end
@@ -100,19 +93,18 @@ function htmlcomponent(s::String, readonly::Vector{String})
     Vector{Servable}(filter!(x -> ~(isnothing(x)), [begin
         element_sect = findfirst(" id=\"$compname\"", s)
         if ~(isnothing(element_sect))
-            starttag::Int64 = findprev("<", s, element_sect[1])[1]
-            ndtag::Int64 = findnext(" ", s, element_sect[1])[1]
+            starttag = findprev("<", s, element_sect[1])[1]
+            ndtag = findnext(" ", s, element_sect[1])[1]
             argfinish = findnext(">", s, ndtag)[1] + 1
             tg = s[starttag + 1:ndtag - 1]
             finisher = findnext("</$tg>", s, argfinish)
-            fulltxt = ""
-            try
-                fulltxt = s[argfinish:finisher[1] - 1]
-            catch
-                fulltxt = s[argfinish:finisher[1] - 2]
+            fulltxt = s[argfinish:finisher[1] - 1]
+            properties = html_properties(s[ndtag:argfinish - 2])
+            name::String = ""
+            if "id" in keys(properties)
+                name = properties["id"]
             end
-            proptxt::AbstractString = s[ndtag:argfinish - 2]
-            properties::Dict{Any, Any} , name = html_properties(proptxt)
+            push!(properties, "text" => fulltxt)
             Component(compname, string(tg), properties)
         else
         end
