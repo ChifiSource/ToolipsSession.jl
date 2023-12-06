@@ -43,7 +43,7 @@ comp["hello"]["align"]
     "center"
 ```
 """
-function htmlcomponent(s::String)
+function htmlcomponent(s::String; nonames::Bool = false)
     startpos = findfirst("<", s)
     if isnothing(startpos)
         return(Vector{Servable}())::Vector{Servable}
@@ -54,28 +54,32 @@ function htmlcomponent(s::String)
     servevec = Vector{Servable}(filter(x -> ~(isnothing(x)), [begin
         element = string(element)
         tagnd = findfirst(" ", element)
-        if ~(isnothing(tagnd))
+        if ~(isnothing(tagnd)) && ~(contains(element[1:minimum(tagnd)], "/"))
             tagstart::Int64 = 1
-            if contains(element, "<")
+            if contains(element[1:tagnd[1]], "<")
                 tagstart = 2
             end
             tag::String = ""
-            try
-                tag = string(element[tagstart:minimum(tagnd) - 1])
-            catch
-                tag = string(element[tagstart - 1:minimum(tagnd) - 1])
-            end
+            tag = replace(string(element[tagstart:minimum(tagnd) - 1]), "<" => "", ">" => "")
             txt_split = findfirst(">", element)
             fulltxt::String = ""
             name::String = ""
-            propstring::String = element[minimum(tagnd):length(element)]
+            try
+                propstring::String = element[minimum(tagnd):length(element)]
+            catch
+                propstring = ""
+            end
             if ~(isnothing(txt_split))
                 propstring = element[minimum(tagnd):minimum(txt_split) - 1]
                 txtend = findnext("</", element, minimum(txt_split))
                 if isnothing(txtend)
                     fulltxt = element[minimum(txt_split) + 1:length(element)]
                 else
-                    fulltxt = element[minimum(txt_split) + 1:txtend[1] - 1]
+                    try
+                        fulltxt = element[minimum(txt_split) + 1:txtend[1] - 1]
+                    catch
+                        
+                    end
                 end
             end
             properties::Dict{Any, Any} = html_properties(propstring)
@@ -83,7 +87,7 @@ function htmlcomponent(s::String)
                 name = properties["id"]
             end
             push!(properties, "text" => fulltxt)
-            if name == ""
+            if name == "" && ~(nonames)
                 nothing
             else
                 Component(name, tag, properties)::Component{<:Any}
