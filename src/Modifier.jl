@@ -65,15 +65,23 @@ function htmlcomponent(s::String)
             catch
                 tag = string(element[tagstart - 1:minimum(tagnd) - 1])
             end
-            properties::Dict{Any, Any} = html_properties(element[minimum(tagnd):length(element)])
+            txt_split = findfirst(">", element)
+            fulltxt::String = ""
             name::String = ""
+            propstring::String = element[minimum(tagnd):length(element)]
+            if ~(isnothing(txt_split))
+                propstring = element[minimum(tagnd):minimum(txt_split) - 1]
+                txtend = findnext("</", element, minimum(txt_split))
+                if isnothing(txtend)
+                    fulltxt = element[minimum(txt_split) + 1:length(element)]
+                else
+                    fulltxt = element[minimum(txt_split) + 1:txtend[1] - 1]
+                end
+            end
+            properties::Dict{Any, Any} = html_properties(propstring)
             if "id" in keys(properties)
                 name = properties["id"]
             end
-            finaltxt = splits[length(splits)]
-            argfinish = findfirst(">", finaltxt)[1] + 1
-            finisher = findnext("<", s, argfinish)
-            fulltxt = s[argfinish:finisher[1] - 1]
             push!(properties, "text" => fulltxt)
             if name == ""
                 nothing
