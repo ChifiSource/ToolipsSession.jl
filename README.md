@@ -50,6 +50,10 @@ end
 ```julia
 include("dev.jl")
 ```
+###### 0.3.6
+- expanded on client modifier interface
+- fixed unicode indexing errors
+- rewrote `htmlcomponent` methods, created `html_properties`
 ###### new in 0.3.4
 - fixed linker event reference losses
 - added `ClientModifier` interface
