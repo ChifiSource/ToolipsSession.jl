@@ -2,9 +2,6 @@
 
 ### Full-stack web-development for Julia with toolips
 Toolips Session is a Server Extension for toolips that enables full-stack web-development capabilities. This extension is loaded by default whenever the `Toolips.new_webapp` from the base toolips package is used. Ideally, your project would be setup that way instead of by adding this directly; but of course, you can still add this directly.
-- [Documentation](https://doc.toolips.app/extensions/toolips_session/)
-- [Toolips](https://github.com/ChifiSource/Toolips.jl)
-- [Extension Gallery](https://toolips.app/?page=gallery&selected=session)
 ##### Step 1: Add ToolipsSession to your environment with Pkg
 Start a toolips **webapp** to automatically add `ToolipsSession`:
 ```julia
