@@ -86,7 +86,7 @@ function document_linker(c::Connection)
     end
     if ip in keys(c[:Session].events)
         if ip * ref in keys(c[:Session].readonly)
-            cm::ComponentModifier = ComponentModifier(s, c[:Session].readonly[ip * ref])
+            cm = ComponentModifier(s, c[:Session].readonly[ip * ref])
         else
             cm = ComponentModifier(s)
         end
@@ -94,6 +94,7 @@ function document_linker(c::Connection)
         f(cm)
         write!(c, " ")
         write!(c, cm)
+        cm = nothing
     end
 end
 

@@ -28,7 +28,7 @@ function html_properties(s::AbstractString)
     end for segment in propvec)
     properties::Dict{Any, Any}
 end
-
+#==
 """
 **Session Internals**
 ### htmlcomponent(f::Function, readonly::Vector{String};  )
@@ -71,7 +71,7 @@ function htmlcomponent(s::String; nonames::Bool = false)
             end
             if ~(isnothing(txt_split))
                 propstring = element[minimum(tagnd):minimum(txt_split) - 1]
-                txtend = findnext("</", element, minimum(txt_split))
+                txtend = findnext("</$tag", element, minimum(txt_split))
                 if isnothing(txtend)
                     fulltxt = element[minimum(txt_split) + 1:length(element)]
                 else
@@ -86,7 +86,9 @@ function htmlcomponent(s::String; nonames::Bool = false)
             if "id" in keys(properties)
                 name = properties["id"]
             end
-            push!(properties, "text" => fulltxt)
+            push!(properties, "text" => replace(fulltxt, "<br>" => "\n", "<div>" => "", 
+            "&#36;" => "\$", "&#37;" => "%", "&#38;" => "&", "&nbsp;" => " ", "&#60;" => "<", "	&lt;" => "<", 
+            "&#62;" => ">", "&gt;" => ">", "<br" => "\n"))
             if name == "" && ~(nonames)
                 nothing
             else
@@ -96,6 +98,44 @@ function htmlcomponent(s::String; nonames::Bool = false)
             nothing
         end
     end for element in splits]))::Vector{Servable}
+end
+==#
+function htmlcomponent(s::String; nonames::Bool = false)
+    tagpos::Vector{UnitRange{Int64}} = [f[1]:e[1] for (f, e) in zip(findall("<", s), findall(">", s))]
+    if nonames
+        filter!(r -> ~(contains(s[r], "/")), tagpos)
+    else
+        filter!(r -> ~(contains(s[r], "/")) || contains(s[r], " id="), tagpos)
+    end
+    Vector{Servable}([begin 
+        ndopen = findnext(">", s, tag[1])
+        offset = tag[1]
+        tagr = findnext(" ", s[tag[1]:minimum(ndopen)], tag[1])
+        if isnothing(tagr)
+            tagr = ndopen
+        else
+            tagr = minimum(tagr) + offset:maximum(tagr) + offset
+        end
+        nametag::String = s[minimum(tag) + 1:maximum(tagr) - 1]
+        tagtext::String = ""
+        textr::UnitRange = 0:0
+        try
+            textr = maximum(tag) + 1:minimum(findnext("</$nametag", s, tag[1])[1]) - 1
+            tagtext = s[textr]
+        catch
+            tagtext = ""
+        end
+        properties::Dict{<:Any, <:Any} = html_properties(s[maximum(tagr) + 1:maximum(tag) - 1])
+        name::String = ""
+        if "id" in keys(properties)
+            name = properties["id"]
+            delete!(properties, "id")
+        end
+        push!(properties, "text" => replace(tagtext, "<br>" => "\n", "<div>" => "", 
+        "&#36;" => "\$", "&#37;" => "%", "&#38;" => "&", "&nbsp;" => " ", "&#60;" => "<", "	&lt;" => "<", 
+        "&#62;" => ">", "&gt;" => ">", "<br" => "\n", "&bsol;" => "\\", "&#63;" => "?"))
+        Component(name, nametag, properties)
+    end for tag in tagpos])::Vector{Servable}
 end
 
 function htmlcomponent(s::String, readonly::Vector{String})
@@ -109,14 +149,17 @@ function htmlcomponent(s::String, readonly::Vector{String})
             ndtag = findnext(" ", s, element_sect[1])[1]
             argfinish = findnext(">", s, ndtag)[1] + 1
             tg = s[starttag + 1:ndtag - 1]
-            finisher = findnext("</$tg>", s, argfinish)
+            finisher = findnext("</$tg", s, argfinish)
             fulltxt = s[argfinish:finisher[1] - 1]
             properties = html_properties(s[ndtag:argfinish - 2])
             name::String = ""
             if "id" in keys(properties)
                 name = properties["id"]
+                delete!(properties, "id")
             end
-            push!(properties, "text" => fulltxt)
+            push!(properties, "text" => replace(fulltxt, "<br>" => "\n", "<div>" => "", 
+            "&#36;" => "\$", "&#37;" => "%", "&#38;" => "&", "&nbsp;" => " ", "&#60;" => "<", "	&lt;" => "<", 
+            "&#62;" => ">", "&gt;" => ">", "<br" => "\n", "&bsol;" => "\\", "&#63;" => "?"))
             Component(compname, string(tg), properties)
         else
         end
@@ -808,6 +851,10 @@ function insert!(cm::AbstractComponentModifier, name::String, i::Int64, child::S
     push!(cm.changes, "document.getElementById('$name').insertBefore(document.createRange().createContextualFragment(`$txt`), document.getElementById('$name').children[$(i - 1)]);")
 end
 
+function sleep!(cm::ComponentModifier, time::Int64)
+    push!(cm.changes, "await new Promise(r => setTimeout(r, $time));")
+end
+
 """
 **Session Interface**
 ### get_text(cm::AbstractComponentModifier, s::Component) -> ::String
@@ -1364,6 +1411,7 @@ function next!(cm::ComponentModifier, s::AbstractComponent, a::Animation;
     write::Bool = false)
     next!(cm, s.name, a, write = write)
 end
+
 # emmy was here ! <3
 """
 **Session Interface** 0.3
