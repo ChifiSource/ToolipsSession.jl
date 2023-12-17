@@ -80,13 +80,13 @@ function document_linker(c::Connection)
     reftagend = findnext("â•ƒ", s, maximum(reftag))
     ref_r::UnitRange{Int64} = maximum(reftag) + 1:minimum(reftagend) - 1
     ref::String = s[ref_r]
-    s = replace(s, "╃CM$(ref)╃" => "")
+    s = replace(s, "â•ƒCM" => "", "â•ƒ" => "")
     if ip in keys(c[:Session].iptable)
         c[:Session].iptable[ip] = now()
     end
     if ip in keys(c[:Session].events)
         if ip * ref in keys(c[:Session].readonly)
-            cm::ComponentModifier = ComponentModifier(s, c[:Session].readonly[ip * ref])
+            cm = ComponentModifier(s, c[:Session].readonly[ip * ref])
         else
             cm = ComponentModifier(s)
         end
@@ -94,6 +94,7 @@ function document_linker(c::Connection)
         f(cm)
         write!(c, " ")
         write!(c, cm)
+        cm = nothing
     end
 end
 
