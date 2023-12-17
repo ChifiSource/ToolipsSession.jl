@@ -101,20 +101,16 @@ function htmlcomponent(s::String; nonames::Bool = false)
 end
 ==#
 function htmlcomponent(s::String; nonames::Bool = false)
-    tagpos::Vector{UnitRange{Int64}} = [f[1]:e[1] for (f, e) in zip(findall("<", s), findall(">", s))]
-    if nonames
-        filter!(r -> ~(contains(s[r], "/")), tagpos)
-    else
-        filter!(r -> ~(contains(s[r], "/")) || contains(s[r], " id="), tagpos)
+    tagpos::Vector{UnitRange{Int64}} = filter!(r -> ~(contains(s[r], "</")) || length(r) < 1, [f[1]:e[1] for (f, e) in zip(findall("<", s), findall(">", s))])
+    if ~(nonames)
+        filter(r -> contains(s[r], " id="), tagpos)
     end
     Vector{Servable}([begin 
-        ndopen = findnext(">", s, tag[1])
+        ndopen = findnext(">", s, minimum(tag))
         offset = tag[1]
-        tagr = findnext(" ", s[tag[1]:minimum(ndopen)], tag[1])
-        if isnothing(tagr)
+        tagr = findnext(" ", s, tag[1])
+        if isnothing(tagr) || minimum(tagr) > maximum(ndopen)
             tagr = ndopen
-        else
-            tagr = minimum(tagr) + offset:maximum(tagr) + offset
         end
         nametag::String = s[minimum(tag) + 1:maximum(tagr) - 1]
         tagtext::String = ""
