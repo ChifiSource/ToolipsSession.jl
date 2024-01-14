@@ -19,7 +19,7 @@ import Toolips: ServerExtension, Servable, AbstractComponent, Modifier
 import Toolips: AbstractRoute, kill!, AbstractConnection, script, write!
 import Base: setindex!, getindex, push!, iterate
 using Random, Dates
-
+using WebSockets: serve, writeguarded, readguarded, @wslog, open, HTTP, Response, ServerWS
 include("Modifier.jl")
 
 #==
@@ -98,44 +98,45 @@ function document_linker(c::Connection)
     end
 end
 
+abstract type SocketServer <: Toolips.ServerTemplate end
 
-"""
-### Session
-- type::Vector{Symbol}
-- f::Function
-- active_routes::Vector{String}
-- events::Dict{String, Pair{String, Function}}
-- readonly::Dict{String, Vector{String}}
-- iptable::Dict{String, Dates.DateTime}
-- timeout::Integer\n
-Provides session capabilities and full-stack interactivity to a toolips server.
-Note that the route you want to be interactive **must** be in active_routes!
-##### example
-```
-exts = [Session()]
-st = ServerTemplate(extensions = exts)
-server = st.start()
+function start!(mod::Module = server_cli(Main.ARGS), from::Type{SocketServer}; ip::IP4 = ip4_cli(Main.ARGS), 
+    router_threads::Int64 = 1, threads::Int64 = 1)
+    IP = Sockets.InetAddr(parse(IPAddr, ip.ip), ip.port)
+    server::Sockets.TCPServer = Sockets.listen(IP)
+    mod.server = server
+    routefunc::Function, pm::ProcessManager = generate_router(mod, router_threads)
+    if router_threads == 1
+        w = pm["$mod router"]
+        serve_router = @async HTTP.listen(routefunc, ip.ip, ip.port, server = server)
+        w.task = serve_router
+        w.active = true
+        return(pm)::ProcessManager
+    end
+end
 
-route!(server, "/") do c::Connection
-    myp = p("myp", text = "welcome to my site")
-    on(c, myp, "click") do cm::ComponentModifier
-        if cm[myp][:text] == "welcome to my site"
-            set_text!(cm, myp, "unwelcome to my site")
-        else
-            set_text!(cm, myp, "welcome to my site")
+
+begin
+    function handler(req)
+        println("someone landed")
+        open("ws://127.0.0.1:8000") do ws_client
+            
         end
     end
-    write!(c, myp)
+    function wshandler(ws_server)
+        println("websockethandled")
+        writeguarded(ws_server, "Hello")
+        readguarded(ws_server)
+    end
+    serverWS = ServerWS(handler, wshandler)
+    servetask = @async with_logger(WebSocketLogger()) do
+        serve(serverWS, port = 8000)
+        "Task ended"
+    end
 end
-```
-------------------
-##### constructors
-Session(active_routes::Vector{String} = ["/"];
-        transition_duration::AbstractFloat = 0.5,
-        transition::String = "ease-in-out",
-        timeout::Integer = 30
-        )
-"""
+
+
+
 mutable struct Session <: ServerExtension
     type::Vector{Symbol}
     f::Function
@@ -305,55 +306,6 @@ function clear!(c::Connection, key::String)
         [kill!(c, k) for k in readonly[getip(c) * key]]
         delete!(readonly, getip(c) * key)
     end
-end
-
-#==
-on
-==#
-"""
-**Session Interface**
-### on(f::Function, event::String)
-------------------
-The `on` method and the `bind!` method are used to link callbacks for a Toolips website.
-- A `Function` will always be the first positional argument.
-- For server-side callbacks, the `Connection` will also be provided. For client-side callbacks, 
-do not provide the `Connection`. 
-- events and `Components` are provided in that order for `on`.
-- Keys, key combinations, or `InputMap`s are provided to `bind!`
-- there are `prevent_default` and `mark` key-word arguments.
-- server-side `bind!` has the `readonly` key-word argument and `on` 
-has this as the last positional argument. This argument is of type `Vector{String}`.
-
-This determines whether or not
-#### example
-```
-function home(c::Connection)
-
-end
-```
-"""
-function on(f::Function, event::String)
-    cl = ClientModifier(); f(cl)
-    script("doc$event", text = join(cl.changes))
-end
-
-"""
-**Session Interface**
-### on(f::Function, component::Component{<:Any}, event::String)
-------------------
-Binds a client-side event to `component`.
-#### example
-```
-function home(c::Connection)
-
-end
-```
-"""
-function on(f::Function, component::Component{<:Any}, event::String)
-    cl = ClientModifier("$(component.name)$(event)")
-    f(cl)
-    component["on$event"] = "$(cl.name)(event);"
-    push!(component.extras, script(cl.name, text = funccl(cl)))
 end
 
 """
@@ -570,6 +522,112 @@ be registered into a `Connection` at once. Notable example from this module is `
 - bound to `bind!(c::Connection, ip::InputMap)`
 """
 abstract type InputMap end
+function button_select(c::Connection, name::String, buttons::Vector{<:Servable},
+    unselected::Vector{Pair{String, String}} = ["background-color" => "blue",
+     "border-width" => 0px],
+    selected::Vector{Pair{String, String}} = ["background-color" => "green",
+     "border-width" => 2px])
+    selector_window = div(name, value = first(buttons)[:text])
+    document.getElementById("xyz").style = "";
+    [begin
+    style!(butt, unselected)
+    on(c, butt, "click") do cm
+        [style!(cm, but, unselected) for but in buttons]
+        cm[selector_window] = "value" => butt[:text]
+        style!(cm, butt, selected)
+    end
+    end for butt in buttons]
+    selector_window[:children] = Vector{Servable}(buttons)
+    selector_window::Component{:div}
+end
+
+abstract type InputMap end
+
+mutable struct SwipeMap <: InputMap
+    bindings::Dict{String, Function}
+    SwipeMap() = new(Dict{String, Function}())
+end
+
+function bind!(f::Function, c::Connection, sm::SwipeMap, swipe::String)
+    swipes = ["left", "right", "up", "down"]
+    if ~(swipe in swipes)
+        throw(
+        "Swipe is not a proper direction, please use up, down, left, or right!")
+    end
+    sm.bindings[swipe] = f
+end
+
+function bind!(c::Connection, sm::SwipeMap,
+    readonly::Vector{String} = Vector{String}())
+    swipes = keys
+    swipes = ["left", "right", "up", "down"]
+    newswipes = Dict([begin
+        if swipe in keys(sm.bindings)
+            ref = ToolipsSession.gen_ref()
+            if getip(c) in keys(c[:Session].iptable)
+                push!(c[:Session][getip(c)], "$ref" => sm.bindings[swipe])
+            else
+                c[:Session][getip(c)] = Dict("$ref" => sm.bindings[swipe])
+            end
+            if length(readonly) > 0
+                c[:Session].readonly["$ip$ref"] = readonly
+            end
+            swipe => "sendpage('$ref');"
+        else
+            swipe => ""
+        end
+    end for swipe in swipes])
+    sc::Component{:script} = script("swipemap", text = """
+    document.addEventListener('touchstart', handleTouchStart, false);
+document.addEventListener('touchmove', handleTouchMove, false);
+
+var xDown = null;
+var yDown = null;
+
+function getTouches(evt) {
+  return evt.touches ||             // browser API
+         evt.originalEvent.touches; // jQuery
+}
+
+function handleTouchStart(evt) {
+    const firstTouch = getTouches(evt)[0];
+    xDown = firstTouch.clientX;
+    yDown = firstTouch.clientY;
+};
+
+function handleTouchMove(evt) {
+    if ( ! xDown || ! yDown ) {
+        return;
+    }
+
+    var xUp = evt.touches[0].clientX;
+    var yUp = evt.touches[0].clientY;
+
+    var xDiff = xDown - xUp;
+    var yDiff = yDown - yUp;
+
+    if ( Math.abs( xDiff ) > Math.abs( yDiff ) ) {/*most significant*/
+        if ( xDiff > 0 ) {
+            $(newswipes["left"])
+        } else {
+
+            $(newswipes["right"])
+        }
+    } else {
+        if ( yDiff > 0 ) {
+            $(newswipes["up"])
+        } else {
+            $(newswipes["down"])
+        }
+    }
+    /* reset values */
+    xDown = null;
+    yDown = null;
+};
+
+""")
+    write!(c, sc)
+end
 
 """
 ### KeyMap
@@ -1302,7 +1360,7 @@ export KeyMap
 export playanim!, alert!, redirect!, modify!, move!, remove!, set_text!
 export update!, insert_child!, append_first!, animate!, pauseanim!, next!
 export set_children!, get_text, style!, free_redirects!, confirm_redirects!, store!
-export scroll_by!, scroll_to!, focus!, set_selection!
+export scroll_by!, scroll_to!, focus!, set_selection!, blur!
 export rpc!, disconnect_rpc!, find_client, join_rpc!, close_rpc!, open_rpc!
 export join_rpc!, is_client, is_dead, is_host, call!
 end # module
