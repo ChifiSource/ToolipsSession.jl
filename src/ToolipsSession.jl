@@ -57,10 +57,6 @@ gen_ref()
 "jfuR2wgprielweh3"
 ```
 """
-function gen_ref(n::Int64 = 16)
-    Random.seed!( rand(1:100000) )
-    randstring(n)::String
-end
 
 """
 **Session Internals**
