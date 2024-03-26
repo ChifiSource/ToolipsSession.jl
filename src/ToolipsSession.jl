@@ -45,30 +45,7 @@ that might help you out:
 ------------------
 ==#
 
-"""
-**Session**
-### gen_ref() -> ::String
-------------------
-Creates a random string of 16 characters. This is used to map connections
-to specific events by the session.
-#### example
-```
-gen_ref()
-"jfuR2wgprielweh3"
-```
-"""
 
-"""
-**Session Internals**
-### document_linker(c::Connection) -> _
-------------------
-Served to /modifier/linker by the Session extension. This is where incoming
-data is posted to for a response.
-#### example
-```
-
-```
-"""
 function document_linker(c::Connection)
     s::String = getpost(c)
     ip::String = getip(c)
@@ -93,7 +70,7 @@ function document_linker(c::Connection)
         cm = nothing
     end
 end
-
+#== WIP socket server
 abstract type SocketServer <: Toolips.ServerTemplate end
 
 function start!(mod::Module = server_cli(Main.ARGS), from::Type{SocketServer}; ip::IP4 = ip4_cli(Main.ARGS), 
@@ -130,15 +107,65 @@ begin
         "Task ended"
     end
 end
+==#
 
+abstract type AbstractEvent end
 
-
-mutable struct Session <: ServerExtension
-    type::Vector{Symbol}
+mutable struct Event{T <: Any} <: AbstractEvent
+    name::String
     f::Function
+    Event{T}(f::Function, name::String) where {T <: Any}
+end
+
+function getindex(e::Vector{<:AbstractEvent}, i::String)
+    pos = findfirst(event::AbstractEvent -> event.name == i, e)
+    if isnothing(pos)
+        # TODO Error
+    end
+    return(e[pos])::AbstractEvent
+end
+
+
+function route!(c::Connection, e::Session{<:Any})
+    if get_route(c) in e.active_routes
+        if get_method(c) == "POST "
+            @info "post"
+        elseif ~(getip(c) in keys(e.iptable))
+            T = typeof(e).parameters[1]
+            push!(e.events, getip(c) => Vector{T}())
+            iptable[getip(c)] = now()
+        end
+        durstr = string(transition_duration, "s")
+        write!(c, """<script>
+        const parser = new DOMParser();
+        function sendpage(ref) {
+        var bodyHtml = document.getElementsByTagName('body')[0].innerHTML;
+        sendinfo('╃CM' + ref + '╃' + bodyHtml);
+        }
+        function sendinfo(txt) {
+        let xhr = new XMLHttpRequest();
+        xhr.open("POST", "/modifier/linker");
+        xhr.setRequestHeader("Accept", "application/json");
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.onload = () => eval(xhr.responseText);
+        xhr.send(txt);
+        }
+        </script>
+        <style type="text/css">
+        #div {
+        -webkit-transition: $durstr $transition;
+        -moz-transition: $durstr $transition;
+        -o-transition: $durstr $transition;
+        transition: $durstr $transition;
+        }
+        </style>
+        """)
+    end
+end
+
+mutable struct Session{T} <: ServerExtension
     active_routes::Vector{String}
-    events::Dict{String, Dict{String, Function}}
-    readonly::Dict{String, Vector{String}}
+    events::Dict{String, Vector{T}}
     iptable::Dict{String, Dates.DateTime}
     peers::Dict{String, Dict{String, Vector{String}}}
     timeout::Integer
@@ -151,10 +178,6 @@ mutable struct Session <: ServerExtension
         iptable = Dict{String, Dates.DateTime}()
         readonly = copy(events)
         f(c::Connection, active_routes::Vector{String} = active_routes) = begin
-            fullpath = c.http.message.target
-            if contains(fullpath, '?')
-                fullpath = split(c.http.message.target, '?')[1]
-            end
             if fullpath in active_routes
                 if ~(getip(c) in keys(iptable))
                     push!(events, getip(c) => Dict{String, Function}())

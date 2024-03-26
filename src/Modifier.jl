@@ -7,41 +7,22 @@ import Base: setindex!, getindex, push!, append!, insert!
 
 """
 mutable struct ComponentModifier <: AbstractComponentModifier
-    rootc::Vector{Servable}
+    rootc::String
     changes::Vector{String}
     function ComponentModifier(html::String)
-        rootc::Vector{Servable} = htmlcomponent(html)
         changes::Vector{String} = Vector{String}()
-        new(rootc, changes)::ComponentModifier
-    end
-    function ComponentModifier(html::String, readonly::Vector{String})
-        rootc::Vector{Servable} = htmlcomponent(html, readonly)
-        changes::Vector{String} = Vector{String}()
-        new(rootc, changes)::ComponentModifier
+        new(html, changes)::ComponentModifier
     end
 end
 
-getindex(cc::ComponentModifier, s::AbstractComponent) = cc.rootc[s.name]
+getindex(cc::ComponentModifier, s::AbstractComponent) = htmlcomponent(cc.rootc, [s.name])[1]
 
-getindex(cc::ComponentModifier, s::String) = cc.rootc[s]
+getindex(cc::ComponentModifier, s::String) = htmlcomponent(cc.rootc, [s])[1]
 
-"""
-**Session Interface**
-### animate!(cm::AbstractComponentModifier, s::String, a::Animation; play::Bool) -> _
-------------------
-Updates the servable with name s's animation with the animation a.
-#### example
-```
-s = divider("mydiv")
-a = Animation("fade")
-a[:from] = "opacity" => "0%"
-a[:to] = "opacity" => "100%"
-# where c is the Connection.
-on(c, s, "click") do cm::AbstractComponentModifier
-    animate!(cm, s, a)
-end
-     ```
-     """
+getindex(cc::ComponentModifier, s::AbstractComponent ...) = htmlcomponent(cc.rootc, [comp.name for comp in s])[1]
+
+getindex(cc::ComponentModifier, s::String ...) = htmlcomponent(cc.rootc, [s ...])[1]
+
 function animate!(cm::AbstractComponentModifier, s::String, a::Animation;
     play::Bool = true)
     playstate = "running"
