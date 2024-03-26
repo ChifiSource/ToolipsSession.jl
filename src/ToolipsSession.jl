@@ -38,8 +38,6 @@ that might help you out:
 --- rpc
 ------------------
 - Modifier.jl
---- Base Modifier
---- Client Modifiers
 --- ComponentModifiers
 --- Modifier functions
 ------------------
