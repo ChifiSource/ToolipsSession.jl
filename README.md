@@ -47,6 +47,8 @@ end
 ```julia
 include("dev.jl")
 ```
+###### 0.4.0
+**alot** has now changed. Most of `ToolipsSession` is now part of `Toolips` itself. Now `ToolipsSession` uses `htmlcomponent` from `ToolipsServables`, rather than here. Parsing is also done on command, the `Session` extension itself is a lot smaller and requires a lot less data to function. This also follows the new `Toolips` `0.3` syntax, which is pretty sweet!
 ###### 0.3.6
 - expanded on client modifier interface
 - fixed unicode indexing errors
