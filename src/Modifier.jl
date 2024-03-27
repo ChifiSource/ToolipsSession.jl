@@ -23,7 +23,7 @@ getindex(cc::ComponentModifier, s::AbstractComponent ...) = htmlcomponent(cc.roo
 
 getindex(cc::ComponentModifier, s::String ...) = htmlcomponent(cc.rootc, [s ...])[1]
 
-function animate!(cm::AbstractComponentModifier, s::String, a::Animation;
+function style!(cm::AbstractComponentModifier, s::String, a::Animation;
     play::Bool = true)
     playstate = "running"
     if ~(play)

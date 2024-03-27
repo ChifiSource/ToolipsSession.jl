@@ -15,10 +15,10 @@ also methods contained for modifying Servables.
 """
 module ToolipsSession
 using Toolips
-import Toolips: ServerExtension, Servable, AbstractComponent, Modifier
-import Toolips: AbstractRoute, kill!, AbstractConnection, script, write!
+import Toolips: ServerExtension, Servable, AbstractComponent, AbstractComponentModifier, Modifier, style!, next!
+import Toolips: AbstractRoute, kill!, AbstractConnection, script, write!, route!, on_start
 import Base: setindex!, getindex, push!, iterate
-using Random, Dates
+using Dates
 using WebSockets: serve, writeguarded, readguarded, @wslog, open, HTTP, Response, ServerWS
 include("Modifier.jl")
 
@@ -43,7 +43,6 @@ that might help you out:
 ------------------
 ==#
 
-
 function document_linker(c::Connection)
     s::String = getpost(c)
     ip::String = getip(c)
@@ -52,21 +51,12 @@ function document_linker(c::Connection)
     ref_r::UnitRange{Int64} = maximum(reftag) + 1:minimum(reftagend) - 1
     ref::String = s[ref_r]
     s = replace(s, "â•ƒCM" => "", "â•ƒ" => "")
-    if ip in keys(c[:Session].iptable)
-        c[:Session].iptable[ip] = now()
-    end
-    if ip in keys(c[:Session].events)
-        if ip * ref in keys(c[:Session].readonly)
-            cm = ComponentModifier(s, c[:Session].readonly[ip * ref])
-        else
-            cm = ComponentModifier(s)
-        end
-        f::Function = c[:Session][ip][ref]
-        f(cm)
-        write!(c, " ")
-        write!(c, cm)
-        cm = nothing
-    end
+    cm = ComponentModifier(s)
+    c[:Session].events[ip][ref](cm)
+    f(cm)
+    write!(c, " ", cm)
+    cm = nothing
+    nothing::Nothing
 end
 #== WIP socket server
 abstract type SocketServer <: Toolips.ServerTemplate end
@@ -85,7 +75,6 @@ function start!(mod::Module = server_cli(Main.ARGS), from::Type{SocketServer}; i
         return(pm)::ProcessManager
     end
 end
-
 
 begin
     function handler(req)
@@ -107,12 +96,9 @@ begin
 end
 ==#
 
-abstract type AbstractEvent end
-
-mutable struct Event{T <: Any} <: AbstractEvent
-    name::String
+mutable struct Event <: Servable
     f::Function
-    Event{T}(f::Function, name::String) where {T <: Any}
+    name::String
 end
 
 function getindex(e::Vector{<:AbstractEvent}, i::String)
@@ -123,15 +109,27 @@ function getindex(e::Vector{<:AbstractEvent}, i::String)
     return(e[pos])::AbstractEvent
 end
 
+on_start(ext::Session{<:Any}, data::Dict{Symbol, Any}, routes::Vector{<:AbstractRoute}) = begin
+    if ~(:Session in c.data)
+        push!(c.data, :Session => e)
+    end
+end
 
 function route!(c::Connection, e::Session{<:Any})
     if get_route(c) in e.active_routes
+        e.gc += 1
+        if e.gc == 40
+            
+        elseif e.gc == 90
+            GC.gc()
+        end
+        iptable[getip(c)] = now()
         if get_method(c) == "POST "
-            @info "post"
+            document_linker(c)
+            return(false)::Bool
         elseif ~(getip(c) in keys(e.iptable))
             T = typeof(e).parameters[1]
-            push!(e.events, getip(c) => Vector{T}())
-            iptable[getip(c)] = now()
+            push!(e.events, getip(c) => Vector{Event}())
         end
         durstr = string(transition_duration, "s")
         write!(c, """<script>
@@ -161,93 +159,29 @@ function route!(c::Connection, e::Session{<:Any})
     end
 end
 
-mutable struct Session{T} <: ServerExtension
+mutable struct Session <: ServerExtension
     active_routes::Vector{String}
-    events::Dict{String, Vector{T}}
+    events::Dict{String, Vector{Event}}
     iptable::Dict{String, Dates.DateTime}
-    peers::Dict{String, Dict{String, Vector{String}}}
-    timeout::Integer
-    function Session(active_routes::Vector{String} = ["/"];
-        transition_duration::AbstractFloat = 0.5,
-        transition::AbstractString = "ease-in-out", timeout::Integer = 30,
-        path::AbstractRoute = Route("/modifier/linker", x -> 5))
+    peers::Dict{String, Vector{String}}
+    gc::Int64
+    function Session(active_routes::Vector{String} = ["/"])
         events = Dict{String, Dict{String, Function}}()
-        peers::Dict{String, Dict{String, Vector{String}}} = Dict{String, Dict{String, Vector{String}}}()
+        peers::Dict{String, Vector{String}} = Dict{String, Dict{String, Vector{String}}}()
         iptable = Dict{String, Dates.DateTime}()
-        readonly = copy(events)
-        f(c::Connection, active_routes::Vector{String} = active_routes) = begin
-            if fullpath in active_routes
-                if ~(getip(c) in keys(iptable))
-                    push!(events, getip(c) => Dict{String, Function}())
-                    iptable[getip(c)] = now()
-                else
-                    if minute(now()) - minute(iptable[getip(c)]) >= timeout
-                        kill!(c)
-                    end
-                end
-                durstr = string(transition_duration, "s")
-                write!(c, """<script>
-                const parser = new DOMParser();
-                function sendpage(ref) {
-            var bodyHtml = document.getElementsByTagName('body')[0].innerHTML;
-                sendinfo('╃CM' + ref + '╃' + bodyHtml);
-                }
-                function sendinfo(txt) {
-                let xhr = new XMLHttpRequest();
-                xhr.open("POST", "/modifier/linker");
-                xhr.setRequestHeader("Accept", "application/json");
-                xhr.setRequestHeader("Content-Type", "application/json");
-                xhr.onload = () => eval(xhr.responseText);
-                xhr.send(txt);
-                }
-                </script>
-                <style type="text/css">
-                #div {
-                -webkit-transition: $durstr $transition;
-                -moz-transition: $durstr $transition;
-                -o-transition: $durstr $transition;
-                transition: $durstr $transition;
-                }
-                </style>
-                """)
-            end
-        end
-        f(routes::Vector{AbstractRoute}, ext::Vector{ServerExtension}) = begin
-            path.page = document_linker
-            push!(routes, path)
-        end
         new([:connection, :func, :routing], f, active_routes, events,
-        readonly, iptable, peers, timeout)
+        readonly, iptable, peers, 0)
     end
 end
 
-
-"""
-**Session Interface**
-### getindex(m::Session, s::AbstractString) -> ::Dict{String, Function}
-------------------
-Gets a session's refs by ip.
-#### example
-```
-route("/") do c::Connection
-    c[:Session][getip(c)]
+function register!(f::Function, s::Session, name::String)
+    push!(s.events[getip(c)], Event(f, name))
 end
-```
-"""
+
+register!(f::Function, c::AbstractConnection, args ...) = register!(f, c[:Session], args ...)
+
 getindex(m::Session, s::AbstractString) = m.events[s]
 
-"""
-**Session Interface**
-### getindex(m::Session, d::Dict{String, Function}, s::AbstractString) -> _
-------------------
-Creates a new Session.
-#### example
-```
-route("/") do c::Connection
-    c[:Session][getip(c)] = Dict{String, Function}
-end
-```
-"""
 setindex!(m::Session, d::Any, s::AbstractString) = m.events[s] = d
 
 """
