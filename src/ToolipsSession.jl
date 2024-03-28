@@ -593,12 +593,11 @@ Binds a key event to a `Connection`.
 ```
 """
 function bind(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol ...;
-    readonly::Vector{String} = Vector{String}(),
-    on::Symbol = :down, prevent_default::Bool = true, mark::String = "none")
+    on::Symbol = :down, prevent_default::Bool = true)
     cm::Modifier = ClientModifier()
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
-    ref = gen_ref()
+    ref::String = gen_ref(5)
     write!(c, """<script>
     setTimeout(function () {
 document.addEventListener('key$on', function(event) {
@@ -607,22 +606,7 @@ document.addEventListener('key$on', function(event) {
     }
 });}, 1000);</script>
     """)
-    ip::String = get_ip(c)
-    if get_ip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][ip], ref => f)
-    else
-        c[:Session][ip] = Dict(ref => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ref"] = readonly
-    end
-    if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], ref)
-        else
-            push!(c[:Session].readonly, mark => [ref])
-        end
-    end
+    register!(f, c, ref)
 end
 
 """
@@ -637,11 +621,10 @@ Binds a key event to a `Connection` in a `ComponentModifier` callback.
 ```
 """
 function bind(f::Function, c::Connection, cm::AbstractComponentModifier, key::String,
-    eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
-    on::Symbol = :down, mark::String = "none")
+    eventkeys::Symbol ...; on::Symbol = :down, mark::String = "none")
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
-    ref = gen_ref()
+    ref = gen_ref(5)
     push!(cm.changes, """
     setTimeout(function () {
     document.addEventListener('key$on', (event) => {
@@ -649,21 +632,7 @@ function bind(f::Function, c::Connection, cm::AbstractComponentModifier, key::St
             sendpage('$ref');
             }
             });}, 1000);""")
-    if get_ip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][get_ip(c)], ref => f)
-    else
-        c[:Session][get_ip(c)] = Dict(ref => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$ref"] = readonly
-    end
-    if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], ref)
-        else
-            push!(c[:Session].readonly, mark => [ref])
-        end
-    end
+    register!(f, c, ref)
 end
 
 """
@@ -678,8 +647,7 @@ Binds a key event to a `Component` in a `ComponentModifier` callback.
 ```
 """
 function bind(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Component{<:Any},
-    key::String, eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
-    on::Symbol = :down, mark::String = "none")
+    key::String, eventkeys::Symbol ...; on::Symbol = :down)
     name::String = comp.name
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
@@ -689,21 +657,7 @@ document.getElementById('$(name)').onkeydown = function(event){
         sendpage('$(name * key)')
         }
         }}, 1000);""")
-    if get_ip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][get_ip(c)], "$name$key" => f)
-    else
-        c[:Session][get_ip(c)] = Dict("$name$key" => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$name$event"] = readonly
-    end
-    if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], ref)
-        else
-            push!(c[:Session].readonly, mark => [ref])
-        end
-    end
+    register!(f, c, ref)
 end
 
 #==
@@ -712,31 +666,16 @@ script!
 """
 
 """
-function script!(f::Function, c::Connection, name::String,
-    readonly::Vector{String} = Vector{String}(); time::Integer = 500,
-    type::String = "Interval", mark = "none")
-    if get_ip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][get_ip(c)], name => f)
-    else
-        c[:Session][get_ip(c)] = Dict(name => f)
-    end
-    obsscript = script(name, text = """
+function script!(f::Function, c::Connection, name::String; time::Integer = 500,
+    type::String = "Interval")
+    obsscript::Component{:script} = script(name, text = """
     set$(type)(function () { sendpage('$name'); }, $time);
    """)
-   if length(readonly) > 0
-       c[:Session].readonly["$(get_ip(c))$name"] = readonly
-   end
-   if mark != "none"
-    if mark in keys(c[:Session].readonly)
-        push!(c[:Session].readonly[mark], ref)
-    else
-        push!(c[:Session].readonly, mark => [ref])
-    end
-end
+   register!(f, c, name)
    write!(c, obsscript)
 end
 
-function script(f::Function, s::String = gen_ref())
+function script(f::Function, s::String = gen_ref(5))
     cl = ClientModifier(s)
     f(cl)
     script(cl.name, text = funccl(cl))
