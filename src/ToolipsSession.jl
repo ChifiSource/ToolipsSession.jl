@@ -15,11 +15,11 @@ also methods contained for modifying Servables.
 """
 module ToolipsSession
 using Toolips
-import Toolips: ServerExtension, Servable, AbstractComponent, AbstractComponentModifier, Modifier, style!, next!
+import Toolips: Servable, AbstractComponent, AbstractComponentModifier, style!, next!
 import Toolips: AbstractRoute, kill!, AbstractConnection, script, write!, route!, on_start
 import Base: setindex!, getindex, push!, iterate
 using Dates
-using WebSockets: serve, writeguarded, readguarded, @wslog, open, HTTP, Response, ServerWS
+# using WebSockets: serve, writeguarded, readguarded, @wslog, open, HTTP, Response, ServerWS
 include("Modifier.jl")
 
 #==
@@ -96,26 +96,35 @@ begin
 end
 ==#
 
-mutable struct Event <: Servable
+abstract type AbstractEvent <: Servable end
+
+mutable struct Event <: AbstractEvent
     f::Function
     name::String
 end
 
-function getindex(e::Vector{<:AbstractEvent}, i::String)
-    pos = findfirst(event::AbstractEvent -> event.name == i, e)
-    if isnothing(pos)
-        # TODO Error
+mutable struct Session <: Toolips.AbstractExtension
+    active_routes::Vector{String}
+    events::Dict{String, Vector{Event}}
+    iptable::Dict{String, Dates.DateTime}
+    peers::Dict{String, Vector{String}}
+    gc::Int64
+    function Session(active_routes::Vector{String} = ["/"])
+        events = Dict{String, Dict{String, Function}}()
+        peers::Dict{String, Vector{String}} = Dict{String, Dict{String, Vector{String}}}()
+        iptable = Dict{String, Dates.DateTime}()
+        new([:connection, :func, :routing], f, active_routes, events,
+        readonly, iptable, peers, 0)
     end
-    return(e[pos])::AbstractEvent
 end
 
-on_start(ext::Session{<:Any}, data::Dict{Symbol, Any}, routes::Vector{<:AbstractRoute}) = begin
+on_start(ext::Session, data::Dict{Symbol, Any}, routes::Vector{<:AbstractRoute}) = begin
     if ~(:Session in c.data)
         push!(c.data, :Session => e)
     end
 end
 
-function route!(c::Connection, e::Session{<:Any})
+function route!(c::Connection, e::Session)
     if get_route(c) in e.active_routes
         e.gc += 1
         if e.gc == 40
@@ -156,21 +165,6 @@ function route!(c::Connection, e::Session{<:Any})
         }
         </style>
         """)
-    end
-end
-
-mutable struct Session <: ServerExtension
-    active_routes::Vector{String}
-    events::Dict{String, Vector{Event}}
-    iptable::Dict{String, Dates.DateTime}
-    peers::Dict{String, Vector{String}}
-    gc::Int64
-    function Session(active_routes::Vector{String} = ["/"])
-        events = Dict{String, Dict{String, Function}}()
-        peers::Dict{String, Vector{String}} = Dict{String, Dict{String, Vector{String}}}()
-        iptable = Dict{String, Dates.DateTime}()
-        new([:connection, :func, :routing], f, active_routes, events,
-        readonly, iptable, peers, 0)
     end
 end
 

@@ -1,5 +1,5 @@
 using Toolips
-import Toolips: StyleComponent, get, kill!, animate!, SpoofConnection
+import Toolips: get, kill!, Component, next!
 import Toolips: style!, Servable, Connection, Modifier, string
 import Base: setindex!, getindex, push!, append!, insert!
 
@@ -23,7 +23,7 @@ getindex(cc::ComponentModifier, s::AbstractComponent ...) = htmlcomponent(cc.roo
 
 getindex(cc::ComponentModifier, s::String ...) = htmlcomponent(cc.rootc, [s ...])[1]
 
-function style!(cm::AbstractComponentModifier, s::String, a::Animation;
+function style!(cm::AbstractComponentModifier, s::String, a::Toolips.ToolipsServables.KeyFrames;
     play::Bool = true)
     playstate = "running"
     if ~(play)
@@ -193,7 +193,7 @@ dispatch for this will simply set the next animation on completion of the previo
 
 ```
 """
-function next!(cm::ComponentModifier, name::String, a::Animation;
+function next!(cm::ComponentModifier, name::String, a::Toolips.ToolipsServables.KeyFrames;
     write::Bool = false)
     anendscr = script("$(a.name)endscr") do cm::ClientModifier
         animate!(cm, name, a, write = write)
@@ -226,7 +226,7 @@ dispatch for this will simply set the next animation on completion of the previo
 
 ```
 """
-function next!(cm::ComponentModifier, s::AbstractComponent, a::Animation;
+function next!(cm::ComponentModifier, s::AbstractComponent, a::Toolips.ToolipsServables.KeyFrames;
     write::Bool = false)
     next!(cm, s.name, a, write = write)
 end
