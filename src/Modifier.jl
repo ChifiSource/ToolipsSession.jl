@@ -1,8 +1,3 @@
-using Toolips
-import Toolips: get, kill!, Component, next!
-import Toolips: style!, Servable, Connection, Modifier, string
-import Base: setindex!, getindex, push!, append!, insert!
-
 """
 
 """
@@ -14,6 +9,8 @@ mutable struct ComponentModifier <: AbstractComponentModifier
         new(html, changes)::ComponentModifier
     end
 end
+
+string(cm::ComponentModifier) = join(cm.changes)::String
 
 getindex(cc::ComponentModifier, s::AbstractComponent) = htmlcomponent(cc.rootc, [s.name])[1]
 
@@ -243,6 +240,6 @@ Sets the selection to `r`.
 
 ```
 """
-function set_selection!(cm::ComponentModifier, comp::Component{<:Any}, r::UnitRange{Int64})
+function set_selection!(cm::ComponentModifier, comp::AbstractComponent, r::UnitRange{Int64})
     push!(cm.changes, "document.getElementById('$name').setSelectionRange($(r[1]), $(maximum(r)))")
 end
