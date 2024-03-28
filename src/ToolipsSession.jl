@@ -10,8 +10,6 @@ This software is MIT-licensed.
 This module provides the capability to make web-pages interactive by simply
 adding the Session extension to your ServerTemplate before starting. There are
 also methods contained for modifying Servables.
-##### Module Composition
-- [**ToolipsSession**](https://github.com/ChifiSource/ToolipsSession.jl)
 """
 module ToolipsSession
 using Toolips
@@ -30,10 +28,9 @@ that might help you out:
 --- linker
 --- Session extension
 --- kill!
---- clear!
---- on
 --- KeyMap
---- bind!
+--- on
+--- bind
 --- script interface
 --- rpc
 ------------------
@@ -52,11 +49,12 @@ function document_linker(c::Connection)
     ref::String = s[ref_r]
     s = replace(s, "â•ƒCM" => "", "â•ƒ" => "")
     cm = ComponentModifier(s)
-    c[:Session].events[ip][ref].f(cm)
+    call!(c[:Session].events[ip][ref], cm)
     write!(c, " ", cm)
     cm = nothing
     nothing::Nothing
 end
+
 #== WIP socket server
 abstract type SocketServer <: Toolips.ServerTemplate end
 
@@ -100,6 +98,11 @@ abstract type AbstractEvent <: Servable end
 mutable struct Event <: AbstractEvent
     f::Function
     name::String
+end
+
+function call!(event::AbstractEvent, cm::ComponentModifier)
+    event.f(cm)
+    nothing::Nothing
 end
 
 mutable struct Session <: Toolips.AbstractExtension
@@ -199,35 +202,9 @@ function clear!(c::AbstractConnection)
     c[:Session].events[get_ip(c)] = Vector{AbstractEvent}()
 end
 
-"""
-
-"""
-function on(f::Function, c::Connection, event::AbstractString)
-    ref::String = Toolips.gen_ref(5)
-    ip::String = get_ip(c)
-    write!(c,
-        "<script>document.addEventListener('$event', sendpage('$ref'));</script>")
-    register!(f, c, ref)
-end
-
-"""
-
-```
-"""
-function on(f::Function, c::Connection, s::AbstractComponent, event::AbstractString)
-    ref::String = gen_ref(5)
-    ip::String = string(get_ip(c))
-    s["on$event"] = "sendpage('$ref');"
-    register!(f, c, ref)
-end
-
-"""
-
-```
-"""
 function on(f::Function, cm::ComponentModifier, comp::Component{<:Any}, event::String)
     name = comp.name
-    cl = ClientModifier(); f(cl)
+    cl = Toolips.ClientModifier(); f(cl)
     push!(cm.changes, """setTimeout(function (event) {
         document.getElementById('$name').addEventListener('$event',
         function (e) {
@@ -239,64 +216,40 @@ end
 """
 
 """
-function on(f::Function, c::Connection, cm::AbstractComponentModifier, event::AbstractString,
-    readonly::Vector{String} = Vector{String}(); mark::String = "none")
+function on(f::Function, c::Connection, event::AbstractString)
+    ref::String = Toolips.gen_ref(5)
     ip::String = get_ip(c)
-    push!(cm.changes, """setTimeout(function () {
-    document.addEventListener('$event', function () {sendpage('$event');});}, 1000);""")
-    if get_ip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][get_ip(c)], "$event" => f)
-    else
-        c[:Session][get_ip(c)] = Dict("$event" => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$event"] = readonly
-    end
-    if mark != "none"
-        if get_ip(c) * mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[get_ip(c) * mark], event)
-        else
-            push!(c[:Session].readonly, get_ip(c) * mark => [event])
-        end
-    end
+    write!(c,
+        "<script>document.addEventListener('$event', sendpage('$ref'));</script>")
+    register!(f, c, ref)
 end
 
-"""
+function on(f::Function, c::Connection, s::AbstractComponent, event::AbstractString)
+    ref::String = gen_ref(5)
+    ip::String = string(get_ip(c))
+    s["on$event"] = "sendpage('$ref');"
+    register!(f, c, ref)
+end
 
-"""
+function on(f::Function, c::Connection, cm::AbstractComponentModifier, event::AbstractString)
+    ip::String = get_ip(c)
+    ref::String = gen_ref(5)
+    push!(cm.changes, """setTimeout(function () {
+    document.addEventListener('$event', function () {sendpage('$ref');});}, 1000);""")
+    register!(f, c, ref)
+end
+
 function on(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Component{<:Any},
-     event::AbstractString, readonly::Vector{String} = Vector{String}();
-     mark::String = "none")
+     event::AbstractString)
      name::String = comp.name
-     ip::String = get_ip(c)
+     ref::String = gen_ref(5)
      push!(cm.changes, """setTimeout(function () {
      document.getElementById('$name').addEventListener('$event',
-     function () {sendpage('$name$event');});
+     function () {sendpage('$ref');});
      }, 1000);""")
-     if get_ip(c) in keys(c[:Session].iptable)
-         push!(c[:Session][get_ip(c)], "$name$event" => f)
-     else
-         c[:Session][get_ip(c)] = Dict("$name$event" => f)
-     end
-     if length(readonly) > 0
-         c[:Session].readonly["$ip$name$event"] = readonly
-     end
-     if mark != "none"
-        if get_ip(c) * mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[get_ip(c) * mark], "$name$event")
-        else
-            push!(c[:Session].readonly, get_ip(c) * mark => ["$name$event"])
-        end
-    end
+     register!(f, c, ref)
 end
 
-#==
-bind!
-==#
-"""
-
-"""
-abstract type InputMap end
 function button_select(c::Connection, name::String, buttons::Vector{<:Servable},
     unselected::Vector{Pair{String, String}} = ["background-color" => "blue",
      "border-width" => 0px],
@@ -338,15 +291,8 @@ function bind(c::Connection, sm::SwipeMap,
     swipes = ["left", "right", "up", "down"]
     newswipes = Dict([begin
         if swipe in keys(sm.bindings)
-            ref = ToolipsSession.gen_ref()
-            if get_ip(c) in keys(c[:Session].iptable)
-                push!(c[:Session][get_ip(c)], "$ref" => sm.bindings[swipe])
-            else
-                c[:Session][get_ip(c)] = Dict("$ref" => sm.bindings[swipe])
-            end
-            if length(readonly) > 0
-                c[:Session].readonly["$ip$ref"] = readonly
-            end
+            ref::String = ToolipsSession.gen_ref(5)
+            register!(sm.bindings[swipe], c, ref)
             swipe => "sendpage('$ref');"
         else
             swipe => ""
@@ -499,11 +445,9 @@ r = route("/") do c::Connection
 end
 ```
 """
-function bind(c::Connection, km::KeyMap,
-    readonly::Vector{String} = Vector{String}(); on::Symbol = :down, prevent_default::Bool = true, mark::String = "none")
+function bind(c::Connection, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
     firsbind = first(km.keys)
-    ip::String = get_ip(c)
-    first_line = """setTimeout(function () {
+    first_line::String = """setTimeout(function () {
     document.addEventListener('key$on', function(event) { if (1 == 2) {}"""
     for binding in km.keys
         default::String = ""
@@ -515,28 +459,14 @@ function bind(c::Connection, km::KeyMap,
             default = "event.preventDefault();"
         end
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
-        ref = gen_ref()
+        ref::String = gen_ref(5)
         first_line = first_line * """ elseif ($eventstr event.key == "$(binding[1])") {$default
                 sendpage('$ref');
         }"""
-        if ip in keys(c[:Session].iptable)
-            push!(c[:Session][ip], ref => binding[2][2])
-        else
-            c[:Session][ip] = Dict(ref => binding[2][2])
-        end
-        if length(readonly) > 0
-            c[:Session].readonly[get_ip(c) * ref] = readonly
-        end
-        if mark != "none"
-            if get_ip(c) * mark in keys(c[:Session].readonly)
-                push!(c[:Session].readonly[get_ip(c) * mark], ref)
-            else
-                push!(c[:Session].readonly, get_ip(c) * mark => [ref])
-            end
-        end
+        register!(binding[2][2], c, ref)
     end
     first_line = first_line * "});}, 1000);"
-    scr = script(gen_ref(), text = first_line)
+    scr::Component{:script} = script(gen_ref(), text = first_line)
     write!(c, scr)
 end
 
@@ -559,11 +489,9 @@ r = route("/") do c::Connection
 end
 ```
 """
-function bind(c::Connection, cm::ComponentModifier, km::KeyMap,
-    readonly::Vector{String} = Vector{String}(); on::Symbol = :down, prevent_default::Bool = true, mark::String = "none")
+function bind(c::Connection, cm::ComponentModifier, km::KeyMap, on::Symbol = :down, prevent_default::Bool = true)
     firsbind = first(km.keys)
-    ip::String = get_ip(c)
-    first_line = """setTimeout(function () {
+    first_line::String = """setTimeout(function () {
     document.addEventListener('key$on', function(event) { if (1 == 2) {}"""
     for binding in km.keys
         default::String = ""
@@ -577,25 +505,11 @@ function bind(c::Connection, cm::ComponentModifier, km::KeyMap,
             end
         end
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
-        ref = gen_ref()
+        ref::String = gen_ref(5)
         first_line = first_line * """else if ($eventstr event.key == "$(binding[1])") {$default
                 sendpage('$ref');
         }"""
-        if ip in keys(c[:Session].iptable)
-            push!(c[:Session][ip], ref => binding[2][2])
-        else
-            c[:Session][ip] = Dict(ref => binding[2][2])
-        end
-        if length(readonly) > 0
-            c[:Session].readonly[get_ip(c) * ref] = readonly
-        end
-        if mark != "none"
-            if get_ip(c) * mark in keys(c[:Session].readonly)
-                push!(c[:Session].readonly[get_ip(c) * mark], ref)
-            else
-                push!(c[:Session].readonly, get_ip(c) * mark => [ref])
-            end
-        end
+        register!(binding[2][2], c, ref)
     end
     first_line = first_line * "});}, 1000);"
     push!(cm.changes, first_line)
@@ -612,11 +526,9 @@ Binds the `KeyMap` `km` to the `comp`.
 ```
 """
 function bind(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
-    km::KeyMap, readonly::Vector{String} = Vector{String}(); on::Symbol = :down,
-    prevent_default::Bool = true, mark::String = "none")
+    km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
     firsbind = first(km.keys)
-    ip = get_ip(c)
-    first_line = """
+    first_line::String = """
     setTimeout(function () {
     document.getElementById('$(comp.name)').addEventListener('key$on', function (event) { if (1 == 2) {}"""
     n = 1
@@ -629,26 +541,12 @@ function bind(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
         if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
             default = "event.preventDefault();"
         end
-        ref = gen_ref()
+        ref::String = gen_ref(5)
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
                 sendpage('$(comp.name * key * ref)');
                 }"""
-        if ip in keys(c[:Session].iptable)
-            push!(c[:Session][ip], comp.name * key * ref => binding[2][2])
-        else
-            c[:Session][ip] = Dict(comp.name * key * ref => binding[2][2])
-        end
-        if length(readonly) > 0
-            c[:Session].readonly["$(get_ip(c))$(comp.name)$key$ref"] = readonly
-        end
-        if mark != "none"
-            if get_ip(c) * mark in keys(c[:Session].readonly)
-                push!(c[:Session].readonly[get_ip(c) * mark], "$(comp.name * key * ref)")
-            else
-                push!(c[:Session].readonly, get_ip(c) * mark => ["$(comp.name * key * ref)"])
-            end
-        end
+        register!(binding[2][2], c, ref)
     end
     first_line = first_line * "}.bind(event));}, 500);"
     push!(cm.changes, first_line)
@@ -667,35 +565,20 @@ Binds a key event to a `Component`.
 ```
 """
 function bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
-    key::String, eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
-    on::Symbol = :down, mark::String = "none")
+    key::String, eventkeys::Symbol ...; on::Symbol = :down)
     cm::Modifier = ClientModifier()
-    eventstr::String = join([begin " event.$(event)Key && "
-                            end for event in eventkeys])
+    eventstr::String = join((begin " event.$(event)Key && "
+                            end for event in eventkeys))
+    ref::String = gen_ref(5)
     write!(c, """<script>
     setTimeout(function () {
     document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
         if ($eventstr event.key == "$(key)") {
-        sendpage('$(comp.name * key)');
+        sendpage('$ref');
         }
 });}, 1000)</script>
     """)
-    ip::String = get_ip(c)
-    if ip in keys(c[:Session].iptable)
-        push!(c[:Session][ip], comp.name * key => f)
-    else
-        c[:Session][ip] = Dict(comp.name * key => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$key"] = readonly
-    end
-    if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], comp.name * key)
-        else
-            push!(c[:Session].readonly, mark => [comp.name * key])
-        end
-    end
+    register!(f, c, ref)
 end
 
 """
