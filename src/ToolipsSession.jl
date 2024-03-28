@@ -218,84 +218,17 @@ route("/") do c::Connection
 end
 ```
 """
-function kill!(c::Connection)
+function kill!(c::AbstractConnection)
     delete!(c[:Session].iptable, getip(c))
     delete!(c[:Session].events, getip(c))
 end
 
-"""
-**Session Interface**
-### clear!(c::Connection, key::String)
-------------------
-Clears events marked with the key `key`. Mark these using `on` and `bind!`.
-#### example
-```
-function home(c::Connection)
-    overdiv = div("overdiv")
-    cleabutton = button("clear", text = "clear events")
-    butalert = button("alertbttn", text = "alert")
-    on(c, cleabutton, "click") do cm::ComponentModifier
-        ToolipsSession.clear!(c, "buttalert")
-    end
-    on(c, butalert, "click", mark = "buttalert") do cm::ComponentModifier
-        alert!(cm, "hi!")
-    end
-    push!(overdiv, cleabutton, butalert)
-    write!(c, overdiv)
-end
-```
-"""
-function clear!(c::Connection, key::String)
-    readonly = c[:Session].readonly
-    if getip(c) * key in keys(readonly)
-        [kill!(c, k) for k in readonly[getip(c) * key]]
-        delete!(readonly, getip(c) * key)
-    end
+function clear!(c::AbstractConnection)
+    c[:Session].events[getip(c)] = Vector{AbstractEvent}()
 end
 
 """
-**Session Interface**
-### on(f::Function, cm::ComponentModifier, comp::Component{<:Any}, event::String)
-------------------
-Binds a client-side event to `component` **inside of a callback**.
-#### example
-```
-function home(c::Connection)
 
-end
-```
-"""
-function on(f::Function, cm::ComponentModifier, comp::Component{<:Any}, event::String)
-    name = comp.name
-    cl = ClientModifier(); f(cl)
-    push!(cm.changes, """setTimeout(function (event) {
-        document.getElementById('$name').addEventListener('$event',
-        function (e) {
-            $(join(cl.changes))
-        });
-        }, 1000);""")
-end
-
-
-"""
-**Session Interface**
-### on(f::Function, c::Connection, event::AbstractString, readonly::Vector{String} = Vector{String}())
-------------------
-Creates a new event for the current IP in a session. Performs the function on
-    the event. The function should take a ComponentModifier as an argument.
-    readonly will provide certain names to be read into the ComponentModifier.
-    This can help to improve Session's performance, as it will need to parse
-    less Components.
-#### example
-```
-route("/") do c::Connection
-    myp = p("hello", text = "wow")
-    on(c, "load") do cm::ComponentModifier
-        set_text!(cm, myp, "not so wow")
-    end
-    write!(c, myp)
-end
-```
 """
 function on(f::Function, c::Connection, event::AbstractString,
     readonly::Vector{String} = Vector{String}(); mark::String = "none")
@@ -359,6 +292,29 @@ function on(f::Function, c::Connection, s::AbstractComponent,
             push!(c[:Session].readonly, getip(c) * mark => ["$event$name"])
         end
     end
+end
+
+"""
+**Session Interface**
+### on(f::Function, cm::ComponentModifier, comp::Component{<:Any}, event::String)
+------------------
+Binds a client-side event to `component` **inside of a callback**.
+#### example
+```
+function home(c::Connection)
+
+end
+```
+"""
+function on(f::Function, cm::ComponentModifier, comp::Component{<:Any}, event::String)
+    name = comp.name
+    cl = ClientModifier(); f(cl)
+    push!(cm.changes, """setTimeout(function (event) {
+        document.getElementById('$name').addEventListener('$event',
+        function (e) {
+            $(join(cl.changes))
+        });
+        }, 1000);""")
 end
 
 """
@@ -493,7 +449,7 @@ mutable struct SwipeMap <: InputMap
     SwipeMap() = new(Dict{String, Function}())
 end
 
-function bind!(f::Function, c::Connection, sm::SwipeMap, swipe::String)
+function bind(f::Function, c::Connection, sm::SwipeMap, swipe::String)
     swipes = ["left", "right", "up", "down"]
     if ~(swipe in swipes)
         throw(
@@ -502,7 +458,7 @@ function bind!(f::Function, c::Connection, sm::SwipeMap, swipe::String)
     sm.bindings[swipe] = f
 end
 
-function bind!(c::Connection, sm::SwipeMap,
+function bind(c::Connection, sm::SwipeMap,
     readonly::Vector{String} = Vector{String}())
     swipes = keys
     swipes = ["left", "right", "up", "down"]
@@ -621,7 +577,7 @@ r = route("/") do c::Connection
 end
 ```
 """
-function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)
+function bind(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)
     if prevent_default == true
         push!(km.prevents, key * join([string(ev) for ev in event]))
     end
@@ -633,7 +589,7 @@ function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_
     km.keys[key] = event => f
 end
 
-function bind!(f::Function, km::KeyMap, vs::Vector{String}; prevent_default::Bool = true)
+function bind(f::Function, km::KeyMap, vs::Vector{String}; prevent_default::Bool = true)
     if length(vs) > 1
         event = Tuple(vs[2:length(vs)])
     else
@@ -669,7 +625,7 @@ r = route("/") do c::Connection
 end
 ```
 """
-function bind!(c::Connection, km::KeyMap,
+function bind(c::Connection, km::KeyMap,
     readonly::Vector{String} = Vector{String}(); on::Symbol = :down, prevent_default::Bool = true, mark::String = "none")
     firsbind = first(km.keys)
     ip::String = getip(c)
@@ -729,7 +685,7 @@ r = route("/") do c::Connection
 end
 ```
 """
-function bind!(c::Connection, cm::ComponentModifier, km::KeyMap,
+function bind(c::Connection, cm::ComponentModifier, km::KeyMap,
     readonly::Vector{String} = Vector{String}(); on::Symbol = :down, prevent_default::Bool = true, mark::String = "none")
     firsbind = first(km.keys)
     ip::String = getip(c)
@@ -781,7 +737,7 @@ Binds the `KeyMap` `km` to the `comp`.
 
 ```
 """
-function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
+function bind(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
     km::KeyMap, readonly::Vector{String} = Vector{String}(); on::Symbol = :down,
     prevent_default::Bool = true, mark::String = "none")
     firsbind = first(km.keys)
@@ -836,7 +792,7 @@ Binds a key event to a `Component`.
 
 ```
 """
-function bind!(f::Function, c::AbstractConnection, comp::Component{<:Any},
+function bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
     key::String, eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
     on::Symbol = :down, mark::String = "none")
     cm::Modifier = ClientModifier()
@@ -879,7 +835,7 @@ Binds a key event to a `Connection`.
 
 ```
 """
-function bind!(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol ...;
+function bind(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol ...;
     readonly::Vector{String} = Vector{String}(),
     on::Symbol = :down, prevent_default::Bool = true, mark::String = "none")
     cm::Modifier = ClientModifier()
@@ -923,7 +879,7 @@ Binds a key event to a `Connection` in a `ComponentModifier` callback.
 
 ```
 """
-function bind!(f::Function, c::Connection, cm::AbstractComponentModifier, key::String,
+function bind(f::Function, c::Connection, cm::AbstractComponentModifier, key::String,
     eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
     on::Symbol = :down, mark::String = "none")
     eventstr::String = join([begin " event.$(event)Key && "
@@ -964,7 +920,7 @@ Binds a key event to a `Component` in a `ComponentModifier` callback.
 
 ```
 """
-function bind!(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Component{<:Any},
+function bind(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Component{<:Any},
     key::String, eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
     on::Symbol = :down, mark::String = "none")
     name::String = comp.name
@@ -997,14 +953,7 @@ end
 script!
 ==#
 """
-**Session Interface** 0.3
-### script!(::Function, ::Connection, ::String, readonly::Vector{String} = Vector{String}; time::Integer = 500)  -> _
-------------------
-Creates an "observer" which calls back to this function at each interval of `time`.
-#### example
-```
 
-```
 """
 function script!(f::Function, c::Connection, name::String,
     readonly::Vector{String} = Vector{String}(); time::Integer = 500,
