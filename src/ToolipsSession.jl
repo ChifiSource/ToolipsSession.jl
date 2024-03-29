@@ -105,14 +105,19 @@ function call!(event::AbstractEvent, cm::ComponentModifier)
     nothing::Nothing
 end
 
+mutable struct RPCEvent <: AbstractEvent 
+    host::String
+    clients::Vector{String}
+end
+
 mutable struct Session <: Toolips.AbstractExtension
     active_routes::Vector{String}
-    events::Dict{String, Vector{Event}}
+    events::Dict{String, Vector{AbstractEvent}}
     iptable::Dict{String, Dates.DateTime}
     peers::Dict{String, Vector{String}}
     gc::Int64
     function Session(active_routes::Vector{String} = ["/"])
-        events = Dict{String, Dict{String, Function}}()
+        events = Dict{String, Vector{AbstractEvent}}()
         peers::Dict{String, Vector{String}} = Dict{String, Dict{String, Vector{String}}}()
         iptable = Dict{String, Dates.DateTime}()
         new(active_routes, events, iptable, peers, 0)
