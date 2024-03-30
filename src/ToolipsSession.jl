@@ -95,7 +95,7 @@ end
 
 abstract type AbstractEvent <: Servable end
 
-mutable struct Event <: AbstractEvent
+struct Event <: AbstractEvent
     f::Function
     name::String
 end
@@ -105,9 +105,25 @@ function call!(event::AbstractEvent, cm::ComponentModifier)
     nothing::Nothing
 end
 
-mutable struct RPCEvent <: AbstractEvent 
+abstract type AbstractRPCEvent <: AbstractEvent end
+
+mutable struct RPCClient <: AbstractRPCEvent
+    name::String
     host::String
+    changes::Vector{String}
+    RPCClient(c::Connection, host::String, ref) = new(ref, host, Vector{String}())
+end
+
+mutable struct RPCHost <: AbstractRPCEvent
+    name::String
     clients::Vector{String}
+    changes::Vector{String}
+    RPCHost(ref::String) = new(ref, Vector{String}(), Vector{String}())
+end
+
+function call!(event::AbstractRPCEvent, cm::ComponentModifier)
+    write!(cm.changes, event.changes)
+    nothing::Nothing
 end
 
 mutable struct Session <: Toolips.AbstractExtension
@@ -117,7 +133,7 @@ mutable struct Session <: Toolips.AbstractExtension
     peers::Dict{String, Vector{String}}
     gc::Int64
     function Session(active_routes::Vector{String} = ["/"])
-        events = Dict{String, Vector{AbstractEvent}}()
+        events = Dict{String, Vector{AbstractEvent}}() 
         peers::Dict{String, Vector{String}} = Dict{String, Dict{String, Vector{String}}}()
         iptable = Dict{String, Dates.DateTime}()
         new(active_routes, events, iptable, peers, 0)
@@ -683,10 +699,10 @@ end
 function script(f::Function, s::String = gen_ref(5))
     cl = ClientModifier(s)
     f(cl)
-    script(cl.name, text = funccl(cl))
+    script(cl.name, text = funccl(cl))::Component{:script}
 end
 
-script(cl::ClientModifier) = begin
+script(cl::AbstractComponentModifier) = begin
     script(cl.name, text = join(cl.changes))
 end
 
@@ -695,90 +711,37 @@ rpc
 ==#
 
 """
-**Session Interface**
-### open_rpc!(c::Connection, name::String = get_ip(c); tickrate::Int64 = 500)
-------------------
-Creates a new rpc session inside of ToolipsSession. Other clients can then join and
-have the same `ComponentModifier` functions run.
-#### example
-```
 
-```
 """
-function open_rpc!(c::Connection, name::String = get_ip(c); tickrate::Int64 = 500)
-    push!(c[:Session].peers,
-     name => Dict{String, Vector{String}}(get_ip(c) => Vector{String}()))
-    script!(c, get_ip(c) * "rpc", ["none"], time = tickrate) do cm::ComponentModifier
-        push!(cm.changes, join(c[:Session].peers[name][get_ip(c)]))
-        c[:Session].peers[name][get_ip(c)] = Vector{String}()
-    end
+function open_rpc!(c::Connection; tickrate::Int64 = 500)
+    ref::String = gen_ref(5)
+    event::RPCHost = RPCHost(ref)
+    write!(c, 
+    script(name, text = """setInterval(function () { sendpage('$ref'); }, $time);"""))
+    push!(c[:Session].events[getip(c)], event)
+    nothing::Nothing
 end
 
 """
-**Session Interface**
-### open_rpc!(c::Connection, name::String = get_ip(c); tickrate::Int64 = 500)
-------------------
-Creates a new rpc session inside of ToolipsSession. Other clients can then join and
-have the same `ComponentModifier` functions run.
-#### example
-```
 
-```
 """
-function open_rpc!(c::Connection, cm::ComponentModifier, 
-    name::String = gen_ref(); tickrate::Int64 = 500)
-    push!(c[:Session].peers,
-     name => Dict{String, Vector{String}}(get_ip(c) => Vector{String}()))
-    script!(c, cm, name, time = tickrate, ["none"]) do cm::ComponentModifier
-        push!(cm.changes, join(c[:Session].peers[name][get_ip(c)]))
-        c[:Session].peers[name][get_ip(c)] = Vector{String}()
-    end
+function open_rpc!(c::Connection, cm::ComponentModifier; tickrate::Int64 = 500)
+    ref::String = gen_ref(5)
+    event::RPCHost = RPCHost(ref)
+    push!(cm.changes, "setInterval(function () { sendpage('$name'); }, $time);")
+    push!(c[:Session].events[getip(c)], event)
+    nothing::Nothing
 end
 
 """
-**Session Interface**
-### open_rpc!(f::Function, c::Connection, name::String; tickrate::Int64 = 500)
-------------------
-Does the same thing as `open_rpc!(::Connection, ::String; tickrate::Int64)`,
-but also runs `f` on each tick.
-#### example
-```
 
-```
-"""
-function open_rpc!(f::Function, c::Connection, name::String; tickrate::Int64 = 500)
-    push!(c[:Session].peers,
-     name => Dict{String, Vector{String}}(get_ip(c) => Vector{String}()))
-    script!(c, name, ["none"], time = tickrate) do cm::ComponentModifier
-        f(cm)
-        push!(cm.changes, join(c[:Session].peers[name][get_ip(c)]))
-        c[:Session].peers[name][get_ip(c)] = Vector{String}()
-    end
-end
-
-"""
-**Session Interface**
-### close_rpc!(c::Connection)
-------------------
-Removes the current RPC session from `c`.
-#### example
-```
-
-```
 """
 function close_rpc!(c::Connection)
-    delete!(c[:Session].peers, get_ip(c))
+    
 end
 
 """
-**Session Interface**
-### join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
-------------------
-Joins an rpc session by name.
-#### example
-```
 
-```
 """
 function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], get_ip(c) => Vector{String}())
@@ -789,14 +752,7 @@ function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
 end
 
 """
-**Session Interface**
-### join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
-------------------
-Joins an rpc session by name.
-#### example
-```
 
-```
 """
 function join_rpc!(c::Connection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], get_ip(c) => Vector{String}())
@@ -807,14 +763,7 @@ function join_rpc!(c::Connection, cm::ComponentModifier, host::String; tickrate:
 end
 
 """
-**Session Interface**
-### join_rpc!(f::Function, c::Connection, host::String; tickrate::Int64 = 500)
-------------------
-Joins an rpc session by name, runs `f` on each tick.
-#### example
-```
 
-```
 """
 function join_rpc!(f::Function, c::Connection, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], get_ip(c) => Vector{String}())
@@ -828,14 +777,7 @@ function join_rpc!(f::Function, c::Connection, host::String; tickrate::Int64 = 5
 end
 
 """
-**Session Interface**
-### find_client(c::Connection)
-------------------
-Finds the RPC session name of this client.
-#### example
-```
 
-```
 """
 function find_client(c::Connection)
     clientlocation = findfirst(x -> get_ip(c) in keys(x), c[:Session].peers)
@@ -843,16 +785,7 @@ function find_client(c::Connection)
 end
 
 """
-**Session Interface**
-### rpc!(c::Connection, cm::ComponentModifier)
-------------------
-Does an rpc for all other connection clients, also clears `ComponentModifier` changes.
- You can use this interchangeably with local function calls by calling `rpc!` first
-then calling your regular `ComponentModifier` functions.
-#### example
-```
 
-```
 """
 function rpc!(c::Connection, cm::ComponentModifier)
     mods::String = find_client(c)
@@ -861,16 +794,7 @@ function rpc!(c::Connection, cm::ComponentModifier)
 end
 
 """
-**Session Interface**
-### rpc!(f::Function, c::Connection)
-------------------
-Does RPC with a new `ComponentModifier` and will rpc everything inside of `f`.
-#### example
-```
-rpc!(c) do cm::ComponentModifier
 
-end
-```
 """
 function rpc!(f::Function, c::Connection)
     cm = ComponentModifier("")
