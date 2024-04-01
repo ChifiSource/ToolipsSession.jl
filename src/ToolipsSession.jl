@@ -105,23 +105,23 @@ function call!(event::AbstractEvent, cm::ComponentModifier)
     nothing::Nothing
 end
 
-abstract type AbstractRPCEvent <: AbstractEvent end
+abstract type RPCEvent <: AbstractEvent end
 
-mutable struct RPCClient <: AbstractRPCEvent
+mutable struct RPCClient <: RPCEvent
     name::String
     host::String
     changes::Vector{String}
     RPCClient(c::Connection, host::String, ref) = new(ref, host, Vector{String}())
 end
 
-mutable struct RPCHost <: AbstractRPCEvent
+mutable struct RPCHost <: RPCEvent
     name::String
     clients::Vector{String}
     changes::Vector{String}
     RPCHost(ref::String) = new(ref, Vector{String}(), Vector{String}())
 end
 
-function call!(event::AbstractRPCEvent, cm::ComponentModifier)
+function call!(event::RPCEvent, cm::ComponentModifier)
     write!(cm.changes, event.changes)
     nothing::Nothing
 end
@@ -733,22 +733,46 @@ function open_rpc!(c::Connection, cm::ComponentModifier; tickrate::Int64 = 500)
     nothing::Nothing
 end
 
+function close_rpc!(session::Session, ip::String)
+    found = findfirst(event::AbstractEvent -> typeof(event) <: RPCEvent, session.events[ip])
+    if isnothing(found)
+        throw("RPC Error: You are trying to close an RPC session that does not exist.")
+    end
+    event = session.events[ip][found]
+    if typeof(event) == RPCHost
+        [begin close_rpc!(session, client) client in event.clients]
+    else
+        host_event = findfirst(event::AbstractEvent -> typeof(event) == RPCHost,
+        session.events[event.host])
+        if ~(isnothing(host_event))
+            host_event = session.events[event.host][host_event]
+            client_rep = findfirst(client_ip::String -> client_ip == ip, host_event.clients)
+            if ~(isnothing(client_rep))
+                deleteat!(host_event.clients, client_rep)
+            end
+        end
+    end
+    deleteat!(events[ip], found)
+    nothing::Nothing
+end
 """
 
 """
 function close_rpc!(c::Connection)
-    
+    close_rpc!(c[:Session], get_ip(c))
+    nothing
 end
 
 """
 
 """
 function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
-    push!(c[:Session].peers[host], get_ip(c) => Vector{String}())
-    script!(c, get_ip(c) * "rpc", ["none"], time = tickrate) do cm::ComponentModifier
-        push!(cm.changes, join(c[:Session].peers[host][get_ip(c)]))
-        c[:Session].peers[host][get_ip(c)] = Vector{String}()
-    end
+    ref::String = gen_ref(5)
+    event::RPCClient = RPCHost(c, host, ref)
+    write!(c, 
+    script(name, text = """setInterval(function () { sendpage('$ref'); }, $time);"""))
+    push!(c[:Session].events[getip(c)], event)
+    nothing::Nothing
 end
 
 """
@@ -756,10 +780,11 @@ end
 """
 function join_rpc!(c::Connection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
     push!(c[:Session].peers[host], get_ip(c) => Vector{String}())
-    script!(c, cm, gen_ref(), ["none"], time = tickrate) do cm::ComponentModifier
-        push!(cm.changes, join(c[:Session].peers[host][get_ip(c)]))
-        c[:Session].peers[host][get_ip(c)] = Vector{String}()
-    end
+    ref::String = gen_ref(5)
+    event::RPCClient = RPCHost(c, host, ref)
+    push!(cm.changes, "setInterval(function () { sendpage('$name'); }, $time);")
+    push!(c[:Session].events[getip(c)], event)
+    nothing::Nothing
 end
 
 """
