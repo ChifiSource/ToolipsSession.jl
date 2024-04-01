@@ -753,6 +753,7 @@ function close_rpc!(session::Session, ip::String)
     deleteat!(events[ip], found)
     nothing::Nothing
 end
+
 """
 
 """
@@ -777,7 +778,6 @@ end
 
 """
 function join_rpc!(c::Connection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
-    push!(c[:Session].peers[host], get_ip(c) => Vector{String}())
     ref::String = gen_ref(5)
     event::RPCClient = RPCHost(c, host, ref)
     push!(cm.changes, "setInterval(function () { sendpage('$name'); }, $time);")
@@ -785,105 +785,66 @@ function join_rpc!(c::Connection, cm::ComponentModifier, host::String; tickrate:
     nothing::Nothing
 end
 
-"""
-
-"""
-function join_rpc!(f::Function, c::Connection, host::String; tickrate::Int64 = 500)
-    push!(c[:Session].peers[host], get_ip(c) => Vector{String}())
-    script!(c, cm, get_ip(c) * "rpc", ["none"], time = tickrate) do cm::ComponentModifier
-        f(cm)
-        location::String = find_client(c)
-        push!(cm.changes, join(c[:Session].peers[location][get_ip(c)]))
-        c[:Session].peers[location][get_ip(c)] = Vector{String}()
+function find_host(c::Connection)
+    events = c[:Session].events
+    ip::String = get_ip(c)
+    found = findfirst(event::AbstractEvent -> typeof(event) <: RPCEvent, events[ip])
+    if isnothing(found)
+        throw("RPC error: unable to find RPC event")
+    elseif typeof(found) == RPCClient
+        host = events[ip][found].host
+        found = findfirst(event::AbstractEvent -> typeof(event) == RPCHost, events[host])
+        return(events[host][found])::RPCHost
     end
-    f(cm)
+    return(events[ip][found])::RPCHost
 end
 
-"""
-
-"""
-function find_client(c::Connection)
-    clientlocation = findfirst(x -> get_ip(c) in keys(x), c[:Session].peers)
-    clientlocation::String
+function rpc!(session::Session, event::RPCHost, cm::ComponentModifier)
+    changes::String = join(cm.changes)
+    push!(event.changes, changes)
+    [begin 
+        found = findfirst(e -> typeof(e) == RPCClient, session.events[client])
+        push!(e.events[found].changes, changes)
+    end for client in event.clients]
+    deleteat!(cm.changes, 1:length(changes))
+    nothing::Nothing
 end
 
 """
 
 """
 function rpc!(c::Connection, cm::ComponentModifier)
-    mods::String = find_client(c)
-    [push!(mod, join(cm.changes)) for mod in values(c[:Session].peers[mods])]
-    deleteat!(cm.changes, 1:length(cm.changes))
+    rpc!(c[:Session], find_host(c), cm)
 end
 
-"""
-
-"""
-function rpc!(f::Function, c::Connection)
-    cm = ComponentModifier("")
-    f(cm)
-    mods::String = find_client(c)
-    for mod in values(c[:Session].peers[mods])
-        push!(mod, join(cm.changes))
+function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::String)
+    changes::String = join(cm.changes)
+    if get_ip(c) in event.clients
+        push!(event.changes, changes)
     end
+    [begin 
+        found = findfirst(e -> typeof(e) == RPCClient, session.events[client])
+        push!(e.events[found].changes, changes)
+    end for client in filter(e -> e != ip, event.clients)]
+    deleteat!(cm.changes, 1:length(changes))
+    nothing::Nothing
+end
+
+function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::String, target::String)
+    changes::String = join(cm.changes)
+    found = findfirst(e -> typeof(e) == RPCClient, session.events[target])
+    push!(e.events[found].changes, changes)
+    deleteat!(cm.changes, 1:length(changes))
+    nothing::Nothing
 end
 
 function call!(c::Connection, cm::ComponentModifier)
-    mods::String = find_client(c)
-    [if mod[1] != get_ip(c); push!(mod[2], join(cm.changes)); end for mod in c[:Session].peers[mods]]
-    deleteat!(cm.changes, 1:length(cm.changes))
+    call!(c[:Session], find_host(c), cm, get_ip(c))
 end
 
-function call!(f::Function, c::Connection)
-    cm = ComponentModifier("")
-    f(cm)
-    mods::String = find_client(c)
-    for mod in c[:Session].peers[mods]
-        if mod[1] != get_ip(c)
-            push!(mod[2], join(cm.changes))
-        end
-    end
+function call!(c::Connection, cm::ComponentModifier, peerip::String)
+    call!(c[:Session], find_Host(c), cm, get_ip(c), peerip)
 end
-
-
-"""
-**Session Interface**
-### disconnect_rpc!(c::Connection)
-------------------
-Removes the client from the current rpc session.
-#### example
-```
-
-```
-"""
-function disconnect_rpc!(c::Connection)
-    mods::String = find_client(c)
-    delete!(c[:Session].peers[mods], get_ip(c))
-end
-
-"""
-**Session Interface**
-### is_host(c::Connection) -> ::Bool
-------------------
-Checks if the current `Connection` is hosting an rpc session.
-#### example
-```
-
-```
-"""
-is_host(c::Connection) = get_ip(c) in keys(c[:Session].peers)
-
-"""
-**Session Interface**
-### is_client(c::Connection, s::String) -> ::Bool
-------------------
-Checks if the client is in the `s` RPC session..
-#### example
-```
-
-```
-"""
-is_client(c::Connection, s::String) = get_ip(c) in keys(c[:Session].peers[s])
 
 """
 **Session Interface**
