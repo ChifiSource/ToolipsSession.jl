@@ -196,7 +196,7 @@ function next!(cm::ComponentModifier, name::String, a::Toolips.ToolipsServables.
         animate!(cm, name, a, write = write)
         remove!(cm, "$(a.name)endscr")
     end
-    cm[name]["onanimationend"] = "$(a.name)endscr()"
+    cm[name] = "onanimationend" => "$(a.name)"
     playstate = "running"
     if ~(play)
         playstate = "paused"
@@ -229,6 +229,13 @@ function next!(cm::ComponentModifier, s::AbstractComponent, a::Toolips.ToolipsSe
 end
 
 # emmy was here ! <3
+
+function next!(f::Function, c::AbstractConnection, cm::ComponentModifier, s::Any)
+    ref::String = gen_ref(5)
+    register!(f, c, ref)
+    cm[s] = "ontransitionend" => "sendpage(\\'$ref\\');"
+    nothing::Nothing
+end
 
 """
 **Session Interface** 0.3

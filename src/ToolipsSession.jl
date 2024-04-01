@@ -13,8 +13,8 @@ also methods contained for modifying Servables.
 """
 module ToolipsSession
 using Toolips
-import Toolips: Servable, AbstractComponent, AbstractComponentModifier, style!, next!, Component, gen_ref
-import Toolips: AbstractRoute, kill!, AbstractConnection, script, write!, route!, on_start, on, bind
+import Toolips: AbstractRoute, kill!, AbstractConnection, write!, route!, on_start, gen_ref
+import Toolips.Components: ClientModifier, script, Servable, next!, Component, style!, AbstractComponentModifier, AbstractComponent, on, bind
 import Base: setindex!, getindex, push!, iterate, string
 using Dates
 # using WebSockets: serve, writeguarded, readguarded, @wslog, open, HTTP, Response, ServerWS
@@ -134,7 +134,7 @@ mutable struct Session <: Toolips.AbstractExtension
     function Session(active_routes::Vector{String} = ["/"])
         events = Dict{String, Vector{AbstractEvent}}() 
         iptable = Dict{String, Dates.DateTime}()
-        new(active_routes, events, iptable, peers, 0)
+        new(active_routes, events, iptable, 0)
     end
 end
 
@@ -738,7 +738,7 @@ function close_rpc!(session::Session, ip::String)
     end
     event = session.events[ip][found]
     if typeof(event) == RPCHost
-        [begin close_rpc!(session, client) client in event.clients]
+        [close_rpc!(session, client) for client in event.clients]
     else
         host_event = findfirst(event::AbstractEvent -> typeof(event) == RPCHost,
         session.events[event.host])
