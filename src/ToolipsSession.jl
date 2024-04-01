@@ -130,11 +130,9 @@ mutable struct Session <: Toolips.AbstractExtension
     active_routes::Vector{String}
     events::Dict{String, Vector{AbstractEvent}}
     iptable::Dict{String, Dates.DateTime}
-    peers::Dict{String, Vector{String}}
     gc::Int64
     function Session(active_routes::Vector{String} = ["/"])
         events = Dict{String, Vector{AbstractEvent}}() 
-        peers::Dict{String, Vector{String}} = Dict{String, Dict{String, Vector{String}}}()
         iptable = Dict{String, Dates.DateTime}()
         new(active_routes, events, iptable, peers, 0)
     end
