@@ -14,7 +14,7 @@ also methods contained for modifying Servables.
 module ToolipsSession
 using Toolips
 import Toolips: AbstractRoute, kill!, AbstractConnection, write!, route!, on_start, gen_ref
-import Toolips.Components: ClientModifier, script, Servable, next!, Component, style!, AbstractComponentModifier, AbstractComponent, on, bind
+import Toolips.Components: ClientModifier, script, Servable, next!, Component, style!, AbstractComponentModifier, AbstractComponent, on, bind, htmlcomponent
 import Base: setindex!, getindex, push!, iterate, string
 using Dates
 # using WebSockets: serve, writeguarded, readguarded, @wslog, open, HTTP, Response, ServerWS
@@ -585,7 +585,7 @@ Binds a key event to a `Component`.
 """
 function bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
     key::String, eventkeys::Symbol ...; on::Symbol = :down)
-    cm::Modifier = ClientModifier()
+    cm::AbstractComponentModifier = Toolips.Components.ClientModifier()
     eventstr::String = join((begin " event.$(event)Key && "
                             end for event in eventkeys))
     ref::String = gen_ref(5)
