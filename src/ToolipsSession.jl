@@ -95,6 +95,14 @@ end
 
 abstract type AbstractEvent <: Servable end
 
+function getindex(v::Vector{AbstractEvent}, t::String)
+    f = findfirst(e -> e.name == t, v)
+    if isnothing(f)
+        throw("$t not found")
+    end
+    v[f]
+end
+
 struct Event <: AbstractEvent
     f::Function
     name::String
@@ -122,7 +130,8 @@ mutable struct RPCHost <: RPCEvent
 end
 
 function call!(event::RPCEvent, cm::ComponentModifier)
-    write!(cm.changes, event.changes)
+    push!(cm.changes, join(event.changes))
+    event.changes = Vector{String}()
     nothing::Nothing
 end
 
@@ -667,13 +676,14 @@ Binds a key event to a `Component` in a `ComponentModifier` callback.
 """
 function bind(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Component{<:Any},
     key::String, eventkeys::Symbol ...; on::Symbol = :down)
+    ref::String = gen_ref(5)
     name::String = comp.name
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
 push!(cm.changes, """setTimeout(function () {
 document.getElementById('$(name)').onkeydown = function(event){
         if ($eventstr event.key == '$(key)') {
-        sendpage('$(name * key)')
+        sendpage('$ref')
         }
         }}, 1000);""")
     register!(f, c, ref)
@@ -694,14 +704,29 @@ function script!(f::Function, c::Connection, name::String; time::Integer = 500,
    write!(c, obsscript)
 end
 
+function script!(f::Function, c::Connection, cm::AbstractComponentModifier; time::Integer = 1000, type::String = "Timeout")
+   ref = gen_ref(5)
+   push!(cm.changes, "set$type(function () { sendpage('$ref'); }, $time);")
+   register!(f, c, ref)
+end
+
+function script!(f::Function, cm::AbstractComponentModifier, name::String;
+   time::Integer = 1000)
+   mod = ClientModifier()
+   f(mod)
+   push!(cm.changes,
+   "new Promise(resolve => setTimeout($(Components.funccl(mod, name)), $time));")
+end
+
+
+script(cl::AbstractComponentModifier) = begin
+    script(cl.name, text = join(cl.changes))
+end
+
 function script(f::Function, s::String = gen_ref(5))
     cl = ClientModifier(s)
     f(cl)
     script(cl.name, text = funccl(cl))::Component{:script}
-end
-
-script(cl::AbstractComponentModifier) = begin
-    script(cl.name, text = join(cl.changes))
 end
 
 #==
@@ -715,8 +740,8 @@ function open_rpc!(c::Connection; tickrate::Int64 = 500)
     ref::String = gen_ref(5)
     event::RPCHost = RPCHost(ref)
     write!(c, 
-    script(name, text = """setInterval(function () { sendpage('$ref'); }, $time);"""))
-    push!(c[:Session].events[getip(c)], event)
+    script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
+    push!(c[:Session].events[get_ip(c)], event)
     nothing::Nothing
 end
 
@@ -726,8 +751,8 @@ end
 function open_rpc!(c::Connection, cm::ComponentModifier; tickrate::Int64 = 500)
     ref::String = gen_ref(5)
     event::RPCHost = RPCHost(ref)
-    push!(cm.changes, "setInterval(function () { sendpage('$name'); }, $time);")
-    push!(c[:Session].events[getip(c)], event)
+    push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
+    push!(c[:Session].events[get_ip(c)], event)
     nothing::Nothing
 end
 
@@ -769,8 +794,8 @@ function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
     ref::String = gen_ref(5)
     event::RPCClient = RPCHost(c, host, ref)
     write!(c, 
-    script(name, text = """setInterval(function () { sendpage('$ref'); }, $time);"""))
-    push!(c[:Session].events[getip(c)], event)
+    script(name, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
+    push!(c[:Session].events[get_ip(c)], event)
     nothing::Nothing
 end
 
@@ -780,8 +805,8 @@ end
 function join_rpc!(c::Connection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
     ref::String = gen_ref(5)
     event::RPCClient = RPCHost(c, host, ref)
-    push!(cm.changes, "setInterval(function () { sendpage('$name'); }, $time);")
-    push!(c[:Session].events[getip(c)], event)
+    push!(cm.changes, "setInterval(function () { sendpage('$name'); }, $tickrate);")
+    push!(c[:Session].events[get_ip(c)], event)
     nothing::Nothing
 end
 
@@ -806,7 +831,7 @@ function rpc!(session::Session, event::RPCHost, cm::ComponentModifier)
         found = findfirst(e -> typeof(e) == RPCClient, session.events[client])
         push!(e.events[found].changes, changes)
     end for client in event.clients]
-    deleteat!(cm.changes, 1:length(changes))
+    cm.changes = Vector{String}()
     nothing::Nothing
 end
 
@@ -826,7 +851,7 @@ function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::Stri
         found = findfirst(e -> typeof(e) == RPCClient, session.events[client])
         push!(e.events[found].changes, changes)
     end for client in filter(e -> e != ip, event.clients)]
-    deleteat!(cm.changes, 1:length(changes))
+    cm.changes = Vector{String}()
     nothing::Nothing
 end
 
@@ -834,7 +859,7 @@ function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::Stri
     changes::String = join(cm.changes)
     found = findfirst(e -> typeof(e) == RPCClient, session.events[target])
     push!(e.events[found].changes, changes)
-    deleteat!(cm.changes, 1:length(changes))
+    cm.changes = Vector{String}()
     nothing::Nothing
 end
 

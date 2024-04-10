@@ -139,30 +139,6 @@ function scroll_by!(cm::AbstractComponentModifier, s::String,
     """document.getElementById('$s').scrollBy($(xy[1]), $(xy[2]))""")
 end
 
-"""
-
-"""
-function script!(f::Function, c::Connection, cm::AbstractComponentModifier, name::String,
-     readonly::Vector{String} = Vector{String}(); time::Integer = 1000, type::String = "Interval")
-    ip = getip(c)
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], name => f)
-    else
-        c[:Session][getip(c)] = Dict(name => f)
-    end
-    push!(cm.changes, "set$type(function () { sendpage('$name'); }, $time);")
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$name"] = readonly
-    end
-end
-
-function script!(f::Function, cm::AbstractComponentModifier, name::String;
-    time::Integer = 1000)
-    mod = ClientModifier()
-    f(mod)
-    push!(cm.changes,
-    "new Promise(resolve => setTimeout($(funccl(mod, name)), $time));")
-end
 
 """
 **Session Interface** 0.3
