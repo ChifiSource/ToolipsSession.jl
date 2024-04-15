@@ -40,7 +40,7 @@ that might help you out:
 ------------------
 ==#
 
-function document_linker(c::Connection)
+function document_linker(c::AbstractConnection)
     s::String = get_post(c)
     ip::String = get_ip(c)
     reftag::UnitRange{Int64} = findfirst("â•ƒCM", s)
@@ -119,7 +119,7 @@ mutable struct RPCClient <: RPCEvent
     name::String
     host::String
     changes::Vector{String}
-    RPCClient(c::Connection, host::String, ref) = new(ref, host, Vector{String}())
+    RPCClient(c::AbstractConnection, host::String, ref) = new(ref, host, Vector{String}())
 end
 
 mutable struct RPCHost <: RPCEvent
@@ -153,7 +153,7 @@ on_start(ext::Session, data::Dict{Symbol, Any}, routes::Vector{<:AbstractRoute})
     end
 end
 
-function route!(c::Connection, e::Session)
+function route!(c::AbstractConnection, e::Session)
     if get_route(c) in e.active_routes
         e.gc += 1
         if e.gc == 40
@@ -203,7 +203,7 @@ setindex!(m::Session, d::Any, s::AbstractString) = m.events[s] = d
 
 """
 **Session Interface**
-### kill!(c::Connection)
+### kill!(c::AbstractConnection)
 ------------------
 Kills a Connection's saved events.
 #### example
@@ -211,7 +211,7 @@ Kills a Connection's saved events.
 using Toolips
 using ToolipsSession
 
-route("/") do c::Connection
+route("/") do c::AbstractConnection
     on(c, "load") do cm::ComponentModifier
         alert!(cm, "this text will never appear.")
     end
@@ -244,7 +244,7 @@ end
 """
 
 """
-function on(f::Function, c::Connection, event::AbstractString)
+function on(f::Function, c::AbstractConnection, event::AbstractString)
     ref::String = Toolips.gen_ref(5)
     ip::String = get_ip(c)
     write!(c,
@@ -252,14 +252,14 @@ function on(f::Function, c::Connection, event::AbstractString)
     register!(f, c, ref)
 end
 
-function on(f::Function, c::Connection, s::AbstractComponent, event::AbstractString)
+function on(f::Function, c::AbstractConnection, s::AbstractComponent, event::AbstractString)
     ref::String = gen_ref(5)
     ip::String = string(get_ip(c))
     s["on$event"] = "sendpage('$ref');"
     register!(f, c, ref)
 end
 
-function on(f::Function, c::Connection, cm::AbstractComponentModifier, event::AbstractString)
+function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, event::AbstractString)
     ip::String = get_ip(c)
     ref::String = gen_ref(5)
     push!(cm.changes, """setTimeout(function () {
@@ -267,7 +267,7 @@ function on(f::Function, c::Connection, cm::AbstractComponentModifier, event::Ab
     register!(f, c, ref)
 end
 
-function on(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Component{<:Any},
+function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
      event::AbstractString)
      name::String = comp.name
      ref::String = gen_ref(5)
@@ -278,7 +278,7 @@ function on(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Com
      register!(f, c, ref)
 end
 
-function button_select(c::Connection, name::String, buttons::Vector{<:Servable},
+function button_select(c::AbstractConnection, name::String, buttons::Vector{<:Servable},
     unselected::Vector{Pair{String, String}} = ["background-color" => "blue",
      "border-width" => 0px],
     selected::Vector{Pair{String, String}} = ["background-color" => "green",
@@ -304,7 +304,7 @@ mutable struct SwipeMap <: InputMap
     SwipeMap() = new(Dict{String, Function}())
 end
 
-function bind(f::Function, c::Connection, sm::SwipeMap, swipe::String)
+function bind(f::Function, c::AbstractConnection, sm::SwipeMap, swipe::String)
     swipes = ["left", "right", "up", "down"]
     if ~(swipe in swipes)
         throw(
@@ -313,7 +313,7 @@ function bind(f::Function, c::Connection, sm::SwipeMap, swipe::String)
     sm.bindings[swipe] = f
 end
 
-function bind(c::Connection, sm::SwipeMap,
+function bind(c::AbstractConnection, sm::SwipeMap,
     readonly::Vector{String} = Vector{String}())
     swipes = keys
     swipes = ["left", "right", "up", "down"]
@@ -385,7 +385,7 @@ end
 The `KeyMap` allows one to `bind!` more than one key press with incredible ease.
 ##### example
 ```
-r = route("/") do c::Connection
+r = route("/") do c::AbstractConnection
     km = KeyMap()
     bind!(km, "S", :ctrl) do cm::ComponentModifier
         alert!(cm, "saved!")
@@ -413,7 +413,7 @@ end
 binds the `key` with the event keys (:ctrl, :shift, :alt) to `f` in `km`.
 #### example
 ```
-r = route("/") do c::Connection
+r = route("/") do c::AbstractConnection
     km = KeyMap()
     bind!(km, "S", :ctrl) do cm::ComponentModifier
         alert!(cm, "saved!")
@@ -456,12 +456,12 @@ end
 
 """
 **Session**
-### bind!(c::Connection, cm::ComponentModifier, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
+### bind!(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
 ------------------
 Binds the `KeyMap` `km` to the `Connection` in a `ComponentModifier` callback.
 #### example
 ```
-r = route("/") do c::Connection
+r = route("/") do c::AbstractConnection
     km = KeyMap()
     bind!(km, "S", :ctrl) do cm::ComponentModifier
         alert!(cm, "saved!")
@@ -473,7 +473,7 @@ r = route("/") do c::Connection
 end
 ```
 """
-function bind(c::Connection, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
+function bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
     firsbind = first(km.keys)
     first_line::String = """setTimeout(function () {
     document.addEventListener('key$on', function(event) { if (1 == 2) {}"""
@@ -500,12 +500,12 @@ end
 
 """
 **Session**
-### bind!(c::Connection, cm::ComponentModifier, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
+### bind!(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
 ------------------
 Binds the `KeyMap` `km` to the `Connection` in a `ComponentModifier` callback.
 #### example
 ```
-r = route("/") do c::Connection
+r = route("/") do c::AbstractConnection
     km = KeyMap()
     bind!(km, "S", :ctrl) do cm::ComponentModifier
         alert!(cm, "saved!")
@@ -517,7 +517,7 @@ r = route("/") do c::Connection
 end
 ```
 """
-function bind(c::Connection, cm::ComponentModifier, km::KeyMap, on::Symbol = :down, prevent_default::Bool = true)
+function bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symbol = :down, prevent_default::Bool = true)
     firsbind = first(km.keys)
     first_line::String = """setTimeout(function () {
     document.addEventListener('key$on', function(event) { if (1 == 2) {}"""
@@ -545,7 +545,7 @@ end
 
 """
 **Session**
-### bind!(c::Connection, comp::Component, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
+### bind!(c::AbstractConnection, comp::Component, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
 ------------------
 Binds the `KeyMap` `km` to the `comp`.
 #### example
@@ -553,7 +553,7 @@ Binds the `KeyMap` `km` to the `comp`.
 
 ```
 """
-function bind(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
+function bind(c::AbstractConnection, cm::ComponentModifier, comp::Component{<:Any},
     km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
     firsbind = first(km.keys)
     first_line::String = """
@@ -639,7 +639,7 @@ end
 
 """
 **Session Interface** 0.3
-### bind!(f::Function, c::Connection, cm::AbstractComponentModifier, key::String, eventkeys::Symbol ...; readonly::Vector{String} = [];
+### bind!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, key::String, eventkeys::Symbol ...; readonly::Vector{String} = [];
     on::Symbol = :down, client::Bool == false)  -> _
 ------------------
 Binds a key event to a `Connection` in a `ComponentModifier` callback.
@@ -648,7 +648,7 @@ Binds a key event to a `Connection` in a `ComponentModifier` callback.
 
 ```
 """
-function bind(f::Function, c::Connection, cm::AbstractComponentModifier, key::String,
+function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, key::String,
     eventkeys::Symbol ...; on::Symbol = :down, mark::String = "none")
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
@@ -665,7 +665,7 @@ end
 
 """
 **Session Interface** 0.3
-### bind!(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Component{<:Any}, key::String, eventkeys::Symbol ...; readonly::Vector{String} = [];
+### bind!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any}, key::String, eventkeys::Symbol ...; readonly::Vector{String} = [];
     on::Symbol = :down, client::Bool == false)  -> _
 ------------------
 Binds a key event to a `Component` in a `ComponentModifier` callback.
@@ -674,7 +674,7 @@ Binds a key event to a `Component` in a `ComponentModifier` callback.
 
 ```
 """
-function bind(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Component{<:Any},
+function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
     key::String, eventkeys::Symbol ...; on::Symbol = :down)
     ref::String = gen_ref(5)
     name::String = comp.name
@@ -695,7 +695,7 @@ script!
 """
 
 """
-function script!(f::Function, c::Connection, name::String; time::Integer = 500,
+function script!(f::Function, c::AbstractConnection, name::String; time::Integer = 500,
     type::String = "Interval")
     obsscript::Component{:script} = script(name, text = """
     set$(type)(function () { sendpage('$name'); }, $time);
@@ -704,7 +704,7 @@ function script!(f::Function, c::Connection, name::String; time::Integer = 500,
    write!(c, obsscript)
 end
 
-function script!(f::Function, c::Connection, cm::AbstractComponentModifier; time::Integer = 1000, type::String = "Timeout")
+function script!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier; time::Integer = 1000, type::String = "Timeout")
    ref = gen_ref(5)
    push!(cm.changes, "set$type(function () { sendpage('$ref'); }, $time);")
    register!(f, c, ref)
@@ -736,7 +736,7 @@ rpc
 """
 
 """
-function open_rpc!(c::Connection; tickrate::Int64 = 500)
+function open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
     ref::String = gen_ref(5)
     event::RPCHost = RPCHost(ref)
     write!(c, 
@@ -748,7 +748,7 @@ end
 """
 
 """
-function open_rpc!(c::Connection, cm::ComponentModifier; tickrate::Int64 = 500)
+function open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64 = 500)
     ref::String = gen_ref(5)
     event::RPCHost = RPCHost(ref)
     push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
@@ -782,7 +782,7 @@ end
 """
 
 """
-function close_rpc!(c::Connection)
+function close_rpc!(c::AbstractConnection)
     close_rpc!(c[:Session], get_ip(c))
     nothing
 end
@@ -790,38 +790,40 @@ end
 """
 
 """
-function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
+function join_rpc!(c::AbstractConnection, host::String; tickrate::Int64 = 500)
     ref::String = gen_ref(5)
-    event::RPCClient = RPCHost(c, host, ref)
+    event::RPCClient = RPCClient(c, host, ref)
     write!(c, 
     script(name, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
     push!(c[:Session].events[get_ip(c)], event)
+    push!(find_host(c).clients, get_ip(c))
     nothing::Nothing
 end
 
 """
 
 """
-function join_rpc!(c::Connection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
+function join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
     ref::String = gen_ref(5)
-    event::RPCClient = RPCHost(c, host, ref)
-    push!(cm.changes, "setInterval(function () { sendpage('$name'); }, $tickrate);")
+    event::RPCClient = RPCClient(c, host, ref)
+    push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
     push!(c[:Session].events[get_ip(c)], event)
+    push!(find_host(c).clients, get_ip(c))
     nothing::Nothing
 end
 
-function find_host(c::Connection)
+function find_host(c::AbstractConnection)
     events = c[:Session].events
     ip::String = get_ip(c)
     found = findfirst(event::AbstractEvent -> typeof(event) <: RPCEvent, events[ip])
     if isnothing(found)
         throw("RPC error: unable to find RPC event")
-    elseif typeof(found) == RPCClient
+    elseif typeof(events[ip][found]) == RPCClient
         host = events[ip][found].host
         found = findfirst(event::AbstractEvent -> typeof(event) == RPCHost, events[host])
         return(events[host][found])::RPCHost
     end
-    return(events[ip][found])::RPCHost
+    return(events[ip][found])::RPCEvent
 end
 
 function rpc!(session::Session, event::RPCHost, cm::ComponentModifier)
@@ -829,7 +831,7 @@ function rpc!(session::Session, event::RPCHost, cm::ComponentModifier)
     push!(event.changes, changes)
     [begin 
         found = findfirst(e -> typeof(e) == RPCClient, session.events[client])
-        push!(e.events[found].changes, changes)
+        push!(session.events[client][found].changes, changes)
     end for client in event.clients]
     cm.changes = Vector{String}()
     nothing::Nothing
@@ -838,7 +840,7 @@ end
 """
 
 """
-function rpc!(c::Connection, cm::ComponentModifier)
+function rpc!(c::AbstractConnection, cm::ComponentModifier)
     rpc!(c[:Session], find_host(c), cm)
 end
 
@@ -849,7 +851,7 @@ function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::Stri
     end
     [begin 
         found = findfirst(e -> typeof(e) == RPCClient, session.events[client])
-        push!(e.events[found].changes, changes)
+        push!(session.events[found].changes, changes)
     end for client in filter(e -> e != ip, event.clients)]
     cm.changes = Vector{String}()
     nothing::Nothing
@@ -858,22 +860,22 @@ end
 function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::String, target::String)
     changes::String = join(cm.changes)
     found = findfirst(e -> typeof(e) == RPCClient, session.events[target])
-    push!(e.events[found].changes, changes)
+    push!(session.events[found].changes, changes)
     cm.changes = Vector{String}()
     nothing::Nothing
 end
 
-function call!(c::Connection, cm::ComponentModifier)
+function call!(c::AbstractConnection, cm::ComponentModifier)
     call!(c[:Session], find_host(c), cm, get_ip(c))
 end
 
-function call!(c::Connection, cm::ComponentModifier, peerip::String)
+function call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
     call!(c[:Session], find_Host(c), cm, get_ip(c), peerip)
 end
 
 """
 **Session Interface**
-### is_dead(c::Connection) -> ::Bool
+### is_dead(c::AbstractConnection) -> ::Bool
 ------------------
 Checks if the current `Connection` is still connected to `Session`
 #### example
@@ -881,7 +883,7 @@ Checks if the current `Connection` is still connected to `Session`
 
 ```
 """
-is_dead(c::Connection) = get_ip(c) in keys(c[:Session].iptable)
+is_dead(c::AbstractConnection) = get_ip(c) in keys(c[:Session].iptable)
 
 export Session, on, bind!, script!, script, ComponentModifier, ClientModifier
 export KeyMap
