@@ -82,7 +82,7 @@ function document_linker(c::AbstractConnection)
     ref::String = s[ref_r]
     s = replace(s, "â•ƒCM" => "", "â•ƒ" => "")
     cm = ComponentModifier(s)
-    call!(c[:Session].events[ip][ref], cm)
+    call!(c, c[:Session].events[ip][ref], cm)
     write!(c, " ", cm)
     cm = nothing
     nothing::Nothing
@@ -173,8 +173,11 @@ struct Event <: AbstractEvent
     name::String
 end
 
-
-function call!(event::AbstractEvent, cm::ComponentModifier)
+function call!(c::AbstractConnection, event::AbstractEvent, cm::ComponentModifier)
+    if length(methods(event.f).parameters) > 1
+        event.f(c, cm)
+        nothing::Nothing
+    end
     event.f(cm)
     nothing::Nothing
 end
@@ -203,7 +206,7 @@ mutable struct RPCHost <: RPCEvent
     RPCHost(ref::String) = new(ref, Vector{String}(), Vector{String}())
 end
 
-function call!(event::RPCEvent, cm::ComponentModifier)
+function call!(c::AbstractConnection, event::RPCEvent, cm::ComponentModifier)
     push!(cm.changes, join(event.changes))
     event.changes = Vector{String}()
     nothing::Nothing
@@ -214,10 +217,10 @@ mutable struct Session <: Toolips.AbstractExtension
     events::Dict{String, Vector{AbstractEvent}}
     iptable::Dict{String, Dates.DateTime}
     gc::Int64
-    function Session(active_routes::Vector{String} = ["/"])
+    function Session(active_routes::Vector{String} = ["/"]; timeout = 5)
         events = Dict{String, Vector{AbstractEvent}}() 
         iptable = Dict{String, Dates.DateTime}()
-        new(active_routes, events, iptable, 0)
+        new(active_routes, events, iptable, 0, timeout)::Session
     end
 end
 
@@ -232,7 +235,20 @@ function route!(c::AbstractConnection, e::Session)
         e.gc += 1
         if e.gc == 1000
             e.gc = 0
-            
+            [begin
+                time = active_client[2]
+                current_time = now()
+                if hour(current_time) != hour(time)
+                    if ~(minute(current_time) < e.timeout)
+                        delete!(e.events, active_client[1])
+                        delete!(e.iptable, active_client[1])
+                    end
+                elseif minute(current_time) - minute(time) > e.timeout
+                    delete!(e.events, active_client[1])
+                    delete!(e.iptable, active_client[1])
+                end
+                nothing
+            end for active_client in e.iptable]::Vector
         end
         if get_method(c) == "POST"
             document_linker(c)
