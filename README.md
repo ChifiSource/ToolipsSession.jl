@@ -48,7 +48,9 @@ export
 - Moved most `AbstractComponentModifier` functions to `Toolips`.
 - Revised `RPC` peer system
 - `Auth` now built into this module.
-- 
+- `htmlcomponent` is now part of [ToolipsServables](https://github.com/ChifiSource/ToolipsServables.jl)
+
+`Toolips` and `ToolipsSession` are both overhauled in these versions -- a lot of things were moved around.
 ###### 0.3.6
 - expanded on client modifier interface
 - fixed unicode indexing errors
