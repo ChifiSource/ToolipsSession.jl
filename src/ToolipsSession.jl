@@ -5,11 +5,44 @@ by team
 [toolips](https://github.com/orgs/ChifiSource/teams/toolips)
 This software is MIT-licensed.
 ### ToolipsSession
-**Extension for:**
-- [Toolips](https://github.com/ChifiSource/Toolips.jl) \
-This module provides the capability to make web-pages interactive by simply
-adding the Session extension to your ServerTemplate before starting. There are
-also methods contained for modifying Servables.
+`ToolipsSession` provides fullstack call-backs for `Toolips` `Components`, including
+Input Maps (swipe and keyboard input), `rpc!` callbacks, Authentication, 
+and `next!` animation callbacks.
+```julia
+module SampleServer
+#  ---- dependencies
+using Toolips
+using Toolips.Components
+using ToolipsSession
+#  ---- create extensions
+# create `Session`. Active route paths are provided to the constructor in a `Vector{String}`:
+session = Session(["/"])
+
+#  ---- routes
+main = route("/") do c::AbstractConnection
+    mainbut = button("examplebutton", text = "click me for a message!")
+    appendbut = button("appendsample", text = "click me to append")
+    on(c, mainbut, "click") do cm::ComponentModifier
+        alert!(cm, "hello world!")
+    end
+    on(c, mainbut, "click") do cm::ComponentModifier
+
+    end
+end
+#  ---- exports (load server components)
+#   vvv Important! export Session! (`?(ToolipsSession.Toolips)`)
+export main, session, start!
+end
+```
+**Important**: `Session` uses *closures* in order to save callbacks. Closures **cannot** be 
+serialized with `Toolips` multi-threading. In order for fullstack callbacks to work with 
+multiple threads, you will need to define each callback as a `Function` within your `Module`. 
+Provided functions can take either a `ComponentModifier`, as is usually seen with `do`, 
+or a `Connection` and `ComponentModifier`. Not relevant to `ToolipsSession`, but also make sure 
+the `Function` provided to `route` takes an `AbstractConnection`.
+```julia
+
+```
 """
 module ToolipsSession
 using Toolips
@@ -93,6 +126,17 @@ begin
 end
 ==#
 
+"""
+```julia
+abstract type AbstractEvent <: Servable
+```
+An `Event` is a type of registered callback for `ToolipsSession` to call. 
+    `ToolipsSession` provides the `Event`, `RPCClient`, and `RPCHost`. Events 
+    are indexed by their `Event.name`. The `Function` `call!` is used on an 
+    event whenever it is determined to be registered to an occurring input action.
+---
+- See also: `Session`, `on`, `ToolipsSession`, `bind`, `Toolips`, `Event`, `RPCEvent`
+"""
 abstract type AbstractEvent <: Servable end
 
 function getindex(v::Vector{AbstractEvent}, t::String)
@@ -103,16 +147,46 @@ function getindex(v::Vector{AbstractEvent}, t::String)
     v[f]
 end
 
+"""
+```julia
+struct Event <: Abstractevent
+```
+- `f`**::Function**
+- `name`**::String**
+
+An `Event` is the most simple form of `ToolipsSession` event. It has a `name`, 
+usually a small reference code, and this name is called by the client before the `Function` 
+`f` is called. These events are usually created through the 
+`register!(::Function, ::AbstractConnection, ::String)` `Method` whenever `on` 
+or `bind` is used to create an event.
+
+```example
+
+```
+```julia
+Event(f::Function, name::String)
+```
+- See also: `Session`, `on`, `ToolipsSession`, `bind`, `AbstractEvent`
+"""
 struct Event <: AbstractEvent
     f::Function
     name::String
 end
+
 
 function call!(event::AbstractEvent, cm::ComponentModifier)
     event.f(cm)
     nothing::Nothing
 end
 
+"""
+```julia
+abstract type RPCEvent <: AbstractEvent
+```
+
+---
+- See also: `Session`, `on`, `ToolipsSession`, `bind`, `AbstractEvent`, `Event`
+"""
 abstract type RPCEvent <: AbstractEvent end
 
 mutable struct RPCClient <: RPCEvent
@@ -156,10 +230,9 @@ end
 function route!(c::AbstractConnection, e::Session)
     if get_route(c) in e.active_routes
         e.gc += 1
-        if e.gc == 40
+        if e.gc == 1000
+            e.gc = 0
             
-        elseif e.gc == 90
-            GC.gc()
         end
         if get_method(c) == "POST"
             document_linker(c)
