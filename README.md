@@ -1,52 +1,45 @@
 <div align = "center"><img src = "https://github.com/ChifiSource/image_dump/blob/main/toolips/toolipssession.png" href = "https://toolips.app"></img></div>
 
-### Full-stack web-development for Julia with toolips
-Toolips Session is a Server Extension for toolips that enables full-stack web-development capabilities. This extension is loaded by default whenever the `Toolips.new_webapp` from the base toolips package is used. Ideally, your project would be setup that way instead of by adding this directly; but of course, you can still add this directly.
-##### Step 1: Add ToolipsSession to your environment with Pkg
-Start a toolips **webapp** to automatically add `ToolipsSession`:
+###### full-stack for toolips !
+`ToolipsSession` provides `Toolips` with the `Session` extension, which registers fullstack callbacks on a client-to-client basis. Alongside this, the module provides InputMaps (swipe and keyboard input), `rpc!` callbacks, Authentication via the `Auth` extension, and `next!` animation callbacks.
+##### map
+- [get started](#get-started)
+  - [session](#session)
+  - [creating callbacks](#creating-callbacks)
+- [modifier functions](#modifier-functions)
+- [**read before** multi-threading](#multi-threading)
+- [input](#input)
+  - [bind](#bind)
+  - [keymap](#keymap)
+  - [swipe input](#swipe-input)
+- [rpc](#rpc)
+- [auth](#auth)
+### get started
+To get started with `ToolipsSession`, we will need a [Toolips](https://github.com/ChifiSource/Toolips.jl) project. Either generate a new `Toolips` app with `new_app`, or create a new `Module` in the REPL:
 ```julia
-Toolips.new_webapp("ModifierExample")
-```
-Otherwise, you can add it from Pkg directly, just ensure [toolips](https://github.com/ChifiSource/Toolips.jl) is also added.
-```julia
-using Pkg; Pkg.add("ToolipsSession")
-```
-##### Step 2: Add ToolipsSession to your module, use on()
-This code is copy-pastable, just ensure your environment has toolips added, then copy and paste the `pkg` command above, `using Pkg; Pkg.add("ToolipsSession")`. 
-```julia
-"""
-## Toolips Session / Modifier Example
-"""
-module ModifierExample
+module ToolipsApp
 using Toolips
-using ToolipsSession
 
-extensions = [Logger(), Session()]
+home = route("/") do c::Connection
 
-function start(IP::String = "127.0.0.1", PORT::Integer = 8000)
-    server = WebServer(IP, PORT, routes = rs, extensions = extensions)
-    server.start()
-    server
 end
 
-function home(c::Connection)
-    myp = p("helloworld2", text = "hello world!", align = "left")
-    on(c, myp, "click") do cm::ComponentModifier
-        if cm[myp]["align"] == "left"
-            cm[myp] = "align" => "center"
-        elseif cm[myp]["align"] == "center"
-            cm[myp] = "align" => "right"
-        else
-            cm[myp] = "align" => "left"
-        end
-    end
-end
-end
+export 
 ```
-#### start the server
-```julia
-include("dev.jl")
-```
+##### session
+
+##### creating callbacks
+
+### modifier functions
+### multi-threading
+### input
+
+##### bind
+##### keymap
+##### swipe input
+### rpc
+### auth
+
 ###### 0.4.0
 **alot** has now changed. Most of `ToolipsSession` is now part of `Toolips` itself. Now `ToolipsSession` uses `htmlcomponent` from `ToolipsServables`, rather than here. Parsing is also done on command, the `Session` extension itself is a lot smaller and requires a lot less data to function. This also follows the new `Toolips` `0.3` syntax, which is pretty sweet!
 - Brought `Session` extension into `0.3` compatibility.
@@ -54,6 +47,8 @@ include("dev.jl")
 - Added `SwipeMap`.
 - Moved most `AbstractComponentModifier` functions to `Toolips`.
 - Revised `RPC` peer system
+- `Auth` now built into this module.
+- 
 ###### 0.3.6
 - expanded on client modifier interface
 - fixed unicode indexing errors
