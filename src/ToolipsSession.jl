@@ -174,7 +174,7 @@ struct Event <: AbstractEvent
 end
 
 function call!(c::AbstractConnection, event::AbstractEvent, cm::ComponentModifier)
-    if length(methods(event.f).parameters) > 1
+    if length(methods(event.f)[1].sig.parameters) > 2
         event.f(c, cm)
         nothing::Nothing
     end
@@ -217,6 +217,7 @@ mutable struct Session <: Toolips.AbstractExtension
     events::Dict{String, Vector{AbstractEvent}}
     iptable::Dict{String, Dates.DateTime}
     gc::Int64
+    timeout::Int64
     function Session(active_routes::Vector{String} = ["/"]; timeout = 5)
         events = Dict{String, Vector{AbstractEvent}}() 
         iptable = Dict{String, Dates.DateTime}()
