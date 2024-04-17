@@ -176,7 +176,7 @@ end
 function call!(c::AbstractConnection, event::AbstractEvent, cm::ComponentModifier)
     if length(methods(event.f)[1].sig.parameters) > 2
         event.f(c, cm)
-        nothing::Nothing
+        return(nothing)::Nothing
     end
     event.f(cm)
     nothing::Nothing
@@ -846,6 +846,16 @@ function open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64
     nothing::Nothing
 end
 
+reconnect_rpc!(c::Connection; tickrate::Int64 = 500) = begin
+    events::Vector{AbstractEvent} = c[:Session].events[get_ip(c)]
+    found = findfirst(event::AbstractEvent -> typeof(event) <: RPCEvent, events)
+    if isnothing(found)
+        throw("RPC Error: Trying to reconnect RPC that does not exist.")
+    end
+    ref = events[found].name
+    write!(c, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
+end
+
 function close_rpc!(session::Session, ip::String)
     found = findfirst(event::AbstractEvent -> typeof(event) <: RPCEvent, session.events[ip])
     if isnothing(found)
@@ -884,7 +894,7 @@ function join_rpc!(c::AbstractConnection, host::String; tickrate::Int64 = 500)
     ref::String = gen_ref(5)
     event::RPCClient = RPCClient(c, host, ref)
     write!(c, 
-    script(name, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
+    script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
     push!(c[:Session].events[get_ip(c)], event)
     push!(find_host(c).clients, get_ip(c))
     nothing::Nothing
@@ -936,21 +946,22 @@ end
 
 function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::String)
     changes::String = join(cm.changes)
-    if get_ip(c) in event.clients
+    if ip in event.clients
         push!(event.changes, changes)
     end
+    filt = filter(e -> e != ip, event.clients)
     [begin 
         found = findfirst(e -> typeof(e) == RPCClient, session.events[client])
-        push!(session.events[found].changes, changes)
-    end for client in filter(e -> e != ip, event.clients)]
+        push!(session.events[client][found].changes, changes)
+    end for client in filt]
     cm.changes = Vector{String}()
     nothing::Nothing
 end
 
 function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::String, target::String)
     changes::String = join(cm.changes)
-    found = findfirst(e -> typeof(e) == RPCClient, session.events[target])
-    push!(session.events[found].changes, changes)
+    found = findfirst(e -> typeof(e) <: RPCEvent, session.events[target])
+    push!(session.events[target][found].changes, changes)
     cm.changes = Vector{String}()
     nothing::Nothing
 end
@@ -960,7 +971,7 @@ function call!(c::AbstractConnection, cm::ComponentModifier)
 end
 
 function call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
-    call!(c[:Session], find_Host(c), cm, get_ip(c), peerip)
+    call!(c[:Session], find_host(c), cm, get_ip(c), peerip)
 end
 
 """
