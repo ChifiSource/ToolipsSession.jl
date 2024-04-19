@@ -205,7 +205,6 @@ function next!(cm::ComponentModifier, s::AbstractComponent, a::Toolips.ToolipsSe
 end
 
 # emmy was here ! <3
-
 function next!(f::Function, c::AbstractConnection, cm::ComponentModifier, s::Any)
     ref::String = gen_ref(5)
     register!(f, c, ref)

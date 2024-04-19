@@ -71,6 +71,8 @@ that might help you out:
 --- ComponentModifiers
 --- Modifier functions
 ------------------
+- Auth.jl
+--- Auth
 ==#
 
 function document_linker(c::AbstractConnection)
