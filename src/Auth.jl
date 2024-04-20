@@ -1,35 +1,69 @@
-mutable struct Auth{T <: Any} <: Toolips.AbstractExtension
+abstract type AbstractClient end
+
+mutable struct Client <: AbstractClient
+    key::String
+    ip::String
+    n_requests::Int64
+    data::Dict{String, Any}
+end
+
+in(ip::String, v::Vector{<:AbstractClient}) = begin
+    found = findfirst(c::AbstractClient -> c.ip == ip, v)
+    if ~(isnothing(found))
+        return(true)::Bool
+    end
+    false::Bool
+end
+
+mutable struct Auth{T <: AbstractClient} <: Toolips.AbstractExtension
     blacklist::Vector{String}
-    keys::Dict{String, T}
-    client_count::Int64
-    data::Dict{T, Dict{String, <:Any}}
-    Auth{T}(config_path::String) where {T <: Any} = begin
-        cfg::String = read(config_path, String)
-    end
-    Auth{T}(blacklist::Vector{String}) where {T <: Any} = begin
-
+    clients::Vector{T}
+    lastup::Dates.DateTime
+    writekeys::Bool
+    Auth{T}(; write::Bool = false) where {T <: AbstractClient} = begin
+        blacklist::Vector{String} = Vector{String}()
+        clients::Vector{T} = Vector{T}()
+        new{T}(blacklist, clients, now(), write)::Auth{T}
     end
 end
 
-Auth(config_path::String; args ...) = Auth{Toolips.IP4}(config_path::String; args ...)
+Auth(; write::Bool = false) = Auth{Client}(write = write)
 
-on_start(ext::Auth{Toolips.IP4}, data::Dict{Symbol, Any}, routes::Vector{<:AbstractRoute}) = begin
-    push!(data, :users => ext.data, :banned => ext.blacklist, :clients => ext.client_count)
+on_start(ext::Auth, data::Dict{Symbol, Any}, routes::Vector{<:AbstractRoute}) = begin
+    push!(data, :users => ext.clients)
 end
 
-function route!(c::AbstractConnection, e::Auth{Toolips.IP4})
+function route!(c::AbstractConnection, e::Auth)
     # blacklist
     ip::String = get_ip(c)
     if ip in e.blacklist
+        route_403(c, "You have been blacklisted from this webpage.")
+        return(false)
+    end
+    if ~(ip in e.clients)
+        key::String = gen_ref(10)
+        newc::Client = Client(key, ip, 0, Dict{String, Any}())
+        push!(e.clients, newc)
+    end
+    cl::Client = e.clients[get_ip(c)]
+    args::Dict{Symbol, <:Any} = get_args(c)
+    if :key in keys(args)
+        if args[:key] == cl.key
+            route!(c, c.routes)
+        else
+            route_403(c, "Auth key does not match. Packet intercepted?")
+        end
+        return(false)::Bool
+    end
+    
+end
+
+function route_403(c::AbstractConnection, message::String)
         if "403" in c.routes
             route!(c, c.routes["403"])
         else
-            respond!(c, 403, "You have been blacklisted from this webpage.")
+            respond!(c, 403, message)
         end
-        return(false)
-    end
-    e.client_count += 1
-    if ~(get_ip(c)) in keys(e.keys)
-        
-    end
 end
+
+authenticated(c::AbstractConnection, cm::ComponentModifier) = cm["private-key"]["text"] == c[:clients][get_ip(c)]
