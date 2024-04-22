@@ -19,21 +19,115 @@
 ### get started
 To get started with `ToolipsSession`, we will need a [Toolips](https://github.com/ChifiSource/Toolips.jl) project. Either generate a new `Toolips` app with `new_app`, or create a new `Module` in the REPL:
 ```julia
-module ToolipsApp
+using Pkg
+Pkg.add("Toolips")
+
+using Toolips; Toolips.new_app("MyApp"); Pkg.add("ToolipsSession")
+```
+```julia
+using Pkg
+Pkg.add("Toolips"); Pkg.add("ToolipsSession")
+
+module MyApp
 using Toolips
+using ToolipsSession
 
 home = route("/") do c::Connection
-
+  write!(c, "hello new app!")
 end
 
-export 
+export home, start!
+end
 ```
 ##### session
+`Session` a `Toolips` server extension (`<:Toolips.AbstractExtension`) which manages clients and their fullstack callbacks. In order to load a server extension into our server, we need to construct and export it.
+```julia
+module MyApp
+using Toolips
+using ToolipsSession
 
+session = Session()
+
+home = route("/") do c::Connection
+  write!(c, "hello new app!")
+end
+
+export home, start!, session
+end
+```
+The `Session` constructor takes two optional arguments, `active_routes` and `timeout`.
+```julia
+Session(active_routes::Vector{String} = ["/"]; timeout = 5)
+```
+`Session` will only provide interactivity to the route paths provided in `active_routes`. `timeout` represents the number of minutes after not recieving a callback that we will terminate a user's session. Once `Session` is loaded, we can immediately register callbacks on its active routes.
 ##### creating callbacks
+Callbacks in base `Toolips` are created using the `on` function, which is provided a `Function` with an event name, and -- if binding to a `Component` -- a `Component`. These types of callbacks are provided a `ClientModifier`, which allows us to make client-side changes when these events are triggered.
+```julia
+mydiv = div("sample", text = "click me")
+style!(mydiv, "padding" => 10px, "font-size" => 13pt, "background-color" => "darkred", "color" => "white")
+on(mydiv, "click") do cl::ClientModifier
+    alert!(cl, "you clicked the button")
+end
+```
+Here, we use [modifier functions](#modifier-functions) to modify the changes we want to make on our client's page. Fullstack callbacks work very similarly, but require the `Connection` to be provided as an argument, and will pass a `ComponentModifier` to the `Function`. Here we will reuse `alert!` in the same exact context for a fullstack callback. Another important thing is to compose to a `body` `Component`, so that `ToolipsSession` is able to read all components.
+```julia
+module MyApp
+using Toolips
+using ToolipsSession
 
+session = Session()
+
+home = route("/") do c::Connection
+  mydiv = div("sample", text = "click me")
+  style!(mydiv, "padding" => 10px, "font-size" => 13pt, "background-color" => "darkred", "color" => "white")
+  on(c, mydiv, "click") do cm::ComponentModifier
+    alert!(cm, "you clicked the button")
+  end
+end
+
+export home, start!, session
+end
+```
+This type of callback actually calls the server, rather than making the changes on the client directly. This means that we are able to utilize Julia and utilize the data contained within our server, whereas with a `ClientModifier` our provided `Function` is ran when our page is initially served and all of our callbacks remain client-side as callable functions. This means that we are able to serve data straight from our `Function`, or the `Connection` to our user in a far more dynamic way.
+```julia
+home = route("/") do c::Connection
+  mydiv = div("sample", text = "click me")
+  style!(mydiv, "padding" => 10px, "font-size" => 13pt, "background-color" => "darkred", "color" => "white", "transition" => 2s)
+  at = 0
+  colors = ["blue", "orange", "green"]
+  on(c, mydiv, "click") do cm::ComponentModifier
+    at += 1
+    style!(cm, mydiv, 'background-color" => colors[at])
+    if at == length(at)
+        at = 0
+    end
+  end
+  mainbod = body("main")
+  push!(mainbod, mydiv)
+  write!(c, mainbod)
+end
+```
+Callbacks can also take a `Connection` and a `ComponentModifier` as arguments, it is possible to take either.
+```julia
+home = route("/") do c::Connection
+  if ~(:names in c.routes)
+    push!(c.data, :names => Dict{String, String})
+  end
+  if ~(get_ip(c) in keys(c[:names])
+
+  end
+  mainbutton = button("myname", text = "click to show your name")
+  nametxt = div("nametxt")
+  mainbod = body("sample")
+  on(c, mainbutton, "click") do cm::ComponentModifier
+
+  end
+end
+```
+Callbacks can also be registered by using [ToolipsSession.bind](#bind) to bind keys or keymaps to components and connections.
 ### modifier functions
 ### multi-threading
+There is a major thing to be aware of when using `Toolips` multi-threading alongside `ToolipsSession`... First, a prerequisite; t is recommended to read [toolips' overview on multi-threading](https://github.com/ChifiSource/Toolips.jl#multi-threading) before trying to use multi-threading alongside this package. The main thing to be aware of is that closures will **not** *serialize over threads*. This means that each `Function` provided for a callback must be a defined `Function` inside of a `Module`, not a `Function` provided as an argument -- like in the case of using `do`.
 ### input
 
 ##### bind
