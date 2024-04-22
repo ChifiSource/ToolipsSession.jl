@@ -5,15 +5,17 @@
 ##### map
 - [get started](#get-started)
   - [session](#session)
-  - [creating callbacks](#creating-callbacks)
+    - [creating callbacks](#creating-callbacks)
+  - [authentication](#authentication)
+    - [clients](#clients)
+    - [authenticating callbacks](#authenticating-callbacks)
 - [modifier functions](#modifier-functions)
 - [**read before** multi-threading](#multi-threading)
 - [input](#input)
   - [bind](#bind)
-  - [keymap](#keymap)
-  - [swipe input](#swipe-input)
+  - [input maps](#input-maps)
 - [rpc](#rpc)
-- [auth](#auth)
+- [changes overview](#changes-overview)
 ### get started
 To get started with `ToolipsSession`, we will need a [Toolips](https://github.com/ChifiSource/Toolips.jl) project. Either generate a new `Toolips` app with `new_app`, or create a new `Module` in the REPL:
 ```julia
@@ -40,6 +42,7 @@ export
 ### rpc
 ### auth
 
+## changes overview :)
 ###### 0.4.0
 **alot** has now changed. Most of `ToolipsSession` is now part of `Toolips` itself. Now `ToolipsSession` uses `htmlcomponent` from `ToolipsServables`, rather than here. Parsing is also done on command, the `Session` extension itself is a lot smaller and requires a lot less data to function. This also follows the new `Toolips` `0.3` syntax, which is pretty sweet!
 - Brought `Session` extension into `0.3` compatibility.
@@ -47,10 +50,14 @@ export
 - Added `SwipeMap`.
 - Moved most `AbstractComponentModifier` functions to `Toolips`.
 - Revised `RPC` peer system
-- `Auth` now built into this module.
+- `Auth` system now built into this module.
 - `htmlcomponent` is now part of [ToolipsServables](https://github.com/ChifiSource/ToolipsServables.jl)
+- added `in` binding for `ComponentModifier`
+- added `prevent_default` binding for each function.
+- Improved docs/testing.
+- Improved memory usage.
 
-`Toolips` and `ToolipsSession` are both overhauled in these versions -- a lot of things were moved around.
+`Toolips` and `ToolipsSession` are both overhauled in these versions -- a lot of things were moved around, and a lot of significant improvements were made. This package remains similar exactly the same in high-level functionality; other than the move from `bind!` to `bind` and `rpc` these changes will not break existing software that uses `ToolipsSession` (aside from of course the differences in loading the module with `Toolips` `0.3`. I am really looking forward to getting this version out, and doing exciting things with it.
 ###### 0.3.6
 - expanded on client modifier interface
 - fixed unicode indexing errors
