@@ -20,6 +20,8 @@ getindex(cc::ComponentModifier, s::AbstractComponent ...) = htmlcomponent(cc.roo
 
 getindex(cc::ComponentModifier, s::String ...) = htmlcomponent(cc.rootc, [s ...])[1]
 
+in(s::String, cm::ComponentModifier) = contains(cm.rootc, s)::Bool
+
 function style!(cm::AbstractComponentModifier, s::String, a::Toolips.ToolipsServables.KeyFrames;
     play::Bool = true)
     playstate = "running"
