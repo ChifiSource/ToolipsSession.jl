@@ -6,9 +6,9 @@
 - [get started](#get-started)
   - [session](#session)
     - [creating callbacks](#creating-callbacks)
-  - [authentication](#authentication)
-    - [clients](#clients)
-    - [authenticating callbacks](#authenticating-callbacks)
+- [authentication](#authentication)
+  - [clients](#clients)
+  - [authenticating callbacks](#authenticating-callbacks)
 - [modifier functions](#modifier-functions)
 - [**read before** multi-threading](#multi-threading)
 - [input](#input)
@@ -150,6 +150,7 @@ There is a major thing to be aware of when using `Toolips` multi-threading along
 - added `prevent_default` binding for each function.
 - Improved docs/testing.
 - Improved memory usage.
+- Added *"global"* event registration
 
 `Toolips` and `ToolipsSession` are both overhauled in these versions -- a lot of things were moved around, and a lot of significant improvements were made. This package remains similar exactly the same in high-level functionality; other than the move from `bind!` to `bind` and `rpc` these changes will not break existing software that uses `ToolipsSession` (aside from of course the differences in loading the module with `Toolips` `0.3`. I am really looking forward to getting this version out, and doing exciting things with it.
 ###### 0.3.6
