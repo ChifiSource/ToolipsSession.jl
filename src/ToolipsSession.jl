@@ -34,7 +34,8 @@ end
 export main, session, start!
 end
 ```
-**Important**: `Session` uses *closures* in order to save callbacks. Closures **cannot** be 
+**Important**: `Session` callbacks might be made with closures, or functions 
+as arguments. Closures **cannot** be 
 serialized with `Toolips` multi-threading. In order for fullstack callbacks to work with 
 multiple threads, you will need to define each callback as a `Function` within your `Module`. 
 Provided functions can take either a `ComponentModifier`, as is usually seen with `do`, 
@@ -43,12 +44,14 @@ the `Function` provided to `route` takes an `AbstractConnection`.
 ```julia
 
 ```
+##### provides
+
 """
 module ToolipsSession
 using Toolips
 import Toolips: AbstractRoute, kill!, AbstractConnection, write!, route!, on_start, gen_ref
 import Toolips.Components: ClientModifier, script, Servable, next!, Component, style!, AbstractComponentModifier, AbstractComponent, on, bind, htmlcomponent
-import Base: setindex!, getindex, push!, iterate, string
+import Base: setindex!, getindex, push!, iterate, string, in
 using Dates
 # using WebSockets: serve, writeguarded, readguarded, @wslog, open, HTTP, Response, ServerWS
 include("Modifier.jl")
@@ -84,6 +87,9 @@ function document_linker(c::AbstractConnection)
     ref::String = s[ref_r]
     s = replace(s, "â•ƒCM" => "", "â•ƒ" => "")
     cm = ComponentModifier(s)
+    if contains(ref, "GLOBAL")
+        ip = "GLOBAL"
+    end
     call!(c, c[:Session].events[ip][ref], cm)
     write!(c, " ", cm)
     cm = nothing
@@ -221,7 +227,7 @@ mutable struct Session <: Toolips.AbstractExtension
     gc::Int64
     timeout::Int64
     function Session(active_routes::Vector{String} = ["/"]; timeout = 5)
-        events = Dict{String, Vector{AbstractEvent}}() 
+        events = Dict{String, Vector{AbstractEvent}}("GLOBAL" => Vector{AbstractEvent}()) 
         iptable = Dict{String, Dates.DateTime}()
         new(active_routes, events, iptable, 0, timeout)::Session
     end
@@ -322,21 +328,31 @@ function clear!(c::AbstractConnection)
     c[:Session].events[get_ip(c)] = Vector{AbstractEvent}()
 end
 
-function on(f::Function, cm::ComponentModifier, comp::Component{<:Any}, event::String)
-    name = comp.name
-    cl = Toolips.ClientModifier(); f(cl)
-    push!(cm.changes, """setTimeout(function (event) {
-        document.getElementById('$name').addEventListener('$event',
-        function (e) {
-            $(join(cl.changes))
-        });
-        }, 1000);""")
+event(f::Function, session::Session, name::String) = begin
+    push!(session.events["GLOBAL"], Event(f, "GLOBAL-" * name))
+end
+
+on(name::String, c::AbstractConnection, event::String; 
+    prevent_default::Bool = false) = begin
+    name::String = "GLOBAL-" * name
+    write!(c, "<script>document.addEventListener('$event', sendpage('$name'));</script>")
+end
+
+on(name::String, c::AbstractConnection, comp::Component{<:Any}, event::String; 
+    prevent_default::Bool = false) = begin
+    name::String = "GLOBAL-" * name
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
+    end
+    s["on$event"] = "$(prevent)sendpage('$name');"
 end
 
 """
 
 """
-function on(f::Function, c::AbstractConnection, event::AbstractString)
+function on(f::Function, c::AbstractConnection, event::AbstractString, 
+    prevent_default::Bool = false)
     ref::String = Toolips.gen_ref(5)
     ip::String = get_ip(c)
     write!(c,
@@ -344,10 +360,15 @@ function on(f::Function, c::AbstractConnection, event::AbstractString)
     register!(f, c, ref)
 end
 
-function on(f::Function, c::AbstractConnection, s::AbstractComponent, event::AbstractString)
+function on(f::Function, c::AbstractConnection, s::AbstractComponent, event::AbstractString, 
+    prevent_default::Bool = false)
     ref::String = gen_ref(5)
     ip::String = string(get_ip(c))
-    s["on$event"] = "sendpage('$ref');"
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
+    end
+    s["on$event"] = prevent * "sendpage('$ref');"
     register!(f, c, ref)
 end
 
@@ -368,6 +389,17 @@ function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, c
      function () {sendpage('$ref');});
      }, 1000);""")
      register!(f, c, ref)
+end
+
+function on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, event::String)
+    name = comp.name
+    cl = Toolips.ClientModifier(); f(cl)
+    push!(cm.changes, """setTimeout(function (event) {
+        document.getElementById('$name').addEventListener('$event',
+        function (e) {
+            $(join(cl.changes))
+        });
+        }, 1000);""")
 end
 
 function button_select(c::AbstractConnection, name::String, buttons::Vector{<:Servable},

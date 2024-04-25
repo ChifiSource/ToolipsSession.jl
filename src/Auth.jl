@@ -27,7 +27,7 @@ mutable struct Auth{T <: AbstractClient} <: Toolips.AbstractExtension
     end
 end
 
-Auth(; write::Bool = false) = Auth{Client}(write = write)
+Auth(f::Function; write::Bool = false) = Auth{Client}(write = write)
 
 on_start(ext::Auth, data::Dict{Symbol, Any}, routes::Vector{<:AbstractRoute}) = begin
     push!(data, :clients => ext.clients, :authgc => 0)
