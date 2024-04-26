@@ -16,8 +16,8 @@ mutable struct Client <: AbstractClient
     lastup::Dates.DateTime
 end
 
-mutable struct AuthenticatedConnection{T} <: Toolips.AbstractIOConnection
-    stream::T
+mutable struct AuthenticatedConnection <: Toolips.AbstractIOConnection
+    stream::String
     client::Client
     args::Dict{Symbol, String}
     ip::String
@@ -29,7 +29,7 @@ mutable struct AuthenticatedConnection{T} <: Toolips.AbstractIOConnection
     system::String
     host::String
     function AuthenticatedConnection(c::AbstractConnection)
-        new{typeof(c.stream)}(c.stream, c.data[:clients][get_ip(c)], 
+        new("", c.data[:clients][get_ip(c)], 
         get_args(c), get_ip(c), get_post(c), get_route(c), get_method(c), 
         c.data, c.routes, get_client_system(c)[1], get_host(c))
     end
@@ -43,10 +43,10 @@ in(ip::String, v::Vector{<:AbstractClient}) = begin
     false::Bool
 end
 
-getindex(ip::String, v::Vector{<:AbstractClient}) = begin
+getindex(v::Vector{<:AbstractClient}, ip::String) = begin
     found = findfirst(c::AbstractClient -> c.ip == ip, v)
     if ~(isnothing(found))
-        return(v[found])::Bool
+        return(v[found])::AbstractClient
     end
     throw(KeyError(ip))
 end
@@ -55,8 +55,8 @@ convert(c::AbstractConnection, routes::Routes, T::Type{AuthenticatedConnection})
     get_ip(c) in c[:clients]
 end
 
-convert!(c::AbstractConnection, routes::Routes, into:::Type{AuthenticatedConnection}) = begin
-    AuthenticatedConnection(c)::AuthenticatedConnection{typeof(c.stream)}
+convert!(c::AbstractConnection, routes::Routes, into::Type{AuthenticatedConnection}) = begin
+    AuthenticatedConnection(c)::AuthenticatedConnection
 end
 
 mutable struct Auth{T <: AbstractClient} <: Toolips.AbstractExtension
@@ -92,12 +92,6 @@ function route!(c::AbstractConnection, e::Auth)
         route_403(c, "You have been blacklisted from this webpage.")
         return(false)
     end
-    # make new clients
-    if ~(ip in e.clients)
-        key::String = gen_ref(10)
-        newc::Client = Client(key, ip, 0, Dict{String, Any}(), now())
-        push!(e.clients, newc)
-    end
     # request check
     cl::Client = e.clients[get_ip(c)]
     cl.lastup = now()
@@ -109,20 +103,25 @@ function route!(c::AbstractConnection, e::Auth)
         push!(e.blacklist, ip)
     end
     args::Dict{Symbol, <:Any} = get_args(c)
-    if :key in keys(args)
-        if args[:key] == cl.key
-            route!(c, c.routes)
-        else
-            route_403(c, "Auth key does not match. Packet intercepted?")
-        end
-        return(false)::Bool
-    end
     if e.writekeys && get_method(c) != "POST"
         k = div("private-key", text = cl.key)
         write!(c, k)
     end
 end
 
-authenticated_redirect!(c::AuthenticatedConnection, cm::AbstractComponentModifier) = begin
-
+function redirect!(c::AuthenticatedConnection, cm::AbstractComponentModifier, to::String = get_host(c); delay::Int64 = 0)
+    new_ref::String = gen_ref(10)
+    c.client.key = new_ref
+    redirect!(cm, "$to?key=$new_ref", delay)
 end
+
+authenticated(c::AuthenticatedConnection, cm::AbstractComponentModifier) = begin
+    cm["private-key"]["text"] == c.client.key
+end
+
+authorize!(c::AbstractConnection) = begin
+    key::String = gen_ref(10)
+    newc::Client = Client(key, get_ip(c), 0, Dict{String, Any}(), now())
+    push!(c[:clients], newc)
+end
+    

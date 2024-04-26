@@ -49,13 +49,14 @@ the `Function` provided to `route` takes an `AbstractConnection`.
 """
 module ToolipsSession
 using Toolips
-import Toolips: AbstractRoute, kill!, AbstractConnection, write!, route!, on_start, gen_ref, convert, convert!
+import Toolips: AbstractRoute, kill!, AbstractConnection, write!, route!, on_start, gen_ref, convert, convert!, write!, interpolate!
 import Toolips.Components: ClientModifier, script, Servable, next!, Component, style!, AbstractComponentModifier, AbstractComponent, on, bind, htmlcomponent
 import Base: setindex!, getindex, push!, iterate, string, in
 using Dates
 # using WebSockets: serve, writeguarded, readguarded, @wslog, open, HTTP, Response, ServerWS
 include("Modifier.jl")
-
+include("Auth.jl")
+export authorize!
 #==
 Hello, welcome to the Session source. Here is an overview of the organization
 that might help you out:
