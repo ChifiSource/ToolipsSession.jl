@@ -182,6 +182,17 @@ struct Event <: AbstractEvent
     name::String
 end
 
+"""
+call!(c::AbstractConnection, ...) -> ::Nothing
+---
+`call!` is used call events on a client. `call!` is used for RPC and by the document linker 
+to call event references. The first method is indicitave of the latter:
+```julia
+call!(c::AbstractConnection, event::AbstractEvent, cm::ComponentModifier)
+```
+"""
+function call! end
+
 function call!(c::AbstractConnection, event::AbstractEvent, cm::ComponentModifier)
     if length(methods(event.f)[1].sig.parameters) > 2
         event.f(c, cm)
@@ -195,12 +206,34 @@ end
 ```julia
 abstract type RPCEvent <: AbstractEvent
 ```
-
+An `RPCEvent` is an event that manages RPC changes for multiple clients. The main 
+    two types of rpc events are the `RPCClient` and `RPCHost`. These events are 
+    created whenever `join_rpc!` or `open_rpc!` is called.
 ---
-- See also: `Session`, `on`, `ToolipsSession`, `bind`, `AbstractEvent`, `Event`
+- See also: `Session`, `on`, `AbstractEvent`, `Event`, `RPCHost`, `RPCClient`, `open_rpc!`
 """
 abstract type RPCEvent <: AbstractEvent end
 
+"""
+```julia
+mutable struct RPCClient <: RPCEvent
+```
+- name**::String**
+- host**::String**
+- changes**::Vector{String}**
+
+The `RPCClient` is used to track the `changes` and `host` from other clients sharing 
+its RPC session.
+
+- See also: `open_rpc!`, `RPCEvent`, `RPCHost`, `rpc!`, `call!`
+```julia
+RPCClient(c::AbstractConnection, host::String, ref::String)
+```
+---
+```example
+
+```
+"""
 mutable struct RPCClient <: RPCEvent
     name::String
     host::String
@@ -208,6 +241,26 @@ mutable struct RPCClient <: RPCEvent
     RPCClient(c::AbstractConnection, host::String, ref) = new(ref, host, Vector{String}())
 end
 
+"""
+```julia
+mutable struct RPCHost <: RPCEvent
+```
+- name**::String**
+- clients**::Vector{String}**
+- changes**::Vector{String}**
+
+The `RPCHost` is the partner to the `RPCClient`, created by calling `open_rpc!` this host will 
+track the changes to itself, as well as which clients are meant to be part of its RPC session.
+
+- See also: `open_rpc!`, `RPCEvent`, `RPCClient`, `rpc!`, `call!`, `Event`, `Session`
+```julia
+RPCHost(ref::String)
+```
+---
+```example
+
+```
+"""
 mutable struct RPCHost <: RPCEvent
     name::String
     clients::Vector{String}
@@ -221,13 +274,33 @@ function call!(c::AbstractConnection, event::RPCEvent, cm::ComponentModifier)
     nothing::Nothing
 end
 
+"""
+```julia
+mutable struct Session <: Toolips.AbstractExtension
+```
+- active_routes**::Vector{String}**
+- events**::Dict{String, Vector{AbstractEvent}}**
+- iptable**::Dict{String, Dates.DateTime}**
+- gc**::Int64**
+- timeout**::Int64**
+
+
+- See also: `open_rpc!`, `RPCEvent`, `RPCClient`, `rpc!`, `call!`, `Event`, `Session`
+```julia
+Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 5)
+```
+---
+```example
+
+```
+"""
 mutable struct Session <: Toolips.AbstractExtension
     active_routes::Vector{String}
     events::Dict{String, Vector{AbstractEvent}}
     iptable::Dict{String, Dates.DateTime}
     gc::Int64
     timeout::Int64
-    function Session(active_routes::Vector{String} = ["/"]; timeout = 5)
+    function Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 5)
         events = Dict{String, Vector{AbstractEvent}}("GLOBAL" => Vector{AbstractEvent}()) 
         iptable = Dict{String, Dates.DateTime}()
         new(active_routes, events, iptable, 0, timeout)::Session
