@@ -109,13 +109,19 @@ function route!(c::AbstractConnection, e::Auth)
     end
 end
 
-function redirect!(c::AuthenticatedConnection, cm::AbstractComponentModifier, to::String = get_host(c); delay::Int64 = 0)
+function redirect!(c::AbstractConnection, cm::AbstractComponentModifier, to::String = get_host(c); delay::Int64 = 0)
     new_ref::String = gen_ref(10)
-    c.client.key = new_ref
+    c[:clients][get_ip(c)].key = new_ref
     redirect!(cm, "$to?key=$new_ref", delay)
 end
 
-authenticated(c::AuthenticatedConnection, cm::AbstractComponentModifier) = begin
+auth_pass!(c::AbstractConnection, url::String) = begin
+    new_ref::String = gen_ref(10)
+    c[:clients][get_ip(c)].key = new_ref
+    HTTP.get("http://$(string(ip4))?key=$new_ref", response_stream = c.stream, status_exception = false)
+end
+
+authenticated(c::AbstractConnection, cm::AbstractComponentModifier) = begin
     cm["private-key"]["text"] == c.client.key
 end
 
