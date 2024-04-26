@@ -1,3 +1,11 @@
+function route_403(c::AbstractConnection, message::String)
+    if "403" in c.routes
+        route!(c, c.routes["403"])
+    else
+        respond!(c, 403, message)
+    end
+end
+
 abstract type AbstractClient end
 
 mutable struct Client <: AbstractClient
@@ -8,6 +16,25 @@ mutable struct Client <: AbstractClient
     lastup::Dates.DateTime
 end
 
+mutable struct AuthenticatedConnection{T} <: Toolips.AbstractIOConnection
+    stream::T
+    client::Client
+    args::Dict{Symbol, String}
+    ip::String
+    post::String
+    route::String
+    method::String
+    data::Dict{Symbol, Any}
+    routes::Vector{<:AbstractRoute}
+    system::String
+    host::String
+    function AuthenticatedConnection(c::AbstractConnection)
+        new{typeof(c.stream)}(c.stream, c.data[:clients][get_ip(c)], 
+        get_args(c), get_ip(c), get_post(c), get_route(c), get_method(c), 
+        c.data, c.routes, get_client_system(c)[1], get_host(c))
+    end
+end
+
 in(ip::String, v::Vector{<:AbstractClient}) = begin
     found = findfirst(c::AbstractClient -> c.ip == ip, v)
     if ~(isnothing(found))
@@ -16,18 +43,35 @@ in(ip::String, v::Vector{<:AbstractClient}) = begin
     false::Bool
 end
 
+getindex(ip::String, v::Vector{<:AbstractClient}) = begin
+    found = findfirst(c::AbstractClient -> c.ip == ip, v)
+    if ~(isnothing(found))
+        return(v[found])::Bool
+    end
+    throw(KeyError(ip))
+end
+
+convert(c::AbstractConnection, routes::Routes, T::Type{AuthenticatedConnection}) = begin
+    get_ip(c) in c[:clients]
+end
+
+convert!(c::AbstractConnection, routes::Routes, into:::Type{AuthenticatedConnection}) = begin
+    AuthenticatedConnection(c)::AuthenticatedConnection{typeof(c.stream)}
+end
+
 mutable struct Auth{T <: AbstractClient} <: Toolips.AbstractExtension
     blacklist::Vector{String}
     clients::Vector{T}
     writekeys::Bool
-    Auth{T}(; write::Bool = false) where {T <: AbstractClient} = begin
+    max_requests::Int64
+    Auth{T}(; write::Bool = false, max_requests::Int64 = 1200) where {T <: AbstractClient} = begin
         blacklist::Vector{String} = Vector{String}()
         clients::Vector{T} = Vector{T}()
-        new{T}(blacklist, clients, write)::Auth{T}
+        new{T}(blacklist, clients, write, max_requests)::Auth{T}
     end
 end
 
-Auth(f::Function; write::Bool = false) = Auth{Client}(write = write)
+Auth(; args ...) = Auth{Client}(; args ...)
 
 on_start(ext::Auth, data::Dict{Symbol, Any}, routes::Vector{<:AbstractRoute}) = begin
     push!(data, :clients => ext.clients, :authgc => 0)
@@ -37,7 +81,8 @@ function gc_routine(auth::Auth)
     this_time::Dates.DateTime = now()
     today = day(this_time)
     found = findall(d -> day(d) != today, auth.clients)
-    [deleteat!(auth.clients, pos) for pos in ]
+    [deleteat!(auth.clients, pos) for pos in found]
+    [client.n_requests = 0 for client in auth.clients]
 end
 
 function route!(c::AbstractConnection, e::Auth)
@@ -57,7 +102,12 @@ function route!(c::AbstractConnection, e::Auth)
     cl::Client = e.clients[get_ip(c)]
     cl.lastup = now()
     cl.n_requests += 1
-    gc_routine(auth)
+    if sum((client.n_requests)) > 10000
+        gc_routine(auth)
+    end
+    if cl.n_requests > e.max_requests
+        push!(e.blacklist, ip)
+    end
     args::Dict{Symbol, <:Any} = get_args(c)
     if :key in keys(args)
         if args[:key] == cl.key
@@ -73,16 +123,6 @@ function route!(c::AbstractConnection, e::Auth)
     end
 end
 
-function route_403(c::AbstractConnection, message::String)
-    if "403" in c.routes
-        route!(c, c.routes["403"])
-    else
-        respond!(c, 403, message)
-    end
-end
+authenticated_redirect!(c::AuthenticatedConnection, cm::AbstractComponentModifier) = begin
 
-authenticated(c::AbstractConnection, cm::ComponentModifier) = begin
-    key::String = c[:clients][get_ip(c)].key
-    args = get_args(c)
-    cm["private-key"]["text"] == key || (:key in keys(args) && args[:key] == key)
 end

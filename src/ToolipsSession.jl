@@ -49,7 +49,7 @@ the `Function` provided to `route` takes an `AbstractConnection`.
 """
 module ToolipsSession
 using Toolips
-import Toolips: AbstractRoute, kill!, AbstractConnection, write!, route!, on_start, gen_ref
+import Toolips: AbstractRoute, kill!, AbstractConnection, write!, route!, on_start, gen_ref, convert, convert!
 import Toolips.Components: ClientModifier, script, Servable, next!, Component, style!, AbstractComponentModifier, AbstractComponent, on, bind, htmlcomponent
 import Base: setindex!, getindex, push!, iterate, string, in
 using Dates
