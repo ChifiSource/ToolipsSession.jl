@@ -183,7 +183,9 @@ struct Event <: AbstractEvent
 end
 
 """
+```julia
 call!(c::AbstractConnection, ...) -> ::Nothing
+```
 ---
 `call!` is used call events on a client. `call!` is used for RPC and by the document linker 
 to call event references. The first method is indicitave of the latter:
@@ -284,14 +286,37 @@ mutable struct Session <: Toolips.AbstractExtension
 - gc**::Int64**
 - timeout**::Int64**
 
+`Session` provides fullstack `Event` callbacks to your `Toolips` server. This is a `Toolips` extension; 
+in order to load it, construct it and then `export` it from your `Module`. From here, callbacks can be 
+registered using `on`, `script!`, or `bind`. `on` must be provided a `Connection` in order to pass a 
+`ComponentModifier`, which will allow to us to interact with the server.
+```julia
+module SessionServer
+using Toolips
+using Toolips.Components
+using ToolipsSession
 
-- See also: `open_rpc!`, `RPCEvent`, `RPCClient`, `rpc!`, `call!`, `Event`, `Session`
+      #   v only operating on `/`, with a timeout of 5 minutes.
+session = Session()
+
+main = route("/") do c::AbstractConnection
+    mybutton = button("click-me", text = "click me!")
+    style!(mybutton, "background-color" => "white", "transition" => 500ms)
+    on(c, mybutton, "click") do cm::ComponentModifier
+        style!(cm, mybutton, "background-color" => "red")
+    end
+    bod = body("main-body")
+    push!(bod, mybutton)
+    write!(c, bod)
+end
+
+export main, session
+end
+```
+Provided functions are able to take either a `ComponentModifier`, or a `Connection` and a `ComponentModifier` as arguments.
+- See also: `open_rpc!`, `script!`, `on`, `ToolipsSession.bind`, `ComponentModifier`
 ```julia
 Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 5)
-```
----
-```example
-
 ```
 """
 mutable struct Session <: Toolips.AbstractExtension
@@ -374,22 +399,27 @@ getindex(m::Session, s::AbstractString) = m.events[s]
 setindex!(m::Session, d::Any, s::AbstractString) = m.events[s] = d
 
 """
-**Session Interface**
-### kill!(c::AbstractConnection)
-------------------
-Kills a Connection's saved events.
-#### example
+```julia
+kill!(c::AbstractConnection) -> ::Nothing
 ```
+---
+Deletes a `Connection`'s active session, removing the client from 
+the `iptable` and removing all events associated with the client.
+- See also: `Session`, `clear!`, `on`, `ToolipsSession.bind`
+---
+##### example
+```julia
+module InstantKill
 using Toolips
 using ToolipsSession
 
-route("/") do c::AbstractConnection
-    on(c, "load") do cm::ComponentModifier
-        alert!(cm, "this text will never appear.")
-    end
-    println(length(keys(c[:Session].iptable)))
-    kill!(c)
-    println(length(keys(c[:Session].iptable)))
+session = Session()
+
+main = route("/") do c::AbstractConnection
+
+end
+
+export main, session
 end
 ```
 """
@@ -398,6 +428,14 @@ function kill!(c::AbstractConnection)
     delete!(c[:Session].events, get_ip(c))
 end
 
+"""
+clear!(c::AbstractConnection) -> ::Nothing
+---
+Deletes a `Connection`'s active session.
+```julia
+call!(c::AbstractConnection, event::AbstractEvent, cm::ComponentModifier)
+```
+"""
 function clear!(c::AbstractConnection)
     c[:Session].events[get_ip(c)] = Vector{AbstractEvent}()
 end
@@ -423,9 +461,32 @@ on(name::String, c::AbstractConnection, comp::Component{<:Any}, event::String;
 end
 
 """
+Additional `on` `ClientModifier` bindings from `ToolipsSession` ...
+```julia
+on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, event::String)
+```
+##### ToolipsSession.on
+```julia
+on(f::Function, c::AbstractConnection, args ...; prevent_default::Bool = false)
+```
+`ToolipsSession` extends `on`, providing each `on` dispatch with a `Connection` equivalent 
+that makes a callback to the server. This allows us to access data, or do more calculations 
+than would otherwise be possible with a `ClientModifier`.
+```julia
 
+```
+- See also: `script!`, `ToolipsSession.bind`, `KeyMap`, `open_rpc!`, `join_rpc!`, `Session`, `ToolipsSession`, `ComponentModifier`
+---
+```julia
+on(f::Function, c::AbstractConnection, event::AbstractString; prevent_default::Bool = false)
+on(f::Function, c::AbstractConnection, s::AbstractComponent, event::AbstractString, 
+    prevent_default::Bool = false)
+on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, event::AbstractString)
+on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
+     event::AbstractString)
+```
 """
-function on(f::Function, c::AbstractConnection, event::AbstractString, 
+function on(f::Function, c::AbstractConnection, event::AbstractString;
     prevent_default::Bool = false)
     ref::String = Toolips.gen_ref(5)
     ip::String = get_ip(c)
@@ -1081,18 +1142,6 @@ end
 function call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
     call!(c[:Session], find_host(c), cm, get_ip(c), peerip)
 end
-
-"""
-**Session Interface**
-### is_dead(c::AbstractConnection) -> ::Bool
-------------------
-Checks if the current `Connection` is still connected to `Session`
-#### example
-```
-
-```
-"""
-is_dead(c::AbstractConnection) = get_ip(c) in keys(c[:Session].iptable)
 
 export Session, on, bind!, script!, script, ComponentModifier, ClientModifier
 export KeyMap
