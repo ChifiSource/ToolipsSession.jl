@@ -22,18 +22,24 @@ getindex(cc::ComponentModifier, s::String ...) = htmlcomponent(cc.rootc, [s ...]
 
 in(s::String, cm::ComponentModifier) = contains(cm.rootc, s)::Bool
 
-function style!(cm::AbstractComponentModifier, s::String, a::Toolips.ToolipsServables.KeyFrames;
-    play::Bool = true)
-    playstate = "running"
-    if ~(play)
-        playstate = "paused"
+# random component
+function button_select(c::AbstractConnection, name::String, buttons::Vector{<:Servable},
+    unselected::Vector{Pair{String, String}} = ["background-color" => "blue",
+     "border-width" => 0px],
+    selected::Vector{Pair{String, String}} = ["background-color" => "green",
+     "border-width" => 2px])
+    selector_window = div(name, value = first(buttons)[:text])
+    document.getElementById("xyz").style = "";
+    [begin
+    style!(butt, unselected)
+    on(c, butt, "click") do cm
+        [style!(cm, but, unselected) for but in buttons]
+        cm[selector_window] = "value" => butt[:text]
+        style!(cm, butt, selected)
     end
-    animname = a.name
-    time = string(a.length) * "s"
-     push!(cm.changes,
-     "document.getElementById('$s').style.animation = '$time 1 $animname';")
-     push!(cm.changes,
-    "document.getElementById('$s').style.animationPlayState = '$playstate';")
+    end for butt in buttons]
+    selector_window[:children] = Vector{Servable}(buttons)
+    selector_window::Component{:div}
 end
 
 """

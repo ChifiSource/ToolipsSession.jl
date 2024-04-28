@@ -473,17 +473,17 @@ on(f::Function, c::AbstractConnection, args ...; prevent_default::Bool = false)
 that makes a callback to the server. This allows us to access data, or do more calculations 
 than would otherwise be possible with a `ClientModifier`.
 ```julia
-
-```
-- See also: `script!`, `ToolipsSession.bind`, `KeyMap`, `open_rpc!`, `join_rpc!`, `Session`, `ToolipsSession`, `ComponentModifier`
----
-```julia
 on(f::Function, c::AbstractConnection, event::AbstractString; prevent_default::Bool = false)
 on(f::Function, c::AbstractConnection, s::AbstractComponent, event::AbstractString, 
     prevent_default::Bool = false)
 on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, event::AbstractString)
 on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
      event::AbstractString)
+```
+- See also: `script!`, `ToolipsSession.bind`, `KeyMap`, `open_rpc!`, `join_rpc!`, `Session`, `ToolipsSession`, `ComponentModifier`
+---
+```julia
+
 ```
 """
 function on(f::Function, c::AbstractConnection, event::AbstractString;
@@ -507,7 +507,8 @@ function on(f::Function, c::AbstractConnection, s::AbstractComponent, event::Abs
     register!(f, c, ref)
 end
 
-function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, event::AbstractString)
+function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, event::AbstractString; 
+    prevent_default::Bool = false)
     ip::String = get_ip(c)
     ref::String = gen_ref(5)
     push!(cm.changes, """setTimeout(function () {
@@ -516,7 +517,7 @@ function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, e
 end
 
 function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
-     event::AbstractString)
+     event::AbstractString; prevent_default::Bool = false)
      name::String = comp.name
      ref::String = gen_ref(5)
      push!(cm.changes, """setTimeout(function () {
@@ -526,7 +527,8 @@ function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, c
      register!(f, c, ref)
 end
 
-function on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, event::String)
+function on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, event::String;
+    prevent_default::Bool = false)
     name = comp.name
     cl = Toolips.ClientModifier(); f(cl)
     push!(cm.changes, """setTimeout(function (event) {
@@ -537,27 +539,188 @@ function on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, 
         }, 1000);""")
 end
 
-function button_select(c::AbstractConnection, name::String, buttons::Vector{<:Servable},
-    unselected::Vector{Pair{String, String}} = ["background-color" => "blue",
-     "border-width" => 0px],
-    selected::Vector{Pair{String, String}} = ["background-color" => "green",
-     "border-width" => 2px])
-    selector_window = div(name, value = first(buttons)[:text])
-    document.getElementById("xyz").style = "";
-    [begin
-    style!(butt, unselected)
-    on(c, butt, "click") do cm
-        [style!(cm, but, unselected) for but in buttons]
-        cm[selector_window] = "value" => butt[:text]
-        style!(cm, butt, selected)
+"""
+```julia
+bind(f::Function, c::AbstractConnection, args ...) -> ::Nothing
+```
+---
+`ToolipsSession.bind` (`TooipsServables.bind`) is used to add less-traditional controls to `Toolips` 
+web-pages. `ToolipsSession` adds server-side callbacks to this binding interface. The base `bind` methods will take a `Connection`, and 
+will be provided with a normal event function, along with a key to bind it to. 
+    Keys are represented the same as they are in JavaScript -- uppercase for 
+    single letter keys, and initial uppercase for key names. For example...
+```julia
+module MyServer
+using Toolips
+using ToolipsSession
+
+main = route("/") do c::AbstractConnection
+    mainbody = body(children = [h2(text = "press keys ...")], align = "center")
+    ToolipsSession.bind(c, "Enter") do cm::ComponentModifier
+        alert!(cm, "enter was pressed")
     end
-    end for butt in buttons]
-    selector_window[:children] = Vector{Servable}(buttons)
-    selector_window::Component{:div}
+    ToolipsSession.bind(c, "X") do cm::ComponentModifier
+        alert!(cm, "X was pressed")
+    end
+    ToolipsSession.bind(c, "ArrowRight") do cm::ComponentModifier
+        alert!(cm, "the right arrow key was pressed")
+    end
+    write!(c, mainbody)
 end
 
+export session, main
+end
+```
+`ToolipsSession.bind` can also handle these key-presses alongside a 
+control, alt, and shift combination.These are provided as symbols.
+```julia
+main = route("/") do c::AbstractConnection
+    mainbody = body(children = [h2(text = "press keys ...")], align = "center")
+    ToolipsSession.bind(c, "Enter", :ctrl, :shift) do cm::ComponentModifier
+        alert!(cm, "ctrl + shift + enter was pressed")
+    end
+    write!(c, mainbody)
+end
+```
+Keep in mind that the dispatches taking the `ComponentModiifer` are for callbacks, 
+    whereas exclusively the `Connection` is for responses.
+```julia
+bind(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol ...; on::Symbol = :down, 
+prevent_default::Bool = true)
+bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, key::String,
+    eventkeys::Symbol ...; on::Symbol = :down, mark::String = "none")
+bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
+    key::String, eventkeys::Symbol ...; on::Symbol = :down)
+bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
+    key::String, eventkeys::Symbol ...; on::Symbol = :down)
+bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
+    key::String, eventkeys::Symbol ...; on::Symbol = :down)
+```
+"""
+function bind(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol ...;
+    on::Symbol = :down, prevent_default::Bool = true)
+    cm::Modifier = ClientModifier()
+    eventstr::String = join([begin " event.$(event)Key && "
+                            end for event in eventkeys])
+    ref::String = gen_ref(5)
+    write!(c, """<script>
+    setTimeout(function () {
+document.addEventListener('key$on', function(event) {
+    if ($eventstr event.key == "$(key)") {
+    sendpage('$ref');
+    }
+});}, 1000);</script>
+    """)
+    register!(f, c, ref)
+end
+
+function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, key::String,
+    eventkeys::Symbol ...; on::Symbol = :down, mark::String = "none")
+    eventstr::String = join([begin " event.$(event)Key && "
+                            end for event in eventkeys])
+    ref = gen_ref(5)
+    push!(cm.changes, """
+    setTimeout(function () {
+    document.addEventListener('key$on', (event) => {
+            if ($eventstr event.key == "$(key)") {
+            sendpage('$ref');
+            }
+            });}, 1000);""")
+    register!(f, c, ref)
+end
+
+function bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
+    key::String, eventkeys::Symbol ...; on::Symbol = :down)
+    cm::AbstractComponentModifier = Toolips.Components.ClientModifier()
+    eventstr::String = join((begin " event.$(event)Key && "
+                            end for event in eventkeys))
+    ref::String = gen_ref(5)
+    write!(c, """<script>
+    setTimeout(function () {
+    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
+        if ($eventstr event.key == "$(key)") {
+        sendpage('$ref');
+        }
+});}, 1000)</script>
+    """)
+    register!(f, c, ref)
+end
+
+
+function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
+    key::String, eventkeys::Symbol ...; on::Symbol = :down)
+    ref::String = gen_ref(5)
+    name::String = comp.name
+    eventstr::String = join([begin " event.$(event)Key && "
+                            end for event in eventkeys])
+push!(cm.changes, """setTimeout(function () {
+document.getElementById('$(name)').onkeydown = function(event){
+        if ($eventstr event.key == '$(key)') {
+        sendpage('$ref')
+        }
+        }}, 1000);""")
+    register!(f, c, ref)
+end
+
+"""
+```julia
+abstract type InputMap
+```
+The `InputMap` is used to bind multiple event references into one 
+client-side function. This is necessary for binding multiple keys, for 
+example, as there is only one `keydown` event.
+---
+- See also: `ToolipsSession.bind`, `KeyMap`, `SwipeMap`, `Session`, `on`
+"""
 abstract type InputMap end
 
+"""
+```julia
+mutable struct SwipeMap <: InputMap
+```
+- `bindings`**::Dict{String, Function}**
+
+A `SwipeMap` is used to bind swipes to different events. These swipe 
+events include `"left"`, `"right"`, `"up"`, `"down"`. The events are 
+bound with `bind(::Function, ::AbstractConnection, sm::SwipeMap, swipe::String)` 
+to a `SwipeMap` and then bound to a `Connection` with `bind(::AbstractConnection, ::SwipeMap)`.
+```example
+module MobileSample
+using Toolips
+using Toolips.Components
+using ToolipsSession
+
+page1 = div("sample")
+push!(page1, h2(text = "welcome to my page"))
+push!(page1, p("main", text = "swipe to change colors"))
+
+session = Session()
+
+mob = route("/") do c::Connection
+    mainbody::Component{:body} = body("main-body")
+    style!(mainbody, "transition" => 1s)
+    sm = SwipeMap()
+    ToolipsSession.bind(c, sm, "left") do cm::ComponentModifier
+        style!(cm, mainbody, "background-color" => "orange")
+        set_text!(cm, "main", "swiped left")
+    end
+    ToolipsSession.bind(c, sm, "up") do cm::ComponentModifier
+        style!(cm, mainbody, "background-color" => "blue")
+        set_text!(cm, "main", "swiped up")
+    end
+    push!(mainbody, page1)
+    write!(c, mainbody)
+    ToolipsSession.bind(c, sm)
+end
+
+export mob, start!, session
+end
+```
+```julia
+Event(f::Function, name::String)
+```
+- See also: `Session`, `on`, `ToolipsSession`, `bind`, `AbstractEvent`
+"""
 mutable struct SwipeMap <: InputMap
     bindings::Dict{String, Function}
     SwipeMap() = new(Dict{String, Function}())
@@ -572,8 +735,7 @@ function bind(f::Function, c::AbstractConnection, sm::SwipeMap, swipe::String)
     sm.bindings[swipe] = f
 end
 
-function bind(c::AbstractConnection, sm::SwipeMap,
-    readonly::Vector{String} = Vector{String}())
+function bind(c::AbstractConnection, sm::SwipeMap)
     swipes = keys
     swipes = ["left", "right", "up", "down"]
     newswipes = Dict([begin
@@ -638,26 +800,7 @@ function handleTouchMove(evt) {
 end
 
 """
-### KeyMap
-- keys::Dict{String, Pair{Tuple, Function}}
 
-The `KeyMap` allows one to `bind!` more than one key press with incredible ease.
-##### example
-```
-r = route("/") do c::AbstractConnection
-    km = KeyMap()
-    bind!(km, "S", :ctrl) do cm::ComponentModifier
-        alert!(cm, "saved!")
-    end
-    bind!(km, "C", :ctrl) do cm::ComponentModifier
-        alert!(cm, "copied!")
-    end
-    bind!(c, km)
-end
-```
-------------------
-##### constructors
-- KeyMap()
 """
 mutable struct KeyMap <: InputMap
     keys::Dict{String, Pair{Tuple, Function}}
@@ -666,23 +809,7 @@ mutable struct KeyMap <: InputMap
 end
 
 """
-**Session**
-### bind!(f::Function, km::KeyMap, key::String, event::Symbol ...)
-------------------
-binds the `key` with the event keys (:ctrl, :shift, :alt) to `f` in `km`.
-#### example
-```
-r = route("/") do c::AbstractConnection
-    km = KeyMap()
-    bind!(km, "S", :ctrl) do cm::ComponentModifier
-        alert!(cm, "saved!")
-    end
-    bind!(km, "C", :ctrl) do cm::ComponentModifier
-        alert!(cm, "copied!")
-    end
-    bind!(c, km)
-end
-```
+
 """
 function bind(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)
     if prevent_default == true
@@ -714,23 +841,6 @@ function bind(f::Function, km::KeyMap, vs::Vector{String}; prevent_default::Bool
 end
 
 """
-**Session**
-### bind!(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
-------------------
-Binds the `KeyMap` `km` to the `Connection` in a `ComponentModifier` callback.
-#### example
-```
-r = route("/") do c::AbstractConnection
-    km = KeyMap()
-    bind!(km, "S", :ctrl) do cm::ComponentModifier
-        alert!(cm, "saved!")
-    end
-    bind!(km, "C", :ctrl) do cm::ComponentModifier
-        alert!(cm, "copied!")
-    end
-    bind!(c, km)
-end
-```
 """
 function bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
     firsbind = first(km.keys)
@@ -758,23 +868,7 @@ function bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_def
 end
 
 """
-**Session**
-### bind!(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
-------------------
-Binds the `KeyMap` `km` to the `Connection` in a `ComponentModifier` callback.
-#### example
-```
-r = route("/") do c::AbstractConnection
-    km = KeyMap()
-    bind!(km, "S", :ctrl) do cm::ComponentModifier
-        alert!(cm, "saved!")
-    end
-    bind!(km, "C", :ctrl) do cm::ComponentModifier
-        alert!(cm, "copied!")
-    end
-    bind!(c, km)
-end
-```
+
 """
 function bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symbol = :down, prevent_default::Bool = true)
     firsbind = first(km.keys)
@@ -803,14 +897,7 @@ function bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symb
 end
 
 """
-**Session**
-### bind!(c::AbstractConnection, comp::Component, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
-------------------
-Binds the `KeyMap` `km` to the `comp`.
-#### example
-```
 
-```
 """
 function bind(c::AbstractConnection, cm::ComponentModifier, comp::Component{<:Any},
     km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
@@ -837,115 +924,6 @@ function bind(c::AbstractConnection, cm::ComponentModifier, comp::Component{<:An
     end
     first_line = first_line * "}.bind(event));}, 500);"
     push!(cm.changes, first_line)
-end
-
-"""
-**Session Interface** 0.3
-### bind!(f::Function, c::AbstractConnection, key::String, readonly::Vector{String} = [];
-    on::Symbol = :down, client::Bool == false)  -> _
-------------------
-
-Binds a key event to a `Component`.
-#### example
-```
-
-```
-"""
-function bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
-    key::String, eventkeys::Symbol ...; on::Symbol = :down)
-    cm::AbstractComponentModifier = Toolips.Components.ClientModifier()
-    eventstr::String = join((begin " event.$(event)Key && "
-                            end for event in eventkeys))
-    ref::String = gen_ref(5)
-    write!(c, """<script>
-    setTimeout(function () {
-    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
-        if ($eventstr event.key == "$(key)") {
-        sendpage('$ref');
-        }
-});}, 1000)</script>
-    """)
-    register!(f, c, ref)
-end
-
-"""
-**Session Interface** 0.3
-### bind!(f::Function, c::AbstractConnection, key::String, readonly::Vector{String} = [];
-    on::Symbol = :down, client::Bool == false)  -> _
-------------------
-Binds a key event to a `Connection`.
-#### example
-```
-
-```
-"""
-function bind(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol ...;
-    on::Symbol = :down, prevent_default::Bool = true)
-    cm::Modifier = ClientModifier()
-    eventstr::String = join([begin " event.$(event)Key && "
-                            end for event in eventkeys])
-    ref::String = gen_ref(5)
-    write!(c, """<script>
-    setTimeout(function () {
-document.addEventListener('key$on', function(event) {
-    if ($eventstr event.key == "$(key)") {
-    sendpage('$ref');
-    }
-});}, 1000);</script>
-    """)
-    register!(f, c, ref)
-end
-
-"""
-**Session Interface** 0.3
-### bind!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, key::String, eventkeys::Symbol ...; readonly::Vector{String} = [];
-    on::Symbol = :down, client::Bool == false)  -> _
-------------------
-Binds a key event to a `Connection` in a `ComponentModifier` callback.
-#### example
-```
-
-```
-"""
-function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, key::String,
-    eventkeys::Symbol ...; on::Symbol = :down, mark::String = "none")
-    eventstr::String = join([begin " event.$(event)Key && "
-                            end for event in eventkeys])
-    ref = gen_ref(5)
-    push!(cm.changes, """
-    setTimeout(function () {
-    document.addEventListener('key$on', (event) => {
-            if ($eventstr event.key == "$(key)") {
-            sendpage('$ref');
-            }
-            });}, 1000);""")
-    register!(f, c, ref)
-end
-
-"""
-**Session Interface** 0.3
-### bind!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any}, key::String, eventkeys::Symbol ...; readonly::Vector{String} = [];
-    on::Symbol = :down, client::Bool == false)  -> _
-------------------
-Binds a key event to a `Component` in a `ComponentModifier` callback.
-#### example
-```
-
-```
-"""
-function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
-    key::String, eventkeys::Symbol ...; on::Symbol = :down)
-    ref::String = gen_ref(5)
-    name::String = comp.name
-    eventstr::String = join([begin " event.$(event)Key && "
-                            end for event in eventkeys])
-push!(cm.changes, """setTimeout(function () {
-document.getElementById('$(name)').onkeydown = function(event){
-        if ($eventstr event.key == '$(key)') {
-        sendpage('$ref')
-        }
-        }}, 1000);""")
-    register!(f, c, ref)
 end
 
 #==
