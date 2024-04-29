@@ -6,7 +6,9 @@ mutable struct ComponentModifier <: ToolipsServables.AbstractComponentModifier
 - `changes**::Vector{String}**`
 
 The `ComponentModifier` is used in callback bindings to register outgoing changes 
-to the components on a client's web-page.
+to the components on a client's web-page. A `ComponentModifier` can be indexed with a `String` 
+to yield that `Component`, which modified properties may then be read from the page with. We can also check
+if elements are on the page by using `in` with a conditional.
 
 - See also: `Session`, `on`, `ToolipsSession.bind`, `Toolips`, `ToolipsSession`
 ```julia
@@ -41,6 +43,22 @@ getindex(cc::ComponentModifier, s::String ...) = htmlcomponent(cc.rootc, [s ...]
 in(s::String, cm::ComponentModifier) = contains(cm.rootc, s)::Bool
 
 # random component
+"""
+```julia
+button_select(c::AbstractConnection, name::String, buttons::Vector{<:Servable}, 
+unselected::Vector{Pair{String, String}} = ["background-color" => "blue",
+     "border-width" => 0px],
+    selected::Vector{Pair{String, String}} = ["background-color" => "green",
+     "border-width" => 2px]))
+```
+A unique `Component` provided by `ToolipsSession` for building a selection system with multiple 
+buttons. Will style unselected buttons with `unselected`, and as the user changes the button the styles 
+will change along with the `value` property.
+---
+```example
+
+```
+"""
 function button_select(c::AbstractConnection, name::String, buttons::Vector{<:Servable},
     unselected::Vector{Pair{String, String}} = ["background-color" => "blue",
      "border-width" => 0px],
@@ -60,14 +78,31 @@ function button_select(c::AbstractConnection, name::String, buttons::Vector{<:Se
     selector_window::Component{:div}
 end
 
-function set_selection!(cm::ComponentModifier, comp::AbstractComponent, r::UnitRange{Int64})
-    push!(cm.changes, "document.getElementById('$name').setSelectionRange($(r[1]), $(maximum(r)))")
+"""
+```julia
+set_selection!(cm::ComponentModifier, comp::Any, r::UnitRange{Int64})
+```
+Sets the focus selection range inside of the element `comp` (provided as the 
+component's `name` (`String`), or the `Component` itself.)
+---
+```example
+
+```
+"""
+function set_selection!(cm::ComponentModifier, comp::Any, r::UnitRange{Int64})
+    if comp <: Toolips.AbstractComponent
+        comp = comp.name
+    end
+    push!(cm.changes, "document.getElementById('$comp').setSelectionRange($(r[1]), $(maximum(r)))")
 end
 
 """
 
 """
-function pauseanim!(cm::AbstractComponentModifier, name::String)
+function pauseanim!(cm::AbstractComponentModifier, name::Any)
+    if name <: Toolips.AbstractComponent
+        name = name.name
+    end
     push!(cm.changes,
     "document.getElementById('$name').style.animationPlayState = 'paused';")
 end
@@ -75,9 +110,12 @@ end
 """
 
 """
-function playanim!(cm::AbstractComponentModifier, name::String)
+function playanim!(cm::AbstractComponentModifier, comp::Any)
+    if comp <: Toolips.AbstractComponent
+        comp = comp.name
+    end
     push!(cm.changes,
-    "document.getElementById('$name').style.animationPlayState = 'running';")
+    "document.getElementById('$comp').style.animationPlayState = 'running';")
 end
 
 """
@@ -116,69 +154,34 @@ function scroll_by!(cm::AbstractComponentModifier, s::String,
     """document.getElementById('$s').scrollBy($(xy[1]), $(xy[2]))""")
 end
 
-
 """
-**Session Interface** 0.3
-### next!(f::Function, c::AbstractConnection, comp::Component{<:Any}, cm::ComponentModifier, readonly::Vector{String} = Vector{String}())
-------------------
-This method can be used to chain animations (or transitions.) We can do this
-by calling next on our ComponentModifier, the same could also be done with a
-`Component{:script}` (usually made with) `script(::String, properties ...)` or
-the `script(::Function, ::String)` function from this module. Note that **transitions**
-have not been verified to work with this syntax (yet).
-#### example
+```julia
+next!(f::Function, ...) -> ::Nothing
 ```
-
+Performs `f` in a second callback after the first. This callback can be called in a certain period of time, 
+in `ms` with `next!(::Function, ::AbstractComponentModifier, ::Integer)` or on the transition end of a given 
+`Component` with `next!(::Function, ::AbstractConnection, ::AbstractComponentModifier, ::Any)`
+```julia
+next!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, s::Any)
+next!(f::Function, cm::AbstractComponentModifier, time::Integer = 1000)
 ```
-"""
-
-"""
-**Session Interface** 0.3
-### next!(f::Function, name::String, cm::ComponentModifier, a::Animation)
-------------------
-This method can be used to chain animations (or transitions.) Using the `Animation`
-dispatch for this will simply set the next animation on completion of the previous.
-#### example
-```
+---
+```example
 
 ```
 """
-function next!(cm::ComponentModifier, name::String, a::Toolips.ToolipsServables.KeyFrames;
-    write::Bool = false)
-    anendscr = script("$(a.name)endscr") do cm::ClientModifier
-        animate!(cm, name, a, write = write)
-        remove!(cm, "$(a.name)endscr")
-    end
-    cm[name] = "onanimationend" => "$(a.name)"
-    playstate = "running"
-    if ~(play)
-        playstate = "paused"
-    end
-    animname = a.name
-    time = string(a.length) * "s"
-     push!(cm.changes,
-     "document.getElementById('$s').style.animation = '$time 1 $animname';")
-     push!(cm.changes,
-    "document.getElementById('$s').style.animationPlayState = '$playstate';")
-    if write
-        push!(cm, a)
-    end
-end
-
-function next!(f::Function, cm::AbstractComponentModifier, name::String;
-    time::Integer = 1000)
-    mod = ClientModifier()
-    f(mod)
-    push!(cm.changes,
-    "new Promise(resolve => setTimeout($(Components.funccl(mod, name)), $time));")
- end
- 
-
-# emmy was here ! <3
-function next!(f::Function, c::AbstractConnection, cm::ComponentModifier, s::Any)
+function next!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, s::Any)
     ref::String = gen_ref(5)
     register!(f, c, ref)
     cm[s] = "ontransitionend" => "sendpage(\\'$ref\\');"
     nothing::Nothing
 end
 
+function next!(f::Function, cm::AbstractComponentModifier, time::Integer = 1000)
+    mod = ClientModifier()
+    f(mod)
+    push!(cm.changes,
+    "new Promise(resolve => setTimeout($(Components.funccl(mod, gen_ref(5))), $time));")
+end
+
+# emmy was here ! <3
