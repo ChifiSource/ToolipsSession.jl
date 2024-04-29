@@ -1276,10 +1276,6 @@ function call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
 end
 
 export Session, on, script!, ComponentModifier
-export playanim!, alert!, redirect!, modify!, move!, remove!, set_text!
-export update!, insert_child!, append_first!, animate!, pauseanim!, next!
-export set_children!, get_text, style!, free_redirects!, confirm_redirects!, store!
-export scroll_by!, scroll_to!, focus!, set_selection!, blur!
-export rpc!, disconnect_rpc!, find_client, join_rpc!, close_rpc!, open_rpc!
-export join_rpc!, is_client, is_dead, is_host, call!
+export set_selection!, pauseanim!, playanim!, free_redirects!, confirm_redirects!, scroll_to!, scroll_by!, next!
+export rpc!, call!, disconnect_rpc!, find_client, join_rpc!, close_rpc!, open_rpc!, reconnect_rpc!
 end # module

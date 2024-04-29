@@ -1,5 +1,23 @@
 """
+```julia
+mutable struct ComponentModifier <: ToolipsServables.AbstractComponentModifier
+```
+- `rootc**::String**`
+- `changes**::Vector{String}**`
 
+The `ComponentModifier` is used in callback bindings to register outgoing changes 
+to the components on a client's web-page.
+
+- See also: `Session`, `on`, `ToolipsSession.bind`, `Toolips`, `ToolipsSession`
+```julia
+ComponentModifier(html::String)
+```
+---
+A `ComponentModifier` is typically going to be used in a callback binding 
+created with `on` or `ToolipsSession.bind`.
+```example
+
+```
 """
 mutable struct ComponentModifier <: AbstractComponentModifier
     rootc::String
@@ -42,15 +60,9 @@ function button_select(c::AbstractConnection, name::String, buttons::Vector{<:Se
     selector_window::Component{:div}
 end
 
-"""
-
-"""
-pauseanim!(cm::AbstractComponentModifier, s::AbstractComponent) = pauseanim!(cm, s.name)
-
-"""
-
-"""
-playanim!(cm::AbstractComponentModifier, s::AbstractComponent) = playanim!(cm, s.name)
+function set_selection!(cm::ComponentModifier, comp::AbstractComponent, r::UnitRange{Int64})
+    push!(cm.changes, "document.getElementById('$name').setSelectionRange($(r[1]), $(maximum(r)))")
+end
 
 """
 
@@ -84,63 +96,20 @@ function confirm_redirects!(cm::AbstractComponentModifier)
 };""")
 end
 
-"""
-
-"""
 function scroll_to!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
     push!(cm.changes, """window.scrollTo($(xy[1]), $(xy[2]));""")
 end
 
-"""
-
-"""
 function scroll_by!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
     push!(cm.changes, """window.scrollBy($(xy[1]), $(xy[2]));""")
 end
 
-"""
-
-"""
-function scroll_to!(cm::AbstractComponentModifier, s::AbstractComponent,
-     xy::Tuple{Int64, Int64})
-     scroll_to!(cm, s, xy)
-end
-
-"""
-**Session Interface**
-### scroll_by!(cm::AbstractComponentModifier, s::AbstractComponent, xy::Tuple{Int64, Int64}) -> _
-------------------
-Scrolls the Component `s` by xy.
-#### example
-```
-function home(c::Connection)
-    mybutton = button("mybutton", text = "button")
-    mydiv = div("mydiv")
-    on(c, mybutton, "click") do cm::AbstractComponentModifier
-        scroll_by!(cm, mydiv, (0, 15))
-    end
-    write!(c, mybutton)
-    write!(c, mydiv)
-end
-```
-"""
-function scroll_by!(cm::AbstractComponentModifier, s::AbstractComponent,
-    xy::Tuple{Int64, Int64})
-    scroll_by!(cm, s, xy)
-end
-
-"""
-
-"""
 function scroll_to!(cm::AbstractComponentModifier, s::String,
      xy::Tuple{Int64, Int64})
      push!(cm.changes,
      """document.getElementById('$s').scrollTo($(xy[1]), $(xy[2]));""")
 end
 
-"""
-
-"""
 function scroll_by!(cm::AbstractComponentModifier, s::String,
     xy::Tuple{Int64, Int64})
     push!(cm.changes,
@@ -194,26 +163,6 @@ function next!(cm::ComponentModifier, name::String, a::Toolips.ToolipsServables.
     if write
         push!(cm, a)
     end
-end
-
-function set_selection!(cm::ComponentModifier, comp::AbstractComponent, r::UnitRange{Int64})
-    push!(cm.changes, "document.getElementById('$name').setSelectionRange($(r[1]), $(maximum(r)))")
-end
-
-"""
-**Session Interface** 0.3
-### next!(f::Function, name::String, cm::ComponentModifier, a::Animation)
-------------------
-This method can be used to chain animations (or transitions.) Using the `Animation`
-dispatch for this will simply set the next animation on completion of the previous.
-#### example
-```
-
-```
-"""
-function next!(cm::ComponentModifier, s::AbstractComponent, a::Toolips.ToolipsServables.KeyFrames;
-    write::Bool = false)
-    next!(cm, s.name, a, write = write)
 end
 
 function next!(f::Function, cm::AbstractComponentModifier, name::String;
