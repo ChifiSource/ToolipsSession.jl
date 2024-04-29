@@ -429,7 +429,9 @@ function kill!(c::AbstractConnection)
 end
 
 """
+```julia
 clear!(c::AbstractConnection) -> ::Nothing
+```
 ---
 Deletes a `Connection`'s active session.
 ```julia
@@ -481,9 +483,19 @@ on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Comp
      event::AbstractString)
 ```
 - See also: `script!`, `ToolipsSession.bind`, `KeyMap`, `open_rpc!`, `join_rpc!`, `Session`, `ToolipsSession`, `ComponentModifier`
----
 ```julia
+module SampleServer
+using Toolips
+using Toolips.Components
 
+session = Session()
+main = route("/") do c::AbstractConnection
+    txtbox = textdiv("entertxt")
+    style!(txtbox, "width" => 10percent, "border-width" => 3px, "border-color" => "gray", "border-style" => "solid")
+end
+
+export main, session
+end
 ```
 """
 function on(f::Function, c::AbstractConnection, event::AbstractString;
@@ -540,6 +552,7 @@ function on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, 
 end
 
 """
+### ToolipsSession.bind
 ```julia
 bind(f::Function, c::AbstractConnection, args ...) -> ::Nothing
 ```
@@ -727,7 +740,7 @@ mutable struct SwipeMap <: InputMap
 end
 
 function bind(f::Function, c::AbstractConnection, sm::SwipeMap, swipe::String)
-    swipes = ["left", "right", "up", "down"]
+    swipes = ("left", "right", "up", "down")
     if ~(swipe in swipes)
         throw(
         "Swipe is not a proper direction, please use up, down, left, or right!")
@@ -735,9 +748,23 @@ function bind(f::Function, c::AbstractConnection, sm::SwipeMap, swipe::String)
     sm.bindings[swipe] = f
 end
 
+"""
+##### swipemap bindings
+```julia
+bind(c::AbstractConnection, sm::SwipeMap)
+bind(f::Function, c::AbstractConnection, sm::SwipeMap, swipe::String)
+```
+`ToolipsSession.bind` is used to bind new swipes to a `SwipeMap`. A `SwipeMap` is an `InputMap` that processes swipe input. The swipes come in 
+the form of 4-way strings, `left`, `right`, `up`, and `down`. These are bound to a 
+constructed `SwipeMap` with `bind(f::Function, c::AbstractConnection, sm::SwipeMap, swipe::String)` 
+and then binded to the `Connection` with `bind(c::AbstractConnection, sm::SwipeMap)`
+```julia
+
+```
+"""
 function bind(c::AbstractConnection, sm::SwipeMap)
     swipes = keys
-    swipes = ["left", "right", "up", "down"]
+    swipes = ("left", "right", "up", "down")
     newswipes = Dict([begin
         if swipe in keys(sm.bindings)
             ref::String = ToolipsSession.gen_ref(5)
@@ -800,7 +827,22 @@ function handleTouchMove(evt) {
 end
 
 """
+```julia
+mutable struct KeyMap <: InputMap
+```
+- keys**::Dict{String, Pair{Tuple, Function}}**
+- prevents**::Vector{String}**
 
+
+
+- See also: 
+```julia
+KeyMap()
+```
+---
+```example
+
+```
 """
 mutable struct KeyMap <: InputMap
     keys::Dict{String, Pair{Tuple, Function}}
@@ -841,6 +883,25 @@ function bind(f::Function, km::KeyMap, vs::Vector{String}; prevent_default::Bool
 end
 
 """
+##### KeyMap bindings
+```julia
+# binding to keymap
+bind(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)
+#                            e.g. ["Enter", "ctrl"]
+bind(f::Function, km::KeyMap, events::Vector{String}; prevent_default::Bool = true)
+# binding to connection
+bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
+bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symbol = :down, prevent_default::Bool = true)
+bind(c::AbstractConnection, cm::ComponentModifier, comp::Component{<:Any},
+    km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
+```
+`ToolipsSession.bind` is used to bind keys to a `KeyMap` (as well as other `InputMap`s.) 
+The `KeyMap` is bound by providing it to `ToolipsSession.bind` in place of the `Connection`, 
+and then binding it to the `Connection` all at once with one `Connection`/`ComponentModifier` 
+bindings.
+```julia
+
+```
 """
 function bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
     firsbind = first(km.keys)
@@ -867,9 +928,6 @@ function bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_def
     write!(c, scr)
 end
 
-"""
-
-"""
 function bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symbol = :down, prevent_default::Bool = true)
     firsbind = first(km.keys)
     first_line::String = """setTimeout(function () {
@@ -896,9 +954,6 @@ function bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symb
     push!(cm.changes, first_line)
 end
 
-"""
-
-"""
 function bind(c::AbstractConnection, cm::ComponentModifier, comp::Component{<:Any},
     km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
     firsbind = first(km.keys)
@@ -930,7 +985,23 @@ end
 script!
 ==#
 """
+```julia
 
+```
+Spawns a `Component{:script}` on the client, which makes callbacks to the server 
+without a triggering event. The `time` is the number of ms between each call, or the first 
+call. `type` is the type of event that should be ran -- `Interval` is the default, and this will 
+create a recurring event call. 
+```julia
+script!(f::Function, c::AbstractConnection, name::String; time::Integer = 500, 
+type::String = "Interval")
+
+script!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier; time::Integer = 1000, type::String = "Timeout")
+```
+---
+```example
+
+```
 """
 function script!(f::Function, c::AbstractConnection, name::String; time::Integer = 500,
     type::String = "Interval")
@@ -945,25 +1016,6 @@ function script!(f::Function, c::AbstractConnection, cm::AbstractComponentModifi
    ref = gen_ref(5)
    push!(cm.changes, "set$type(function () { sendpage('$ref'); }, $time);")
    register!(f, c, ref)
-end
-
-function script!(f::Function, cm::AbstractComponentModifier, name::String;
-   time::Integer = 1000)
-   mod = ClientModifier()
-   f(mod)
-   push!(cm.changes,
-   "new Promise(resolve => setTimeout($(Components.funccl(mod, name)), $time));")
-end
-
-
-script(cl::AbstractComponentModifier) = begin
-    script(cl.name, text = join(cl.changes))
-end
-
-function script(f::Function, s::String = gen_ref(5))
-    cl = ClientModifier(s)
-    f(cl)
-    script(cl.name, text = funccl(cl))::Component{:script}
 end
 
 #==

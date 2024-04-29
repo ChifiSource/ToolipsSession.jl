@@ -196,6 +196,10 @@ function next!(cm::ComponentModifier, name::String, a::Toolips.ToolipsServables.
     end
 end
 
+function set_selection!(cm::ComponentModifier, comp::AbstractComponent, r::UnitRange{Int64})
+    push!(cm.changes, "document.getElementById('$name').setSelectionRange($(r[1]), $(maximum(r)))")
+end
+
 """
 **Session Interface** 0.3
 ### next!(f::Function, name::String, cm::ComponentModifier, a::Animation)
@@ -212,6 +216,15 @@ function next!(cm::ComponentModifier, s::AbstractComponent, a::Toolips.ToolipsSe
     next!(cm, s.name, a, write = write)
 end
 
+function next!(f::Function, cm::AbstractComponentModifier, name::String;
+    time::Integer = 1000)
+    mod = ClientModifier()
+    f(mod)
+    push!(cm.changes,
+    "new Promise(resolve => setTimeout($(Components.funccl(mod, name)), $time));")
+ end
+ 
+
 # emmy was here ! <3
 function next!(f::Function, c::AbstractConnection, cm::ComponentModifier, s::Any)
     ref::String = gen_ref(5)
@@ -220,16 +233,3 @@ function next!(f::Function, c::AbstractConnection, cm::ComponentModifier, s::Any
     nothing::Nothing
 end
 
-"""
-**Session Interface** 0.3
-### set_selection!(cm::ComponentModifier, comp::Component{<:Any}, r::UnitRange{Int64})
-------------------
-Sets the selection to `r`.
-#### example
-```
-
-```
-"""
-function set_selection!(cm::ComponentModifier, comp::AbstractComponent, r::UnitRange{Int64})
-    push!(cm.changes, "document.getElementById('$name').setSelectionRange($(r[1]), $(maximum(r)))")
-end
