@@ -80,7 +80,7 @@ end
 
 """
 ```julia
-set_selection!(cm::ComponentModifier, comp::Any, r::UnitRange{Int64})
+set_selection!(cm::ComponentModifier, comp::Any, r::UnitRange{Int64}) -> ::Nothing
 ```
 Sets the focus selection range inside of the element `comp` (provided as the 
 component's `name` (`String`), or the `Component` itself.)
@@ -97,7 +97,14 @@ function set_selection!(cm::ComponentModifier, comp::Any, r::UnitRange{Int64})
 end
 
 """
+```julia
+pauseanim!(cm::AbstractComponentModifier, name::Any) -> ::Nothing
+```
+Pauses the animation on the `Component` or `Component` `name`.
+---
+```example
 
+```
 """
 function pauseanim!(cm::AbstractComponentModifier, name::Any)
     if name <: Toolips.AbstractComponent
@@ -108,7 +115,14 @@ function pauseanim!(cm::AbstractComponentModifier, name::Any)
 end
 
 """
+```julia
+playanim!(cm::AbstractComponentModifier, name::Any) -> ::Nothing
+```
+Pauses the animation on the `Component` or `Component` `name`.
+---
+```example
 
+```
 """
 function playanim!(cm::AbstractComponentModifier, comp::Any)
     if comp <: Toolips.AbstractComponent
@@ -119,14 +133,30 @@ function playanim!(cm::AbstractComponentModifier, comp::Any)
 end
 
 """
+```julia
+free_redirects!(cm::AbstractComponentModifier) -> ::Nothing
+```
+Frees a `confirm_redirects!` " Page may have unsaved changes" call. After calling 
+`confirm_redirects!`, call this to remove that confirmation.
+---
+```example
 
+```
 """
 function free_redirects!(cm::AbstractComponentModifier)
     push!(cm.changes, """window.onbeforeunload = null;""")
 end
 
 """
+```julia
+confrim_redirects!(cm::AbstractComponentModifier) -> ::Nothing
+```
+Requires a user to confirm a redirects, providing a " Page may have unsaved changes" 
+alert when the client tries to leave the page. This can be undone with `free_redirects!`
+---
+```example
 
+```
 """
 function confirm_redirects!(cm::AbstractComponentModifier)
     push!(cm.changes, """window.onbeforeunload = function() {
@@ -134,18 +164,38 @@ function confirm_redirects!(cm::AbstractComponentModifier)
 };""")
 end
 
+"""
+```julia
+scroll_to(cm::AbstractComponentModifier, ...)
+```
+
+---
+```example
+
+```
+"""
 function scroll_to!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
     push!(cm.changes, """window.scrollTo($(xy[1]), $(xy[2]));""")
 end
 
-function scroll_by!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
-    push!(cm.changes, """window.scrollBy($(xy[1]), $(xy[2]));""")
+function scroll_to!(cm::AbstractComponentModifier, s::String,
+    xy::Tuple{Int64, Int64})
+    push!(cm.changes,
+    """document.getElementById('$s').scrollTo($(xy[1]), $(xy[2]));""")
 end
 
-function scroll_to!(cm::AbstractComponentModifier, s::String,
-     xy::Tuple{Int64, Int64})
-     push!(cm.changes,
-     """document.getElementById('$s').scrollTo($(xy[1]), $(xy[2]));""")
+"""
+```julia
+scroll_to(cm::AbstractComponentModifier, ...)
+```
+
+---
+```example
+
+```
+"""
+function scroll_by!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
+    push!(cm.changes, """window.scrollBy($(xy[1]), $(xy[2]));""")
 end
 
 function scroll_by!(cm::AbstractComponentModifier, s::String,

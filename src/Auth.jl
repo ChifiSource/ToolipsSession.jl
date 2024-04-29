@@ -6,8 +6,39 @@ function route_403(c::AbstractConnection, message::String)
     end
 end
 
+"""
+```julia
+abstract type AbstractClient
+```
+An `AbstractClient` is used by the `Auth` extension in order to keep track 
+of different clients. `ToolipsSession` provides the `Client` type to facilitate this role 
+by default.
+
+- See also: `Auth`, `Client`, `authorize!`
+"""
 abstract type AbstractClient end
 
+"""
+```julia
+mutable struct Client <: AbstractClient
+```
+- `key`**::String**
+- `ip`**::String**
+- `n_requests`**::Int64**
+- `data`**::Dict{String, Any}**
+- `lastup`**::Dates.DateTime**
+
+The `AuthenticatedConnection`
+
+- See also: 
+```julia
+constructors
+```
+---
+```example
+
+```
+"""
 mutable struct Client <: AbstractClient
     key::String
     ip::String
@@ -16,9 +47,9 @@ mutable struct Client <: AbstractClient
     lastup::Dates.DateTime
 end
 
-mutable struct AuthenticatedConnection <: Toolips.AbstractIOConnection
+mutable struct AuthenticatedConnection{T} <: Toolips.AbstractIOConnection
     stream::String
-    client::Client
+    client::T
     args::Dict{Symbol, String}
     ip::String
     post::String
@@ -28,7 +59,7 @@ mutable struct AuthenticatedConnection <: Toolips.AbstractIOConnection
     routes::Vector{<:AbstractRoute}
     system::String
     host::String
-    function AuthenticatedConnection(c::AbstractConnection)
+    function AuthenticatedConnection{T}(c::AbstractConnection) where {T <: AbstractClient}
         new("", c.data[:clients][get_ip(c)], 
         get_args(c), get_ip(c), get_post(c), get_route(c), get_method(c), 
         c.data, c.routes, get_client_system(c)[1], get_host(c))
@@ -56,7 +87,7 @@ convert(c::AbstractConnection, routes::Routes, T::Type{AuthenticatedConnection})
 end
 
 convert!(c::AbstractConnection, routes::Routes, into::Type{AuthenticatedConnection}) = begin
-    AuthenticatedConnection(c)::AuthenticatedConnection
+    AuthenticatedConnection{Client}(c)::AuthenticatedConnection
 end
 
 mutable struct Auth{T <: AbstractClient} <: Toolips.AbstractExtension

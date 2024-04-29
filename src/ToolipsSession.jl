@@ -44,13 +44,15 @@ the `Function` provided to `route` takes an `AbstractConnection`.
 ```julia
 
 ```
-##### provides
-
+## provides
+###### session
+###### authentication
+###### component modifier
 """
 module ToolipsSession
 using Toolips
 import Toolips: AbstractRoute, kill!, AbstractConnection, write!, route!, on_start, gen_ref, convert, convert!, write!, interpolate!
-import Toolips.Components: ClientModifier Servable, next!, Component, style!, AbstractComponentModifier, AbstractComponent, on, bind, htmlcomponent, redirect!
+import Toolips.Components: ClientModifier, Servable, next!, Component, style!, AbstractComponentModifier, AbstractComponent, on, bind, htmlcomponent, redirect!
 import Base: setindex!, getindex, push!, iterate, string, in
 using Dates
 # using WebSockets: serve, writeguarded, readguarded, @wslog, open, HTTP, Response, ServerWS
@@ -502,8 +504,12 @@ function on(f::Function, c::AbstractConnection, event::AbstractString;
     prevent_default::Bool = false)
     ref::String = Toolips.gen_ref(5)
     ip::String = get_ip(c)
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
+    end
     write!(c,
-        "<script>document.addEventListener('$event', function (event) {$(prevent)sendpage('$ref')});</script>")
+        "<script>document.addEventListener('$event', $(prevent)sendpage('$ref'));</script>")
     register!(f, c, ref)
 end
 
