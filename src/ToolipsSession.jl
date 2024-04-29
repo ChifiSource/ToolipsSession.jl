@@ -50,7 +50,7 @@ the `Function` provided to `route` takes an `AbstractConnection`.
 module ToolipsSession
 using Toolips
 import Toolips: AbstractRoute, kill!, AbstractConnection, write!, route!, on_start, gen_ref, convert, convert!, write!, interpolate!
-import Toolips.Components: ClientModifier, script, Servable, next!, Component, style!, AbstractComponentModifier, AbstractComponent, on, bind, htmlcomponent, redirect!
+import Toolips.Components: ClientModifier Servable, next!, Component, style!, AbstractComponentModifier, AbstractComponent, on, bind, htmlcomponent, redirect!
 import Base: setindex!, getindex, push!, iterate, string, in
 using Dates
 # using WebSockets: serve, writeguarded, readguarded, @wslog, open, HTTP, Response, ServerWS
@@ -503,7 +503,7 @@ function on(f::Function, c::AbstractConnection, event::AbstractString;
     ref::String = Toolips.gen_ref(5)
     ip::String = get_ip(c)
     write!(c,
-        "<script>document.addEventListener('$event', sendpage('$ref'));</script>")
+        "<script>document.addEventListener('$event', function (event) {$(prevent)sendpage('$ref')});</script>")
     register!(f, c, ref)
 end
 
@@ -523,8 +523,12 @@ function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, e
     prevent_default::Bool = false)
     ip::String = get_ip(c)
     ref::String = gen_ref(5)
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
+    end
     push!(cm.changes, """setTimeout(function () {
-    document.addEventListener('$event', function () {sendpage('$ref');});}, 1000);""")
+    document.addEventListener('$event', function (event) {$(prevent)sendpage('$ref');});}, 1000);""")
     register!(f, c, ref)
 end
 
@@ -532,21 +536,29 @@ function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, c
      event::AbstractString; prevent_default::Bool = false)
      name::String = comp.name
      ref::String = gen_ref(5)
+     prevent::String = ""
+     if prevent_default
+         prevent = "event.preventDefault();"
+     end
      push!(cm.changes, """setTimeout(function () {
      document.getElementById('$name').addEventListener('$event',
-     function () {sendpage('$ref');});
+     function (event) {$(prevent)sendpage('$ref');});
      }, 1000);""")
      register!(f, c, ref)
 end
 
 function on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, event::String;
     prevent_default::Bool = false)
-    name = comp.name
+    name::String = comp.name
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
+    end
     cl = Toolips.ClientModifier(); f(cl)
     push!(cm.changes, """setTimeout(function (event) {
         document.getElementById('$name').addEventListener('$event',
-        function (e) {
-            $(join(cl.changes))
+        function (event) {
+            $prevent$(join(cl.changes))
         });
         }, 1000);""")
 end
@@ -613,6 +625,10 @@ bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Co
 function bind(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol ...;
     on::Symbol = :down, prevent_default::Bool = true)
     cm::Modifier = ClientModifier()
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
+    end
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
     ref::String = gen_ref(5)
@@ -620,7 +636,7 @@ function bind(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol
     setTimeout(function () {
 document.addEventListener('key$on', function(event) {
     if ($eventstr event.key == "$(key)") {
-    sendpage('$ref');
+    $(prevent)sendpage('$ref');
     }
 });}, 1000);</script>
     """)
@@ -628,23 +644,31 @@ document.addEventListener('key$on', function(event) {
 end
 
 function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, key::String,
-    eventkeys::Symbol ...; on::Symbol = :down, mark::String = "none")
+    eventkeys::Symbol ...; on::Symbol = :down, mark::String = "none", prevent_default::Bool = false)
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
     ref = gen_ref(5)
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
+    end
     push!(cm.changes, """
     setTimeout(function () {
     document.addEventListener('key$on', (event) => {
             if ($eventstr event.key == "$(key)") {
-            sendpage('$ref');
+            $(prevent)sendpage('$ref');
             }
             });}, 1000);""")
     register!(f, c, ref)
 end
 
 function bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
-    key::String, eventkeys::Symbol ...; on::Symbol = :down)
+    key::String, eventkeys::Symbol ...; on::Symbol = :down, prevent_default::Bool = false)
     cm::AbstractComponentModifier = Toolips.Components.ClientModifier()
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
+    end
     eventstr::String = join((begin " event.$(event)Key && "
                             end for event in eventkeys))
     ref::String = gen_ref(5)
@@ -652,7 +676,7 @@ function bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
     setTimeout(function () {
     document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
         if ($eventstr event.key == "$(key)") {
-        sendpage('$ref');
+        $(prevent)sendpage('$ref');
         }
 });}, 1000)</script>
     """)
@@ -661,15 +685,19 @@ end
 
 
 function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
-    key::String, eventkeys::Symbol ...; on::Symbol = :down)
+    key::String, eventkeys::Symbol ...; on::Symbol = :down, prevent_default::Bool = false)
     ref::String = gen_ref(5)
     name::String = comp.name
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
+    end
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
 push!(cm.changes, """setTimeout(function () {
 document.getElementById('$(name)').onkeydown = function(event){
         if ($eventstr event.key == '$(key)') {
-        sendpage('$ref')
+        $(prevent)sendpage('$ref')
         }
         }}, 1000);""")
     register!(f, c, ref)
