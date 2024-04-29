@@ -878,9 +878,6 @@ mutable struct KeyMap <: InputMap
     KeyMap() = new(Dict{String, Pair{Tuple, Function}}(), Vector{String}())
 end
 
-"""
-
-"""
 function bind(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)
     if prevent_default == true
         push!(km.prevents, key * join([string(ev) for ev in event]))
@@ -1014,14 +1011,14 @@ script!
 ==#
 """
 ```julia
-
+script!(f::Function, c::AbstractConnection, ...; time::Integer = 500, type::String = "Interval")
 ```
 Spawns a `Component{:script}` on the client, which makes callbacks to the server 
 without a triggering event. The `time` is the number of ms between each call, or the first 
 call. `type` is the type of event that should be ran -- `Interval` is the default, and this will 
 create a recurring event call. 
 ```julia
-script!(f::Function, c::AbstractConnection, name::String; time::Integer = 500, 
+script!(f::Function, c::AbstractConnection, name::String = gen_ref(5); time::Integer = 500, 
 type::String = "Interval")
 
 script!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier; time::Integer = 1000, type::String = "Timeout")
@@ -1031,7 +1028,7 @@ script!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier; time:
 
 ```
 """
-function script!(f::Function, c::AbstractConnection, name::String; time::Integer = 500,
+function script!(f::Function, c::AbstractConnection, name::String = gen_ref(5); time::Integer = 500,
     type::String = "Interval")
     obsscript::Component{:script} = script(name, text = """
     set$(type)(function () { sendpage('$name'); }, $time);
@@ -1051,7 +1048,21 @@ rpc
 ==#
 
 """
+```julia
+open_rpc!(c::AbstractConnection, ...; tickrate::Int64 = 500)
+```
+Opens an `RPCHost` event with the current client, which can then be joined 
+by other clients with `join_rpc!`. Can be done inside of both a callback and a response.
+`tickrate` is the number of milliseconds between each update; which is when each Remote Procedure Call 
+is made for each peer.
+```julia
+open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
+open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64 = 500)
+```
+---
+```example
 
+```
 """
 function open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
     ref::String = gen_ref(5)
@@ -1062,9 +1073,6 @@ function open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
     nothing::Nothing
 end
 
-"""
-
-"""
 function open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64 = 500)
     ref::String = gen_ref(5)
     event::RPCHost = RPCHost(ref)
@@ -1073,6 +1081,18 @@ function open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64
     nothing::Nothing
 end
 
+"""
+```julia
+reconnect_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
+```
+Used to reconnect an incoming client who disconnects to an existing RPC session. This 
+just respawns the event that calls the Remote Procedure Calls accumulated by the peers. For 
+example, this function would be called when a peer refreshes the page in an active RPC session.
+---
+```example
+
+```
+"""
 reconnect_rpc!(c::Connection; tickrate::Int64 = 500) = begin
     events::Vector{AbstractEvent} = c[:Session].events[get_ip(c)]
     found = findfirst(event::AbstractEvent -> typeof(event) <: RPCEvent, events)
@@ -1107,7 +1127,14 @@ function close_rpc!(session::Session, ip::String)
 end
 
 """
+```julia
+close_rpc!(c::AbstractConnection) -> ::Nothing
+```
+`close_rpc!` will remove an active RPC session, whether from client or host. 
+If host, all subsequent clients will also have their RPC closed.
+```example
 
+```
 """
 function close_rpc!(c::AbstractConnection)
     close_rpc!(c[:Session], get_ip(c))
@@ -1115,7 +1142,21 @@ function close_rpc!(c::AbstractConnection)
 end
 
 """
+```julia
+join_rpc!(c::AbstractConnection, ...; tickrate::Int64 = 500)
+```
+`join_rpc` is the companion to `open_rpc!`. This takes one additional argument, 
+the IP of the host who we want to join the RPC of. We get their ip with `get_ip(c)`, 
+and then we later connect a partner client to that session. Like `open_rpc!` this can 
+be done in both a response and a callback using the appropriate functions.
+```julia
+join_rpc!(c::AbstractConnection, host::String; tickrate::Int64 = 500)
+join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
+```
+---
+```example
 
+```
 """
 function join_rpc!(c::AbstractConnection, host::String; tickrate::Int64 = 500)
     ref::String = gen_ref(5)
@@ -1127,9 +1168,6 @@ function join_rpc!(c::AbstractConnection, host::String; tickrate::Int64 = 500)
     nothing::Nothing
 end
 
-"""
-
-"""
 function join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
     ref::String = gen_ref(5)
     event::RPCClient = RPCClient(c, host, ref)
@@ -1139,6 +1177,15 @@ function join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; t
     nothing::Nothing
 end
 
+"""
+```julia
+find_host(c::AbstractConnection) -> ::RPCEvent
+```
+Finds the `RPCHost` of an actively connected RPC session.
+```example
+
+```
+"""
 function find_host(c::AbstractConnection)
     events = c[:Session].events
     ip::String = get_ip(c)
@@ -1165,7 +1212,20 @@ function rpc!(session::Session, event::RPCHost, cm::ComponentModifier)
 end
 
 """
+```julia
+rpc!(c::AbstractConnection, cm::ComponentModifier) -> ::Nothing
+```
+Performs an RPC call on all peers connected to the same RPC session as the 
+client associated with `c`, the `Connection`. `rpc!` is used to run these on all 
+peers, whereas `call!(::AbstractConnection, ::ComponentModifier)` is used to run on all other peers or a certain peer by IP.
+For changes on the client associated with `c` without using RPC, simply use the `ComponentModifier`.
 
+Note that changes will clear with the use of `call!` or `rpc!`, so changes to the client making the 
+call will always happen last. The order of `call!` and `rpc!` does not matter, so long as it is before 
+`rpc!`.
+```example
+
+```
 """
 function rpc!(c::AbstractConnection, cm::ComponentModifier)
     rpc!(c[:Session], find_host(c), cm)
@@ -1193,6 +1253,20 @@ function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::Stri
     nothing::Nothing
 end
 
+"""
+```julia
+call!(c::AbstractConnection, cm::ComponentModifier, args ...) -> ::Nothing
+```
+`call!` performs a remote procedure call on either all other clients, or a peer client by IP. 
+This is similar to `rpc!`, which will perform the action on all clients.
+```julia
+call!(c::AbstractConnection, cm::ComponentModifier)
+call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
+```
+```example
+
+```
+"""
 function call!(c::AbstractConnection, cm::ComponentModifier)
     call!(c[:Session], find_host(c), cm, get_ip(c))
 end
@@ -1201,8 +1275,7 @@ function call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
     call!(c[:Session], find_host(c), cm, get_ip(c), peerip)
 end
 
-export Session, on, bind!, script!, script, ComponentModifier, ClientModifier
-export KeyMap
+export Session, on, script!, ComponentModifier
 export playanim!, alert!, redirect!, modify!, move!, remove!, set_text!
 export update!, insert_child!, append_first!, animate!, pauseanim!, next!
 export set_children!, get_text, style!, free_redirects!, confirm_redirects!, store!
