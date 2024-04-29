@@ -166,12 +166,14 @@ end
 
 """
 ```julia
-scroll_to(cm::AbstractComponentModifier, ...)
+scroll_to!(cm::AbstractComponentModifier, ...) -> ::Nothing
 ```
-
+Scrolls a document window or `Component` **to** `xy`, a `Tuple` of integers.
 ---
 ```example
-
+scroll_to!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
+scroll_to!(cm::AbstractComponentModifier, s::String,
+    xy::Tuple{Int64, Int64})
 ```
 """
 function scroll_to!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
@@ -186,9 +188,14 @@ end
 
 """
 ```julia
-scroll_to(cm::AbstractComponentModifier, ...)
+scroll_by!(cm::AbstractComponentModifier, ...) -> ::Nothing
 ```
-
+Scrolls a document window or `Component` **by** `xy`, a `Tuple` of integers.
+```julia
+scroll_by!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
+scroll_by!(cm::AbstractComponentModifier, s::String,
+    xy::Tuple{Int64, Int64})
+```
 ---
 ```example
 

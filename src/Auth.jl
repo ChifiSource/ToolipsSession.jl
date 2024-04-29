@@ -28,11 +28,12 @@ mutable struct Client <: AbstractClient
 - `data`**::Dict{String, Any}**
 - `lastup`**::Dates.DateTime**
 
-The `AuthenticatedConnection`
-
-- See also: 
+A `Client` is the quintessential `AbstractClient` used by `Auth` to keep track 
+of incoming users. This is constructed whenever we use `authorize!` to authorize an 
+incoming `Connection`, and will be passed in the `Client` field of our `AuthenticatedConnection`
+- See also: `Auth`, `AbstractClient`, `redirect!`, `authorize!`
 ```julia
-constructors
+Client(key::String, ip::String, n_requests::Int64, data::Dict{String, Any}, lastup::Dates.DateTime)
 ```
 ---
 ```example
@@ -47,7 +48,39 @@ mutable struct Client <: AbstractClient
     lastup::Dates.DateTime
 end
 
-mutable struct AuthenticatedConnection{T} <: Toolips.AbstractIOConnection
+"""
+```julia
+mutable struct AuthenticatedConnection{T <: AbstractClient} <: AbstractIOConnection
+```
+- `stream`**::Stream**
+- `client`**::T**
+- `args**::Dict{Symbol, String}**`
+- `ip`**String**
+- `post`**::String**
+- `route`**String**
+- `method`**String**
+- `data`**Dict{Symbol, Any}**
+- `routes`**::Vector{<:AbstractRoute}**`
+- `system`**::String**
+- `host`**::String**
+
+The `AuthenticatedConnection` is passed when an authenticated client connects to a 
+route with an `AuthenticatedConnection` multi-route. This special `Connection` 
+features the `AuthenticatedConnection.client` field, which yields more information on 
+the current client, as well as indexable data for individual clients. Typically, the 
+authentication process will start by serving on a route with a `Connection`/`AbstractConnection`/`IOConnection` 
+and using `authenticate!` to reload and serve a client through the `AuthenticatedConnection`.
+- `authorize!(c::AbstractConnection)`
+- See also: 
+```julia
+AuthenticatedConnection{T}(c::AbstractConnection) where {T <: AbstractClient}
+```
+---
+```example
+
+```
+"""
+mutable struct AuthenticatedConnection{T <: AbstractClient} <: Toolips.AbstractIOConnection
     stream::String
     client::T
     args::Dict{Symbol, String}
@@ -90,22 +123,116 @@ convert!(c::AbstractConnection, routes::Routes, into::Type{AuthenticatedConnecti
     AuthenticatedConnection{Client}(c)::AuthenticatedConnection
 end
 
+"""
+```julia
+mutable struct Auth{T <: AbstractClient} <: Toolips.AbstractExtension
+```
+- `blacklist`**::Vector{String}**
+- `clients`**::Vector{T}**
+- `max-requests`**::Int64**
+
+`Auth` is a `Toolips` extension that automatically handles authentication using a 
+high-level client API. This is useful for a myriad of different contexts.
+- Confirming API keys with clients and serving only to authenticated users.
+- Serving to a myriad of different users, and having user data for each one.
+- Or serving user sessions with memory of who incoming clients are.
+
+This is a server extension which also utilizes a `Connection` extension via 
+multi-route. To load this extension, first export `Auth` in your server and then 
+create a multi-route.
+
+```julia
+module AuthServer
+using Toolips
+using Toolips.Components
+using ToolipsSession
+
+session = Session()
+auth = Auth()
+
+main_land = route("/") do c::AbstractConnection
+    mainbody = body("main", children = [h2(text = "you are not authenticated")])
+    authbutton = button("auth-button", text = "press to authenticate")
+    on(c, authbutton, "click") do cm::ComponentModifier
+        authorize!(c)
+        # by default redirects to `/`.
+        auth_redirect!(c, cm)
+    end
+    push!(mainbody, authbutton)
+    write!(c, mainbody)
+end
+
+main_auth = route("/") do c::AuthenticatedConnection
+    write!(c, "you have been authenticated")
+end
+
+main = route(main_land, main_auth)
+
+export main, session, auth
+end
+```
+Using `Auth` revolves around three functions and their methods:
+```julia
+authorize!(c::AbstractConnection, data::Pair{String, <:Any} ...)
+auth_redirect!(c::AbstractConnection, to::String = get_host(c))
+auth_redirect!(c::Abstractonnection cm::AbstractComponentModifier, to::String = get_host(c); delay::Int64 = 0)
+auth_pass!(c::AbstractConnection, url::String)
+```
+`authorize!` is used to `authorize!` a `Connection`. For example, we might have a login 
+screen that finishes with a call to `authorize!`. The `data` argument takes any data we want to initalize 
+with for the client.
+```julia
+module AuthServer
+using Toolips
+using Toolips.Components
+using ToolipsSession
+
+session = Session()
+auth = Auth()
+# "name" page example.
+main_land = route("/") do c::AbstractConnection
+    mainbody = body("main", children = [h2(text = "enter your name")])
+    namebox = textdiv("namebox")
+    style!(namebox, "display" => "inline-block")
+    authbutton = button("auth-button", text = "enter namee")
+    on(c, authbutton, "click") do cm::ComponentModifier
+        authorize!(c, "name" => cm[namebox]["text"])
+        # by default redirects to `/`.
+        auth_redirect!(c, cm)
+    end
+    push!(mainbody, namebox, authbutton)
+    write!(c, mainbody)
+end
+
+main_auth = route("/") do c::AuthenticatedConnection
+    write!(c, "your name is " * c.client["name"])
+end
+
+main = route(main_land, main_auth)
+
+export main, session, auth
+end
+```
+- See also: 
+```julia
+Auth(; max_requests::Int64 = 1200)
+```
+"""
 mutable struct Auth{T <: AbstractClient} <: Toolips.AbstractExtension
     blacklist::Vector{String}
     clients::Vector{T}
-    writekeys::Bool
     max_requests::Int64
-    Auth{T}(; write::Bool = false, max_requests::Int64 = 1200) where {T <: AbstractClient} = begin
+    Auth{T}(; max_requests::Int64 = 1200) where {T <: AbstractClient} = begin
         blacklist::Vector{String} = Vector{String}()
         clients::Vector{T} = Vector{T}()
-        new{T}(blacklist, clients, write, max_requests)::Auth{T}
+        new{T}(blacklist, clients, max_requests)::Auth{T}
     end
 end
 
 Auth(; args ...) = Auth{Client}(; args ...)
 
 on_start(ext::Auth, data::Dict{Symbol, Any}, routes::Vector{<:AbstractRoute}) = begin
-    push!(data, :clients => ext.clients, :authgc => 0)
+    push!(data, :clients => ext.clients)
 end
 
 function gc_routine(auth::Auth)
@@ -114,6 +241,7 @@ function gc_routine(auth::Auth)
     found = findall(d -> day(d) != today, auth.clients)
     [deleteat!(auth.clients, pos) for pos in found]
     [client.n_requests = 0 for client in auth.clients]
+    nothing::Nothing
 end
 
 function route!(c::AbstractConnection, e::Auth)
@@ -123,42 +251,91 @@ function route!(c::AbstractConnection, e::Auth)
         route_403(c, "You have been blacklisted from this webpage.")
         return(false)
     end
-    # request check
-    cl::Client = e.clients[get_ip(c)]
-    cl.lastup = now()
-    cl.n_requests += 1
-    if sum((client.n_requests)) > 10000
-        gc_routine(auth)
-    end
-    if cl.n_requests > e.max_requests
-        push!(e.blacklist, ip)
-    end
     args::Dict{Symbol, <:Any} = get_args(c)
-    if e.writekeys && get_method(c) != "POST"
-        k = div("private-key", text = cl.key)
-        write!(c, k)
+    if :key in keys(args)
+        cl = findfirst(client -> client.key == args[:key], e.clients)
+        if ~(isnothing(cl))
+            cl.ip = get_ip(c)
+            return
+        end
+    end
+    # request check
+    if get_ip(c) in e.clients
+        cl::AbstractClient = e.clients[get_ip(c)]
+        cl.lastup = now()
+        cl.n_requests += 1
+        if sum((client.n_requests)) > 10000
+            gc_routine(auth)
+        end
+        if cl.n_requests > e.max_requests
+            push!(e.blacklist, ip)
+            clpos = findfirst(cli.)
+        end
     end
 end
 
-function redirect!(c::AbstractConnection, cm::AbstractComponentModifier, to::String = get_host(c); delay::Int64 = 0)
+"""
+```julia
+auth_redirect!(c::AbstractConnection, ...) -> ::Nothing
+```
+Redirects an incoming `Connection` with an authentication key inside of the arguments.
+```julia
+auth_redirect!(c::AbstractConnection, to::String = get_host(c))
+auth_redirect!(c::Abstractonnection cm::AbstractComponentModifier, to::String = get_host(c))
+```
+---
+```example
+
+```
+"""
+function auth_redirect!(c::AbstractConnection, to::String = get_host(c))
+    new_ref::String = gen_ref(10)
+    c[:clients][get_ip(c)].key = new_ref
+    inner::String = "$to?key=$new_ref"
+    newscr = script("authdir", text = "window.location.href = '$inner';")
+    write!(c, newscr)
+end
+
+function auth_redirect!(c::Abstractonnection cm::AbstractComponentModifier, to::String = get_host(c))
     new_ref::String = gen_ref(10)
     c[:clients][get_ip(c)].key = new_ref
     redirect!(cm, "$to?key=$new_ref", delay)
 end
 
+
+"""
+```julia
+auth_pass!(c::AbstractConnection, url::String) -> ::Nothing
+```
+Performs an authenticated pass-through to the `url` on the `Connection`. Sends to `url` 
+with an authentication key for this server. (This type of concept is useful is servers share the same `Auth.clients` or `Auth` extension.)
+---
+```example
+
+```
+"""
 auth_pass!(c::AbstractConnection, url::String) = begin
     new_ref::String = gen_ref(10)
     c[:clients][get_ip(c)].key = new_ref
-    HTTP.get("http://$(string(ip4))?key=$new_ref", response_stream = c.stream, status_exception = false)
+    inner = "window.location.replace('$to?key=$new_ref');"
+    newscr = script("authdir", text = "window.location.replace('$inner');")
+    write!(c, newscr)
 end
 
-authenticated(c::AbstractConnection, cm::AbstractComponentModifier) = begin
-    cm["private-key"]["text"] == c.client.key
-end
+"""
+```julia
+authorize!(c::AbstractConnection, data::Pair{String, <:Any} ...)
+```
+Authorizes a client, making their next load of the page be to the `AuthenticatedConnection`. 
+`data` can optionally be provided to initialize the client with data.
+---
+```example
 
-authorize!(c::AbstractConnection) = begin
+```
+"""
+authorize!(c::AbstractConnection, data::Pair{String, <:Any} ...) = begin
     key::String = gen_ref(10)
-    newc::Client = Client(key, get_ip(c), 0, Dict{String, Any}(), now())
+    data = Dict{String, Any}(p[1] => p[2] for p in data)
+    newc::Client = Client(key, get_ip(c), 0, data, now())
     push!(c[:clients], newc)
 end
-    
