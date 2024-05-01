@@ -136,7 +136,8 @@ There is a major thing to be aware of when using `Toolips` multi-threading along
 ### rpc
 ### auth
 
-## changes overview :)
+## changes overview
+:)
 ###### 0.4.0
 **alot** has now changed. Most of `ToolipsSession` is now part of `Toolips` itself. Now `ToolipsSession` uses `htmlcomponent` from `ToolipsServables`, rather than here. Parsing is also done on command, the `Session` extension itself is a lot smaller and requires a lot less data to function. This also follows the new `Toolips` `0.3` syntax, which is pretty sweet!
 - Brought `Session` extension into `0.3` compatibility.
@@ -151,6 +152,8 @@ There is a major thing to be aware of when using `Toolips` multi-threading along
 - Improved docs/testing.
 - Improved memory usage.
 - Added *"global"* event registration
+- Added random `button_select!`.
+- Deprecated `Session`-side `KeyFrames` (`Animation` from `Toolips` `0.2.x`) interface.
 
 `Toolips` and `ToolipsSession` are both overhauled in these versions -- a lot of things were moved around, and a lot of significant improvements were made. This package remains similar exactly the same in high-level functionality; other than the move from `bind!` to `bind` and `rpc` these changes will not break existing software that uses `ToolipsSession` (aside from of course the differences in loading the module with `Toolips` `0.3`. I am really looking forward to getting this version out, and doing exciting things with it.
 ###### 0.3.6
