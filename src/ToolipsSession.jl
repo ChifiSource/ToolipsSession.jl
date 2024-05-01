@@ -46,8 +46,47 @@ the `Function` provided to `route` takes an `AbstractConnection`.
 ```
 ## provides
 ###### session
+- `AbstractEvent`
+- `Event`
+- `call!`
+- `RPCEvent`
+- `RPCClient`
+- `RPCHost`
+- `Session`
+- `register!`
+- `Toolips.kill!(::AbstractConnection)`
+- `clear!`
+- `event`
+- `on`
+- `ToolipsSession.bind`
+- `InputMap`
+- `SwipeMap`
+- `KeyMap`
+- `script!`
+- `open_rpc!`
+- `join_rpc!`
+- `reconnect_rpc!`
+- `close_rpc!`
+- `rpc!`
 ###### authentication
+- `AbstractClient`
+- `Client`
+- `AuthenticatedConnection`
+- `Auth`
+- `authorize!`
+- `auth_redirect!`
+- `auth_pass!`
 ###### component modifier
+- `ComponentModifier`
+- `button_select` <- random prebuilt component
+- `set_selection!`
+- `pauseanim!`
+- `playanim!`
+- `free_redirects!`
+- `confirm_redirects!`
+- `scroll_to!`
+- `scroll_by!`
+- `next!`
 """
 module ToolipsSession
 using Toolips
@@ -99,7 +138,9 @@ function document_linker(c::AbstractConnection)
     nothing::Nothing
 end
 
-#== WIP socket server
+#== WIP websocket server... Not sure if this is to be part of `ToolipsSession`, 
+or another extension -- but for now, this code sits here. Obviously, a lot will need to be done 
+to actually get this working properly.
 abstract type SocketServer <: Toolips.ServerTemplate end
 
 function start!(mod::Module = server_cli(Main.ARGS), from::Type{SocketServer}; ip::IP4 = ip4_cli(Main.ARGS), 
@@ -444,10 +485,20 @@ function clear!(c::AbstractConnection)
     c[:Session].events[get_ip(c)] = Vector{AbstractEvent}()
 end
 
+"""
+```julia
+
+```
+"""
 event(f::Function, session::Session, name::String) = begin
     push!(session.events["GLOBAL"], Event(f, "GLOBAL-" * name))
 end
 
+"""
+```julia
+on(name::String, c::AbstractConnection, event::String; prevent_default::Bool = false) -> ::Nothing
+```
+"""
 on(name::String, c::AbstractConnection, event::String; 
     prevent_default::Bool = false) = begin
     name::String = "GLOBAL-" * name
@@ -465,10 +516,27 @@ on(name::String, c::AbstractConnection, comp::Component{<:Any}, event::String;
 end
 
 """
-Additional `on` `ClientModifier` bindings from `ToolipsSession` ...
 ```julia
 on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, event::String)
 ```
+"""
+function on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, event::String;
+    prevent_default::Bool = false)
+    name::String = comp.name
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
+    end
+    cl = Toolips.ClientModifier(); f(cl)
+    push!(cm.changes, """setTimeout(function (event) {
+        document.getElementById('$name').addEventListener('$event',
+        function (event) {
+            $prevent$(join(cl.changes))
+        });
+        }, 1000);""")
+end
+
+"""
 ##### ToolipsSession.on
 ```julia
 on(f::Function, c::AbstractConnection, args ...; prevent_default::Bool = false)
@@ -551,22 +619,6 @@ function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, c
      function (event) {$(prevent)sendpage('$ref');});
      }, 1000);""")
      register!(f, c, ref)
-end
-
-function on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, event::String;
-    prevent_default::Bool = false)
-    name::String = comp.name
-    prevent::String = ""
-    if prevent_default
-        prevent = "event.preventDefault();"
-    end
-    cl = Toolips.ClientModifier(); f(cl)
-    push!(cm.changes, """setTimeout(function (event) {
-        document.getElementById('$name').addEventListener('$event',
-        function (event) {
-            $prevent$(join(cl.changes))
-        });
-        }, 1000);""")
 end
 
 """
