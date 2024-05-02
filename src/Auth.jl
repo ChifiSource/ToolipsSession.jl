@@ -257,6 +257,8 @@ function route!(c::AbstractConnection, e::Auth)
         if ~(isnothing(cl))
             cl.ip = get_ip(c)
             return
+        else
+            route_403(c, "Invalid `key` provided")
         end
     end
     # request check
@@ -269,7 +271,8 @@ function route!(c::AbstractConnection, e::Auth)
         end
         if cl.n_requests > e.max_requests
             push!(e.blacklist, ip)
-            clpos = findfirst(cli.)
+            clpos = findfirst(cli -> cli.ip == ip, e.clients)
+            deleteat!(e.clients, clois)
         end
     end
 end
@@ -288,7 +291,7 @@ auth_redirect!(c::Abstractonnection cm::AbstractComponentModifier, to::String = 
 
 ```
 """
-function auth_redirect!(c::AbstractConnection, to::String = get_host(c))
+function auth_redirect!(c::Toolips.AbstractConnection, to::String = get_host(c))
     new_ref::String = gen_ref(10)
     c[:clients][get_ip(c)].key = new_ref
     inner::String = "$to?key=$new_ref"
@@ -296,7 +299,7 @@ function auth_redirect!(c::AbstractConnection, to::String = get_host(c))
     write!(c, newscr)
 end
 
-function auth_redirect!(c::Abstractonnection cm::AbstractComponentModifier, to::String = get_host(c))
+function auth_redirect!(c::Toolips.AbstractConnection, cm::AbstractComponentModifier, to::String = get_host(c))
     new_ref::String = gen_ref(10)
     c[:clients][get_ip(c)].key = new_ref
     redirect!(cm, "$to?key=$new_ref", delay)
@@ -314,7 +317,7 @@ with an authentication key for this server. (This type of concept is useful is s
 
 ```
 """
-auth_pass!(c::AbstractConnection, url::String) = begin
+auth_pass!(c::Toolips.AbstractConnection, url::String) = begin
     new_ref::String = gen_ref(10)
     c[:clients][get_ip(c)].key = new_ref
     inner = "window.location.replace('$to?key=$new_ref');"
@@ -333,7 +336,7 @@ Authorizes a client, making their next load of the page be to the `Authenticated
 
 ```
 """
-authorize!(c::AbstractConnection, data::Pair{String, <:Any} ...) = begin
+authorize!(c::Toolips.AbstractConnection, data::Pair{String, <:Any} ...) = begin
     key::String = gen_ref(10)
     data = Dict{String, Any}(p[1] => p[2] for p in data)
     newc::Client = Client(key, get_ip(c), 0, data, now())

@@ -490,7 +490,7 @@ end
 
 ```
 """
-event(f::Function, session::Session, name::String) = begin
+on(f::Function, session::Session, name::String) = begin
     push!(session.events["GLOBAL"], Event(f, "GLOBAL-" * name))
 end
 
