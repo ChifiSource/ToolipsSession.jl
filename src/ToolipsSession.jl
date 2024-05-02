@@ -1125,47 +1125,27 @@ end
 
 function bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symbol = :down, prevent_default::Bool = true)
     firsbind = first(km.keys)
-    first_line::String = """setTimeout(function () {
-    document.addEventListener('key$on', function(event) { if (1 == 2) {}"""
+    first_line::String = """
+    setTimeout(function () {
+    document.addEventListener('key$on', function (event) { if (1 == 2) {}"""
+    n = 1
     for binding in km.keys
-        defaul    first_line::String = """
-        setTimeout(function () {
-        document.addEventListener('key$on', function (event) { if (1 == 2) {}"""
-        n = 1
-        for binding in km.keys
-            default::String = ""
-            key = binding[1]
-            if contains(key, ";")
-                key = split(key, ";")[1]
-            end
-            if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
-                default = "event.preventDefault();"
-            end
-            ref::String = gen_ref(5)
-            eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
-            first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
-                    sendpage('$(ref)');
-                    }"""
-            register!(binding[2][2], c, ref)
-        end
-        first_line = first_line * "}.bind(event));}, 500);"t::String = ""
+        default::String = ""
         key = binding[1]
         if contains(key, ";")
             key = split(key, ";")[1]
         end
-        if key * join([string(ev) for ev in binding[2][1]]) in km.prevents
-            if binding[2] == km.prevents[binding[1]]
-                default = "event.preventDefault();"
-            end
+        if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
+            default = "event.preventDefault();"
         end
-        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         ref::String = gen_ref(5)
-        first_line = first_line * """else if ($eventstr event.key == "$(binding[1])") {$default
-                sendpage('$ref');
-        }"""
+        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
+        first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
+                sendpage('$(ref)');
+                }"""
         register!(binding[2][2], c, ref)
     end
-    first_line = first_line * "});}, 1000);"
+    first_line = first_line * "}.bind(event));}, 500);"
     push!(cm.changes, first_line)
 end
 
