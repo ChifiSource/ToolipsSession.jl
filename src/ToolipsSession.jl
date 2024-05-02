@@ -91,7 +91,8 @@ the `Function` provided to `route` takes an `AbstractConnection`.
 module ToolipsSession
 using Toolips
 import Toolips: AbstractRoute, kill!, AbstractConnection, write!, route!, on_start, gen_ref, convert, convert!, write!, interpolate!
-import Toolips.Components: ClientModifier, Servable, next!, Component, style!, AbstractComponentModifier, AbstractComponent, on, bind, htmlcomponent, redirect!
+import Toolips.Components: ClientModifier, Servable, next!, Component, style!, AbstractComponentModifier, AbstractComponent
+import Toolips.Components: on, bind, htmlcomponent, script
 import Base: setindex!, getindex, push!, iterate, string, in
 using Dates
 # using WebSockets: serve, writeguarded, readguarded, @wslog, open, HTTP, Response, ServerWS
@@ -691,12 +692,11 @@ function bind(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol
                             end for event in eventkeys])
     ref::String = gen_ref(5)
     write!(c, """<script>
-    setTimeout(function () {
 document.addEventListener('key$on', function(event) {
     if ($eventstr event.key == "$(key)") {
     $(prevent)sendpage('$ref');
     }
-});}, 1000);</script>
+    });</script>
     """)
     register!(f, c, ref)
 end
@@ -1011,6 +1011,33 @@ function bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_def
     write!(c, scr)
 end
 
+function bind(c::AbstractConnection, comp::Component{<:Any}, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
+    firsbind = first(km.keys)
+    first_line::String = """
+    setTimeout(function () {
+    document.getElementById('$(comp.name)').addEventListener('key$on', function (event) { if (1 == 2) {}"""
+    n = 1
+    for binding in km.keys
+        default::String = ""
+        key = binding[1]
+        if contains(key, ";")
+            key = split(key, ";")[1]
+        end
+        if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
+            default = "event.preventDefault();"
+        end
+        ref::String = gen_ref(5)
+        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
+        first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
+                sendpage('$(ref)');
+                }"""
+        register!(binding[2][2], c, ref)
+    end
+    first_line = first_line * "}.bind(event));}, 500);"
+    scr::Component{:script} = script(gen_ref(), text = first_line)
+    write!(c, scr)
+end
+
 function bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symbol = :down, prevent_default::Bool = true)
     firsbind = first(km.keys)
     first_line::String = """setTimeout(function () {
@@ -1056,7 +1083,7 @@ function bind(c::AbstractConnection, cm::ComponentModifier, comp::Component{<:An
         ref::String = gen_ref(5)
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
-                sendpage('$(comp.name * key * ref)');
+                sendpage('$(ref)');
                 }"""
         register!(binding[2][2], c, ref)
     end
