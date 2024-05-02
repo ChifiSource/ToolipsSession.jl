@@ -512,7 +512,7 @@ on(name::String, c::AbstractConnection, comp::Component{<:Any}, event::String;
     if prevent_default
         prevent = "event.preventDefault();"
     end
-    s["on$event"] = "$(prevent)sendpage('$name');"
+    comp["on$event"] = "$(prevent)sendpage('$name');"
 end
 
 """
@@ -581,7 +581,7 @@ function on(f::Function, c::AbstractConnection, event::AbstractString;
     register!(f, c, ref)
 end
 
-function on(f::Function, c::AbstractConnection, s::AbstractComponent, event::AbstractString, 
+function on(f::Function, c::AbstractConnection, s::AbstractComponent, event::AbstractString;
     prevent_default::Bool = false)
     ref::String = gen_ref(5)
     ip::String = string(get_ip(c))
@@ -624,7 +624,7 @@ end
 """
 ### ToolipsSession.bind
 ```julia
-bind(f::Function, c::AbstractConnection, args ...) -> ::Nothing
+bind(f::Function, c::AbstractConnection, args ...; prevent_default::Bool = true) -> ::Nothing
 ```
 ---
 `ToolipsSession.bind` (`TooipsServables.bind`) is used to add less-traditional controls to `Toolips` 
@@ -682,7 +682,7 @@ bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Co
 """
 function bind(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol ...;
     on::Symbol = :down, prevent_default::Bool = true)
-    cm::Modifier = ClientModifier()
+    cm::Toolips.ToolipsServables.ClientModifier = ClientModifier()
     prevent::String = ""
     if prevent_default
         prevent = "event.preventDefault();"
@@ -1333,7 +1333,7 @@ function call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
     call!(c[:Session], find_host(c), cm, get_ip(c), peerip)
 end
 
-export Session, on, script!, ComponentModifier
+export Session, on, script!, ComponentModifier, authorize!, auth_redirect!, auth_pass!
 export set_selection!, pauseanim!, playanim!, free_redirects!, confirm_redirects!, scroll_to!, scroll_by!, next!
 export rpc!, call!, disconnect_rpc!, find_client, join_rpc!, close_rpc!, open_rpc!, reconnect_rpc!
 end # module
