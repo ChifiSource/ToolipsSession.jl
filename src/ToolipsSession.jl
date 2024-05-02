@@ -488,7 +488,20 @@ end
 
 """
 ```julia
+on(f::Function, session::Session, name::String) -> ::Nothing
+```
+This binding is used to bind events and save them for later, referencing them by their 
+    provided `name`.
+```example
+on(sess, "sample") do cm::ComponentModifier
+    style!(cm, "samp", "color" => "blue")
+end
 
+main = route("/") do c::Toolips.AbstractConnection
+    mainbody = body("mainbod")
+    on("sample", c, mainbody, "click")
+    write!(c, mainbody)
+end
 ```
 """
 on(f::Function, session::Session, name::String) = begin
@@ -497,7 +510,36 @@ end
 
 """
 ```julia
-on(name::String, c::AbstractConnection, event::String; prevent_default::Bool = false) -> ::Nothing
+on(name::String, c::AbstractConnection, ...; prevent_default::Bool = false) -> ::Nothing
+```
+These `on` bindings are used to bind existing events, registered using `on(::Function, ::Session, ::String)` 
+to components and `Connections`. This makes it possible to create reusable global bindings for each client, for 
+callbacks that have no variation and don't require function variables.
+```julia
+on(name::String, c::AbstractConnection, event::String; 
+    prevent_default::Bool = false)
+on(name::String, c::AbstractConnection, comp::Component{<:Any}, event::String; 
+    prevent_default::Bool = false)
+```
+```julia
+module SampleServer
+using Toolips
+using Toolips.Components
+using Toolips
+session = Session()
+on(sess, "sample") do cm::ComponentModifier
+    style!(cm, "samp", "color" => "blue")
+end
+
+main = route("/") do c::Toolips.AbstractConnection
+    mainbody = body("mainbod")
+    on("sample", c, mainbody, "click")
+    write!(c, mainbody)
+end
+
+export main, session
+end
+```
 ```
 """
 on(name::String, c::AbstractConnection, event::String; 
@@ -923,12 +965,53 @@ mutable struct KeyMap <: InputMap
 
 - See also: 
 ```julia
-KeyMap()
+KeyMap() <: ToolipsSession.InputMap
 ```
----
-```example
+The `KeyMap` is used to handle more complicated inputs with `ToolipsSession` 
+events. This is *the* way to bind multiple keys to the same function, for example.
+The `KeyMap` is bound using `ToolipsSession.bind(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)` 
+and then bound again to the `Connection` -- and optionally in a callback with a `ComponentModifier`, or with a 
+`Connection`.
+```julia
+- `KeyMap()` -> ::KeyMap
+```
+```julia
+# binding to keymap
+bind(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)
+#                            e.g. ["Enter", "ctrl"]
+bind(f::Function, km::KeyMap, events::Vector{String}; prevent_default::Bool = true)
+# binding to connection
+bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
+bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symbol = :down, prevent_default::Bool = true)
+bind(c::AbstractConnection, cm::ComponentModifier, comp::Component{<:Any},
+    km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
+```
+```julia
+module KeyMapSample
+using Toolips
+using Toolips.Components
+using ToolipsSession
+session = Session()
 
+main = route("/") do c::AbstractConnection
+    txtbox = textdiv("text-input")
+    km = ToolipsSession.KeyMap()
+    ToolipsSession.bind(km, "C", :ctrl) do cm::ComponentModifier
+        alert!(cm, "copied")
+    end
+    ToolipsSession.bind(km, "V", :ctrl) do cm::ComponentModifier
+        alert!(cm, "pasted")
+    end
+    ToolipsSession.bind(c, txtbox, km)
+    mainbody = body()
+    push!(mainbody, txtbox)
+    write!(c, mainbody)
+end
+
+export session, main
+end
 ```
+- See also: `ToolipsSession.bind`, `on`, `ToolipsSession`, `Session`, `InputMap`, `SwipeMap`
 """
 mutable struct KeyMap <: InputMap
     keys::Dict{String, Pair{Tuple, Function}}
@@ -988,25 +1071,27 @@ bindings.
 """
 function bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
     firsbind = first(km.keys)
-    first_line::String = """setTimeout(function () {
-    document.addEventListener('key$on', function(event) { if (1 == 2) {}"""
+    first_line::String = """
+    setTimeout(function () {
+    document.addEventListener('key$on', function (event) { if (1 == 2) {}"""
+    n = 1
     for binding in km.keys
         default::String = ""
         key = binding[1]
         if contains(key, ";")
             key = split(key, ";")[1]
         end
-        if key * join([string(bin) for bin in binding[2][1]]) in km.prevents
+        if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
             default = "event.preventDefault();"
         end
-        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         ref::String = gen_ref(5)
-        first_line = first_line * """ elseif ($eventstr event.key == "$(binding[1])") {$default
-                sendpage('$ref');
-        }"""
+        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
+        first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
+                sendpage('$(ref)');
+                }"""
         register!(binding[2][2], c, ref)
     end
-    first_line = first_line * "});}, 1000);"
+    first_line = first_line * "}.bind(event));}, 500);"
     scr::Component{:script} = script(gen_ref(), text = first_line)
     write!(c, scr)
 end
@@ -1043,7 +1128,27 @@ function bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symb
     first_line::String = """setTimeout(function () {
     document.addEventListener('key$on', function(event) { if (1 == 2) {}"""
     for binding in km.keys
-        default::String = ""
+        defaul    first_line::String = """
+        setTimeout(function () {
+        document.addEventListener('key$on', function (event) { if (1 == 2) {}"""
+        n = 1
+        for binding in km.keys
+            default::String = ""
+            key = binding[1]
+            if contains(key, ";")
+                key = split(key, ";")[1]
+            end
+            if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
+                default = "event.preventDefault();"
+            end
+            ref::String = gen_ref(5)
+            eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
+            first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
+                    sendpage('$(ref)');
+                    }"""
+            register!(binding[2][2], c, ref)
+        end
+        first_line = first_line * "}.bind(event));}, 500);"t::String = ""
         key = binding[1]
         if contains(key, ";")
             key = split(key, ";")[1]
