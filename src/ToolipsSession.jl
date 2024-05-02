@@ -5,23 +5,100 @@ by team
 [toolips](https://github.com/orgs/ChifiSource/teams/toolips)
 This software is MIT-licensed.
 ### ToolipsSession
-**Extension for:**
-- [Toolips](https://github.com/ChifiSource/Toolips.jl) \
-This module provides the capability to make web-pages interactive by simply
-adding the Session extension to your ServerTemplate before starting. There are
-also methods contained for modifying Servables.
-##### Module Composition
-- [**ToolipsSession**](https://github.com/ChifiSource/ToolipsSession.jl)
+`ToolipsSession` provides fullstack call-backs for `Toolips` `Components`, including
+Input Maps (swipe and keyboard input), `rpc!` callbacks, Authentication, 
+and `next!` animation callbacks.
+```julia
+module SampleServer
+#  ---- dependencies
+using Toolips
+using Toolips.Components
+using ToolipsSession
+#  ---- create extensions
+# create `Session`. Active route paths are provided to the constructor in a `Vector{String}`:
+session = Session(["/"])
+
+#  ---- routes
+main = route("/") do c::AbstractConnection
+    mainbut = button("examplebutton", text = "click me for a message!")
+    appendbut = button("appendsample", text = "click me to append")
+    on(c, mainbut, "click") do cm::ComponentModifier
+        alert!(cm, "hello world!")
+    end
+    on(c, mainbut, "click") do cm::ComponentModifier
+
+    end
+end
+#  ---- exports (load server components)
+#   vvv Important! export Session! (`?(ToolipsSession.Toolips)`)
+export main, session, start!
+end
+```
+**Important**: `Session` callbacks might be made with closures, or functions 
+as arguments. Closures **cannot** be 
+serialized with `Toolips` multi-threading. In order for fullstack callbacks to work with 
+multiple threads, you will need to define each callback as a `Function` within your `Module`. 
+Provided functions can take either a `ComponentModifier`, as is usually seen with `do`, 
+or a `Connection` and `ComponentModifier`. Not relevant to `ToolipsSession`, but also make sure 
+the `Function` provided to `route` takes an `AbstractConnection`.
+```julia
+
+```
+## provides
+###### session
+- `AbstractEvent`
+- `Event`
+- `call!`
+- `RPCEvent`
+- `RPCClient`
+- `RPCHost`
+- `Session`
+- `register!`
+- `Toolips.kill!(::AbstractConnection)`
+- `clear!`
+- `event`
+- `on`
+- `ToolipsSession.bind`
+- `InputMap`
+- `SwipeMap`
+- `KeyMap`
+- `script!`
+- `open_rpc!`
+- `join_rpc!`
+- `reconnect_rpc!`
+- `close_rpc!`
+- `rpc!`
+###### authentication
+- `AbstractClient`
+- `Client`
+- `AuthenticatedConnection`
+- `Auth`
+- `authorize!`
+- `auth_redirect!`
+- `auth_pass!`
+###### component modifier
+- `ComponentModifier`
+- `button_select` <- random prebuilt component
+- `set_selection!`
+- `pauseanim!`
+- `playanim!`
+- `free_redirects!`
+- `confirm_redirects!`
+- `scroll_to!`
+- `scroll_by!`
+- `next!`
 """
 module ToolipsSession
 using Toolips
-import Toolips: ServerExtension, Servable, AbstractComponent, Modifier
-import Toolips: AbstractRoute, kill!, AbstractConnection, script, write!
-import Base: setindex!, getindex, push!, iterate
-using Random, Dates
-
+import Toolips: AbstractRoute, kill!, AbstractConnection, write!, route!, on_start, gen_ref, convert, convert!, write!, interpolate!
+import Toolips.Components: ClientModifier, Servable, next!, Component, style!, AbstractComponentModifier, AbstractComponent
+import Toolips.Components: on, bind, htmlcomponent, script
+import Base: setindex!, getindex, push!, iterate, string, in
+using Dates
+# using WebSockets: serve, writeguarded, readguarded, @wslog, open, HTTP, Response, ServerWS
 include("Modifier.jl")
-
+include("Auth.jl")
+export authorize!
 #==
 Hello, welcome to the Session source. Here is an overview of the organization
 that might help you out:
@@ -30,568 +107,911 @@ that might help you out:
 --- linker
 --- Session extension
 --- kill!
---- clear!
---- on
 --- KeyMap
---- bind!
+--- on
+--- bind
 --- script interface
 --- rpc
 ------------------
 - Modifier.jl
---- Base Modifier
---- Client Modifiers
 --- ComponentModifiers
 --- Modifier functions
 ------------------
+- Auth.jl
+--- Auth
 ==#
 
-"""
-**Session**
-### gen_ref() -> ::String
-------------------
-Creates a random string of 16 characters. This is used to map connections
-to specific events by the session.
-#### example
-```
-gen_ref()
-"jfuR2wgprielweh3"
-```
-"""
-function gen_ref(n::Int64 = 16)
-    Random.seed!( rand(1:100000) )
-    randstring(n)::String
-end
-
-"""
-**Session Internals**
-### document_linker(c::Connection) -> _
-------------------
-Served to /modifier/linker by the Session extension. This is where incoming
-data is posted to for a response.
-#### example
-```
-
-```
-"""
-function document_linker(c::Connection)
-    s::String = getpost(c)
-    ip::String = getip(c)
+function document_linker(c::AbstractConnection)
+    s::String = get_post(c)
+    ip::String = get_ip(c)
     reftag::UnitRange{Int64} = findfirst("â•ƒCM", s)
     reftagend = findnext("â•ƒ", s, maximum(reftag))
     ref_r::UnitRange{Int64} = maximum(reftag) + 1:minimum(reftagend) - 1
     ref::String = s[ref_r]
     s = replace(s, "â•ƒCM" => "", "â•ƒ" => "")
-    if ip in keys(c[:Session].iptable)
-        c[:Session].iptable[ip] = now()
+    cm = ComponentModifier(s)
+    if contains(ref, "GLOBAL")
+        ip = "GLOBAL"
     end
-    if ip in keys(c[:Session].events)
-        if ip * ref in keys(c[:Session].readonly)
-            cm = ComponentModifier(s, c[:Session].readonly[ip * ref])
-        else
-            cm = ComponentModifier(s)
-        end
-        f::Function = c[:Session][ip][ref]
-        f(cm)
-        write!(c, " ")
-        write!(c, cm)
-        cm = nothing
+    call!(c, c[:Session].events[ip][ref], cm)
+    write!(c, " ", cm)
+    cm = nothing
+    nothing::Nothing
+end
+
+#== WIP websocket server... Not sure if this is to be part of `ToolipsSession`, 
+or another extension -- but for now, this code sits here. Obviously, a lot will need to be done 
+to actually get this working properly.
+abstract type SocketServer <: Toolips.ServerTemplate end
+
+function start!(mod::Module = server_cli(Main.ARGS), from::Type{SocketServer}; ip::IP4 = ip4_cli(Main.ARGS), 
+    router_threads::Int64 = 1, threads::Int64 = 1)
+    IP = Sockets.InetAddr(parse(IPAddr, ip.ip), ip.port)
+    server::Sockets.TCPServer = Sockets.listen(IP)
+    mod.server = server
+    routefunc::Function, pm::ProcessManager = generate_router(mod, router_threads)
+    if router_threads == 1
+        w = pm["$mod router"]
+        serve_router = @async HTTP.listen(routefunc, ip.ip, ip.port, server = server)
+        w.task = serve_router
+        w.active = true
+        return(pm)::ProcessManager
     end
 end
 
-
-"""
-### Session
-- type::Vector{Symbol}
-- f::Function
-- active_routes::Vector{String}
-- events::Dict{String, Pair{String, Function}}
-- readonly::Dict{String, Vector{String}}
-- iptable::Dict{String, Dates.DateTime}
-- timeout::Integer\n
-Provides session capabilities and full-stack interactivity to a toolips server.
-Note that the route you want to be interactive **must** be in active_routes!
-##### example
-```
-exts = [Session()]
-st = ServerTemplate(extensions = exts)
-server = st.start()
-
-route!(server, "/") do c::Connection
-    myp = p("myp", text = "welcome to my site")
-    on(c, myp, "click") do cm::ComponentModifier
-        if cm[myp][:text] == "welcome to my site"
-            set_text!(cm, myp, "unwelcome to my site")
-        else
-            set_text!(cm, myp, "welcome to my site")
+begin
+    function handler(req)
+        println("someone landed")
+        open("ws://127.0.0.1:8000") do ws_client
+            
         end
     end
-    write!(c, myp)
+    function wshandler(ws_server)
+        println("websockethandled")
+        writeguarded(ws_server, "Hello")
+        readguarded(ws_server)
+    end
+    serverWS = ServerWS(handler, wshandler)
+    servetask = @async with_logger(WebSocketLogger()) do
+        serve(serverWS, port = 8000)
+        "Task ended"
+    end
 end
-```
-------------------
-##### constructors
-Session(active_routes::Vector{String} = ["/"];
-        transition_duration::AbstractFloat = 0.5,
-        transition::String = "ease-in-out",
-        timeout::Integer = 30
-        )
+==#
+
 """
-mutable struct Session <: ServerExtension
-    type::Vector{Symbol}
+```julia
+abstract type AbstractEvent <: Servable
+```
+An `Event` is a type of registered callback for `ToolipsSession` to call. 
+    `ToolipsSession` provides the `Event`, `RPCClient`, and `RPCHost`. Events 
+    are indexed by their `Event.name`. The `Function` `call!` is used on an 
+    event whenever it is determined to be registered to an occurring input action.
+---
+- See also: `Session`, `on`, `ToolipsSession`, `bind`, `Toolips`, `Event`, `RPCEvent`
+"""
+abstract type AbstractEvent <: Servable end
+
+function getindex(v::Vector{AbstractEvent}, t::String)
+    f = findfirst(e -> e.name == t, v)
+    if isnothing(f)
+        throw("$t not found")
+    end
+    v[f]
+end
+
+"""
+```julia
+struct Event <: Abstractevent
+```
+- `f`**::Function**
+- `name`**::String**
+
+An `Event` is the most simple form of `ToolipsSession` event. It has a `name`, 
+usually a small reference code, and this name is called by the client before the `Function` 
+`f` is called. These events are usually created through the 
+`register!(::Function, ::AbstractConnection, ::String)` `Method` whenever `on` 
+or `bind` is used to create an event.
+
+```example
+
+```
+```julia
+Event(f::Function, name::String)
+```
+- See also: `Session`, `on`, `ToolipsSession`, `bind`, `AbstractEvent`
+"""
+struct Event <: AbstractEvent
     f::Function
+    name::String
+end
+
+"""
+```julia
+call!(c::AbstractConnection, ...) -> ::Nothing
+```
+---
+`call!` is used call events on a client. `call!` is used for RPC and by the document linker 
+to call event references. The first method is indicitave of the latter:
+```julia
+call!(c::AbstractConnection, event::AbstractEvent, cm::ComponentModifier)
+```
+"""
+function call! end
+
+function call!(c::AbstractConnection, event::AbstractEvent, cm::ComponentModifier)
+    if length(methods(event.f)[1].sig.parameters) > 2
+        event.f(c, cm)
+        return(nothing)::Nothing
+    end
+    event.f(cm)
+    nothing::Nothing
+end
+
+"""
+```julia
+abstract type RPCEvent <: AbstractEvent
+```
+An `RPCEvent` is an event that manages RPC changes for multiple clients. The main 
+    two types of rpc events are the `RPCClient` and `RPCHost`. These events are 
+    created whenever `join_rpc!` or `open_rpc!` is called.
+---
+- See also: `Session`, `on`, `AbstractEvent`, `Event`, `RPCHost`, `RPCClient`, `open_rpc!`
+"""
+abstract type RPCEvent <: AbstractEvent end
+
+"""
+```julia
+mutable struct RPCClient <: RPCEvent
+```
+- name**::String**
+- host**::String**
+- changes**::Vector{String}**
+
+The `RPCClient` is used to track the `changes` and `host` from other clients sharing 
+its RPC session.
+
+- See also: `open_rpc!`, `RPCEvent`, `RPCHost`, `rpc!`, `call!`
+```julia
+RPCClient(c::AbstractConnection, host::String, ref::String)
+```
+---
+```example
+
+```
+"""
+mutable struct RPCClient <: RPCEvent
+    name::String
+    host::String
+    changes::Vector{String}
+    RPCClient(c::AbstractConnection, host::String, ref) = new(ref, host, Vector{String}())
+end
+
+"""
+```julia
+mutable struct RPCHost <: RPCEvent
+```
+- name**::String**
+- clients**::Vector{String}**
+- changes**::Vector{String}**
+
+The `RPCHost` is the partner to the `RPCClient`, created by calling `open_rpc!` this host will 
+track the changes to itself, as well as which clients are meant to be part of its RPC session.
+
+- See also: `open_rpc!`, `RPCEvent`, `RPCClient`, `rpc!`, `call!`, `Event`, `Session`
+```julia
+RPCHost(ref::String)
+```
+---
+```example
+
+```
+"""
+mutable struct RPCHost <: RPCEvent
+    name::String
+    clients::Vector{String}
+    changes::Vector{String}
+    RPCHost(ref::String) = new(ref, Vector{String}(), Vector{String}())
+end
+
+function call!(c::AbstractConnection, event::RPCEvent, cm::ComponentModifier)
+    push!(cm.changes, join(event.changes))
+    event.changes = Vector{String}()
+    nothing::Nothing
+end
+
+"""
+```julia
+mutable struct Session <: Toolips.AbstractExtension
+```
+- active_routes**::Vector{String}**
+- events**::Dict{String, Vector{AbstractEvent}}**
+- iptable**::Dict{String, Dates.DateTime}**
+- gc**::Int64**
+- timeout**::Int64**
+
+`Session` provides fullstack `Event` callbacks to your `Toolips` server. This is a `Toolips` extension; 
+in order to load it, construct it and then `export` it from your `Module`. From here, callbacks can be 
+registered using `on`, `script!`, or `bind`. `on` must be provided a `Connection` in order to pass a 
+`ComponentModifier`, which will allow to us to interact with the server.
+```julia
+module SessionServer
+using Toolips
+using Toolips.Components
+using ToolipsSession
+
+      #   v only operating on `/`, with a timeout of 5 minutes.
+session = Session()
+
+main = route("/") do c::AbstractConnection
+    mybutton = button("click-me", text = "click me!")
+    style!(mybutton, "background-color" => "white", "transition" => 500ms)
+    on(c, mybutton, "click") do cm::ComponentModifier
+        style!(cm, mybutton, "background-color" => "red")
+    end
+    bod = body("main-body")
+    push!(bod, mybutton)
+    write!(c, bod)
+end
+
+export main, session
+end
+```
+Provided functions are able to take either a `ComponentModifier`, or a `Connection` and a `ComponentModifier` as arguments.
+- See also: `open_rpc!`, `script!`, `on`, `ToolipsSession.bind`, `ComponentModifier`
+```julia
+Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 5)
+```
+"""
+mutable struct Session <: Toolips.AbstractExtension
     active_routes::Vector{String}
-    events::Dict{String, Dict{String, Function}}
-    readonly::Dict{String, Vector{String}}
+    events::Dict{String, Vector{AbstractEvent}}
     iptable::Dict{String, Dates.DateTime}
-    peers::Dict{String, Dict{String, Vector{String}}}
-    timeout::Integer
-    function Session(active_routes::Vector{String} = ["/"];
-        transition_duration::AbstractFloat = 0.5,
-        transition::AbstractString = "ease-in-out", timeout::Integer = 30,
-        path::AbstractRoute = Route("/modifier/linker", x -> 5))
-        events = Dict{String, Dict{String, Function}}()
-        peers::Dict{String, Dict{String, Vector{String}}} = Dict{String, Dict{String, Vector{String}}}()
+    gc::Int64
+    timeout::Int64
+    function Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 5)
+        events = Dict{String, Vector{AbstractEvent}}("GLOBAL" => Vector{AbstractEvent}()) 
         iptable = Dict{String, Dates.DateTime}()
-        readonly = copy(events)
-        f(c::Connection, active_routes::Vector{String} = active_routes) = begin
-            fullpath = c.http.message.target
-            if contains(fullpath, '?')
-                fullpath = split(c.http.message.target, '?')[1]
-            end
-            if fullpath in active_routes
-                if ~(getip(c) in keys(iptable))
-                    push!(events, getip(c) => Dict{String, Function}())
-                    iptable[getip(c)] = now()
-                else
-                    if minute(now()) - minute(iptable[getip(c)]) >= timeout
-                        kill!(c)
-                    end
-                end
-                durstr = string(transition_duration, "s")
-                write!(c, """<script>
-                const parser = new DOMParser();
-                function sendpage(ref) {
-            var bodyHtml = document.getElementsByTagName('body')[0].innerHTML;
-                sendinfo('╃CM' + ref + '╃' + bodyHtml);
-                }
-                function sendinfo(txt) {
-                let xhr = new XMLHttpRequest();
-                xhr.open("POST", "/modifier/linker");
-                xhr.setRequestHeader("Accept", "application/json");
-                xhr.setRequestHeader("Content-Type", "application/json");
-                xhr.onload = () => eval(xhr.responseText);
-                xhr.send(txt);
-                }
-                </script>
-                <style type="text/css">
-                #div {
-                -webkit-transition: $durstr $transition;
-                -moz-transition: $durstr $transition;
-                -o-transition: $durstr $transition;
-                transition: $durstr $transition;
-                }
-                </style>
-                """)
-            end
-        end
-        f(routes::Vector{AbstractRoute}, ext::Vector{ServerExtension}) = begin
-            path.page = document_linker
-            push!(routes, path)
-        end
-        new([:connection, :func, :routing], f, active_routes, events,
-        readonly, iptable, peers, timeout)
+        new(active_routes, events, iptable, 0, timeout)::Session
     end
 end
 
-
-"""
-**Session Interface**
-### getindex(m::Session, s::AbstractString) -> ::Dict{String, Function}
-------------------
-Gets a session's refs by ip.
-#### example
-```
-route("/") do c::Connection
-    c[:Session][getip(c)]
+on_start(ext::Session, data::Dict{Symbol, Any}, routes::Vector{<:AbstractRoute}) = begin
+    if ~(:Session in keys(data))
+        push!(data, :Session => ext)
+    end
 end
-```
-"""
+
+function route!(c::AbstractConnection, e::Session)
+    if get_route(c) in e.active_routes
+        e.gc += 1
+        if e.gc == 1000
+            e.gc = 0
+            [begin
+                time = active_client[2]
+                current_time = now()
+                if hour(current_time) != hour(time)
+                    if ~(minute(current_time) < e.timeout)
+                        delete!(e.events, active_client[1])
+                        delete!(e.iptable, active_client[1])
+                    end
+                elseif minute(current_time) - minute(time) > e.timeout
+                    delete!(e.events, active_client[1])
+                    delete!(e.iptable, active_client[1])
+                end
+                nothing
+            end for active_client in e.iptable]::Vector
+        end
+        if get_method(c) == "POST"
+            document_linker(c)
+            return(false)::Bool
+        elseif ~(get_ip(c) in keys(e.iptable))
+            push!(e.events, get_ip(c) => Vector{AbstractEvent}())
+        end
+        e.iptable[get_ip(c)] = now()
+        write!(c, """<script>
+        const parser = new DOMParser();
+        function sendpage(ref) {
+        var bodyHtml = document.getElementsByTagName('body')[0].innerHTML;
+        sendinfo('╃CM' + ref + '╃' + bodyHtml);
+        }
+        function sendinfo(txt) {
+        let xhr = new XMLHttpRequest();
+        xhr.open("POST", "$(get_route(c))");
+        xhr.setRequestHeader("Accept", "application/json");
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.onload = () => eval(xhr.responseText);
+        xhr.send(txt);
+        }
+        </script>
+        <style type="text/css">
+        #div {
+        -webkit-transition: 1s ease-in-out;
+        -moz-transition: 1s ease-in-out;
+        -o-transition: 1s ease-in-out;
+        transition: 1s ease-in-out;
+        }
+        </style>
+        """)
+    end
+end
+
+register!(f::Function, c::AbstractConnection, name::String) = push!(c[:Session].events[get_ip(c)], Event(f, name))
+
 getindex(m::Session, s::AbstractString) = m.events[s]
 
-"""
-**Session Interface**
-### getindex(m::Session, d::Dict{String, Function}, s::AbstractString) -> _
-------------------
-Creates a new Session.
-#### example
-```
-route("/") do c::Connection
-    c[:Session][getip(c)] = Dict{String, Function}
-end
-```
-"""
 setindex!(m::Session, d::Any, s::AbstractString) = m.events[s] = d
 
 """
-**Session Interface**
-### kill!(c::Connection, event::AbstractString) -> _
-------------------
-Removes a given event call from a connection's Session.
-#### example
+```julia
+kill!(c::AbstractConnection) -> ::Nothing
 ```
-route("/") do c::Connection
-    myp = p("hello", text = "wow")
-    on(c, "load") do cm::ComponentModifier
-        set_text!(cm, myp, "not so wow")
-    end
-    write!(c, myp)
-end
-```
-"""
-function kill!(c::Connection, event::String)
-    delete!(c[:Session][getip(c)], event)
-end
-
-"""
-**Session Interface**
-### kill!(c::Connection)
-------------------
-Kills a Connection's saved events.
-#### example
-```
+---
+Deletes a `Connection`'s active session, removing the client from 
+the `iptable` and removing all events associated with the client.
+- See also: `Session`, `clear!`, `on`, `ToolipsSession.bind`
+---
+##### example
+```julia
+module InstantKill
 using Toolips
 using ToolipsSession
 
-route("/") do c::Connection
-    on(c, "load") do cm::ComponentModifier
-        alert!(cm, "this text will never appear.")
+session = Session()
+
+main = route("/") do c::AbstractConnection
+
+end
+
+export main, session
+end
+```
+"""
+function kill!(c::AbstractConnection)
+    delete!(c[:Session].iptable, get_ip(c))
+    delete!(c[:Session].events, get_ip(c))
+end
+
+"""
+```julia
+clear!(c::AbstractConnection) -> ::Nothing
+```
+---
+Deletes a `Connection`'s active session.
+```julia
+call!(c::AbstractConnection, event::AbstractEvent, cm::ComponentModifier)
+```
+"""
+function clear!(c::AbstractConnection)
+    c[:Session].events[get_ip(c)] = Vector{AbstractEvent}()
+end
+
+"""
+```julia
+on(f::Function, session::Session, name::String) -> ::Nothing
+```
+This binding is used to bind events and save them for later, referencing them by their 
+    provided `name`.
+```example
+on(sess, "sample") do cm::ComponentModifier
+    style!(cm, "samp", "color" => "blue")
+end
+
+main = route("/") do c::Toolips.AbstractConnection
+    mainbody = body("mainbod")
+    on("sample", c, mainbody, "click")
+    write!(c, mainbody)
+end
+```
+"""
+on(f::Function, session::Session, name::String) = begin
+    push!(session.events["GLOBAL"], Event(f, "GLOBAL-" * name))
+end
+
+"""
+```julia
+on(name::String, c::AbstractConnection, ...; prevent_default::Bool = false) -> ::Nothing
+```
+These `on` bindings are used to bind existing events, registered using `on(::Function, ::Session, ::String)` 
+to components and `Connections`. This makes it possible to create reusable global bindings for each client, for 
+callbacks that have no variation and don't require function variables.
+```julia
+on(name::String, c::AbstractConnection, event::String; 
+    prevent_default::Bool = false)
+on(name::String, c::AbstractConnection, comp::Component{<:Any}, event::String; 
+    prevent_default::Bool = false)
+```
+```julia
+module SampleServer
+using Toolips
+using Toolips.Components
+using Toolips
+session = Session()
+on(sess, "sample") do cm::ComponentModifier
+    style!(cm, "samp", "color" => "blue")
+end
+
+main = route("/") do c::Toolips.AbstractConnection
+    mainbody = body("mainbod")
+    on("sample", c, mainbody, "click")
+    write!(c, mainbody)
+end
+
+export main, session
+end
+```
+```
+"""
+on(name::String, c::AbstractConnection, event::String; 
+    prevent_default::Bool = false) = begin
+    name::String = "GLOBAL-" * name
+    write!(c, "<script>document.addEventListener('$event', sendpage('$name'));</script>")
+end
+
+on(name::String, c::AbstractConnection, comp::Component{<:Any}, event::String; 
+    prevent_default::Bool = false) = begin
+    name::String = "GLOBAL-" * name
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
     end
-    println(length(keys(c[:Session].iptable)))
-    kill!(c)
-    println(length(keys(c[:Session].iptable)))
-end
-```
-"""
-function kill!(c::Connection)
-    delete!(c[:Session].iptable, getip(c))
-    delete!(c[:Session].events, getip(c))
+    comp["on$event"] = "$(prevent)sendpage('$name');"
 end
 
 """
-**Session Interface**
-### clear!(c::Connection, key::String)
-------------------
-Clears events marked with the key `key`. Mark these using `on` and `bind!`.
-#### example
+```julia
+on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, event::String)
 ```
-function home(c::Connection)
-    overdiv = div("overdiv")
-    cleabutton = button("clear", text = "clear events")
-    butalert = button("alertbttn", text = "alert")
-    on(c, cleabutton, "click") do cm::ComponentModifier
-        ToolipsSession.clear!(c, "buttalert")
+"""
+function on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, event::String;
+    prevent_default::Bool = false)
+    name::String = comp.name
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
     end
-    on(c, butalert, "click", mark = "buttalert") do cm::ComponentModifier
-        alert!(cm, "hi!")
-    end
-    push!(overdiv, cleabutton, butalert)
-    write!(c, overdiv)
-end
-```
-"""
-function clear!(c::Connection, key::String)
-    readonly = c[:Session].readonly
-    if getip(c) * key in keys(readonly)
-        [kill!(c, k) for k in readonly[getip(c) * key]]
-        delete!(readonly, getip(c) * key)
-    end
-end
-
-#==
-on
-==#
-"""
-**Session Interface**
-### on(f::Function, event::String)
-------------------
-The `on` method and the `bind!` method are used to link callbacks for a Toolips website.
-- A `Function` will always be the first positional argument.
-- For server-side callbacks, the `Connection` will also be provided. For client-side callbacks, 
-do not provide the `Connection`. 
-- events and `Components` are provided in that order for `on`.
-- Keys, key combinations, or `InputMap`s are provided to `bind!`
-- there are `prevent_default` and `mark` key-word arguments.
-- server-side `bind!` has the `readonly` key-word argument and `on` 
-has this as the last positional argument. This argument is of type `Vector{String}`.
-
-This determines whether or not
-#### example
-```
-function home(c::Connection)
-
-end
-```
-"""
-function on(f::Function, event::String)
-    cl = ClientModifier(); f(cl)
-    script("doc$event", text = join(cl.changes))
-end
-
-"""
-**Session Interface**
-### on(f::Function, component::Component{<:Any}, event::String)
-------------------
-Binds a client-side event to `component`.
-#### example
-```
-function home(c::Connection)
-
-end
-```
-"""
-function on(f::Function, component::Component{<:Any}, event::String)
-    cl = ClientModifier("$(component.name)$(event)")
-    f(cl)
-    component["on$event"] = "$(cl.name)(event);"
-    push!(component.extras, script(cl.name, text = funccl(cl)))
-end
-
-"""
-**Session Interface**
-### on(f::Function, cm::ComponentModifier, comp::Component{<:Any}, event::String)
-------------------
-Binds a client-side event to `component` **inside of a callback**.
-#### example
-```
-function home(c::Connection)
-
-end
-```
-"""
-function on(f::Function, cm::ComponentModifier, comp::Component{<:Any}, event::String)
-    name = comp.name
-    cl = ClientModifier(); f(cl)
+    cl = Toolips.ClientModifier(); f(cl)
     push!(cm.changes, """setTimeout(function (event) {
         document.getElementById('$name').addEventListener('$event',
-        function (e) {
-            $(join(cl.changes))
+        function (event) {
+            $prevent$(join(cl.changes))
         });
         }, 1000);""")
 end
 
-
 """
-**Session Interface**
-### on(f::Function, c::Connection, event::AbstractString, readonly::Vector{String} = Vector{String}())
-------------------
-Creates a new event for the current IP in a session. Performs the function on
-    the event. The function should take a ComponentModifier as an argument.
-    readonly will provide certain names to be read into the ComponentModifier.
-    This can help to improve Session's performance, as it will need to parse
-    less Components.
-#### example
+##### ToolipsSession.on
+```julia
+on(f::Function, c::AbstractConnection, args ...; prevent_default::Bool = false)
 ```
-route("/") do c::Connection
-    myp = p("hello", text = "wow")
-    on(c, "load") do cm::ComponentModifier
-        set_text!(cm, myp, "not so wow")
-    end
-    write!(c, myp)
+`ToolipsSession` extends `on`, providing each `on` dispatch with a `Connection` equivalent 
+that makes a callback to the server. This allows us to access data, or do more calculations 
+than would otherwise be possible with a `ClientModifier`.
+```julia
+on(f::Function, c::AbstractConnection, event::AbstractString; prevent_default::Bool = false)
+on(f::Function, c::AbstractConnection, s::AbstractComponent, event::AbstractString, 
+    prevent_default::Bool = false)
+on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, event::AbstractString)
+on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
+     event::AbstractString)
+```
+- See also: `script!`, `ToolipsSession.bind`, `KeyMap`, `open_rpc!`, `join_rpc!`, `Session`, `ToolipsSession`, `ComponentModifier`
+```julia
+module SampleServer
+using Toolips
+using Toolips.Components
+
+session = Session()
+main = route("/") do c::AbstractConnection
+    txtbox = textdiv("entertxt")
+    style!(txtbox, "width" => 10percent, "border-width" => 3px, "border-color" => "gray", "border-style" => "solid")
+end
+
+export main, session
 end
 ```
 """
-function on(f::Function, c::Connection, event::AbstractString,
-    readonly::Vector{String} = Vector{String}(); mark::String = "none")
-    ref = gen_ref()
-    ip::String = getip(c)
+function on(f::Function, c::AbstractConnection, event::AbstractString;
+    prevent_default::Bool = false)
+    ref::String = Toolips.gen_ref(5)
+    ip::String = get_ip(c)
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
+    end
     write!(c,
-        "<script>document.addEventListener('$event', sendpage('$ref'));</script>")
-    if ip in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], ref => f)
-    else
-        c[:Session][getip(c)] = Dict(ref => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$ref"] = readonly
-    end
-    if mark != "none"
-        if getip(c) * mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[getip(c) * mark], ref)
-        else
-            push!(c[:Session].readonly, getip(c) * mark => [ref])
-        end
-    end
+        "<script>document.addEventListener('$event', $(prevent)sendpage('$ref'));</script>")
+    register!(f, c, ref)
 end
 
-"""
-**Interface**
-### on(f::Function, c::Connection, s::AbstractComponent, event::AbstractString, readonly::Vector{String} = Vector{String})
-------------------
-Creates a new event for the current IP in a session. Performs the function on
-    the event. The function should take a ComponentModifier as an argument.
-#### example
-```
-route("/") do c::Connection
-    myp = p("hello", text = "wow")
-    on(c, myp, "click")
-        if cm[myp][:text] == "wow"
-            c[:Logger].log("wow.")
-        end
+function on(f::Function, c::AbstractConnection, s::AbstractComponent, event::AbstractString;
+    prevent_default::Bool = false)
+    ref::String = gen_ref(5)
+    ip::String = string(get_ip(c))
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
     end
-    write!(c, myp)
-end
-```
-"""
-function on(f::Function, c::Connection, s::AbstractComponent,
-     event::AbstractString, readonly::Vector{String} = Vector{String}(); mark::String = "none")
-    name::String = s.name
-    ip::String = string(getip(c))
-    s["on$event"] = "sendpage('$event$name');"
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][ip], "$event$name" => f)
-    else
-        c[:Session].events[ip] = Dict("$event$name" => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$event$name"] = readonly
-    end
-    if mark != "none"
-        if getip(c) * mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[getip(c) * mark], "$event$name")
-        else
-            push!(c[:Session].readonly, getip(c) * mark => ["$event$name"])
-        end
-    end
+    s["on$event"] = prevent * "sendpage('$ref');"
+    register!(f, c, ref)
 end
 
-"""
-**Session Interface**
-### on(f::Function, c::Connection, cm::ComponentModifier, event::AbstractString, readonly::Vector{String} = Vector{String}())
-------------------
-Creates a new event for the current IP in a session. Performs the function on
-    the event. The function should take a ComponentModifier as an argument.
-    readonly will provide certain names to be read into the ComponentModifier.
-    This can help to improve Session's performance, as it will need to parse
-    less Components. The ComponentModifier version can be done while in a callback.
-    Remember: AbstractComponentModifiers mean callbacks, Connections mean initial requests.
-#### example
-```
-route("/") do c::Connection
-    myp = p("hello", text = "wow")
-    on(c, "load") do cm::ComponentModifier
-        on(c, cm, "click") do cm::ComponentModifier
-            set_text!(cm, myp, "not so wow")
-        end
+function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, event::AbstractString; 
+    prevent_default::Bool = false)
+    ip::String = get_ip(c)
+    ref::String = gen_ref(5)
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
     end
-    write!(c, myp)
-end
-```
-"""
-function on(f::Function, c::Connection, cm::AbstractComponentModifier, event::AbstractString,
-    readonly::Vector{String} = Vector{String}(); mark::String = "none")
-    ip::String = getip(c)
     push!(cm.changes, """setTimeout(function () {
-    document.addEventListener('$event', function () {sendpage('$event');});}, 1000);""")
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], "$event" => f)
-    else
-        c[:Session][getip(c)] = Dict("$event" => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$event"] = readonly
-    end
-    if mark != "none"
-        if getip(c) * mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[getip(c) * mark], event)
-        else
-            push!(c[:Session].readonly, getip(c) * mark => [event])
-        end
-    end
+    document.addEventListener('$event', function (event) {$(prevent)sendpage('$ref');});}, 1000);""")
+    register!(f, c, ref)
 end
 
-"""
-**Session Interface**
-### on(f::Function, c::Connection, cm::ComponentModifier, event::AbstractString, readonly::Vector{String} = Vector{String}())
-------------------
-Creates a new event for the current IP in a session. Performs the function on
-    the event. The function should take a ComponentModifier as an argument.
-    readonly will provide certain names to be read into the ComponentModifier.
-    This can help to improve Session's performance, as it will need to parse
-    less Components. The ComponentModifier version can be done while in a callback.
-    Remember: AbstractComponentModifiers mean callbacks, Connections mean initial requests.
-#### example
-```
-route("/") do c::Connection
-    myp = p("hello", text = "wow")
-    on(c, "load") do cm::ComponentModifier
-        on(c, cm, "click") do cm::ComponentModifier
-            set_text!(cm, myp, "not so wow")
-        end
-    end
-    write!(c, myp)
-end
-```
-"""
-function on(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Component{<:Any},
-     event::AbstractString, readonly::Vector{String} = Vector{String}();
-     mark::String = "none")
+function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
+     event::AbstractString; prevent_default::Bool = false)
      name::String = comp.name
-     ip::String = getip(c)
+     ref::String = gen_ref(5)
+     prevent::String = ""
+     if prevent_default
+         prevent = "event.preventDefault();"
+     end
      push!(cm.changes, """setTimeout(function () {
      document.getElementById('$name').addEventListener('$event',
-     function () {sendpage('$name$event');});
+     function (event) {$(prevent)sendpage('$ref');});
      }, 1000);""")
-     if getip(c) in keys(c[:Session].iptable)
-         push!(c[:Session][getip(c)], "$name$event" => f)
-     else
-         c[:Session][getip(c)] = Dict("$name$event" => f)
-     end
-     if length(readonly) > 0
-         c[:Session].readonly["$ip$name$event"] = readonly
-     end
-     if mark != "none"
-        if getip(c) * mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[getip(c) * mark], "$name$event")
-        else
-            push!(c[:Session].readonly, getip(c) * mark => ["$name$event"])
-        end
-    end
+     register!(f, c, ref)
 end
 
-#==
-bind!
-==#
 """
-### abstract type InputMap
-Input maps are bound using the `bind` function and allow for multiple inputs to
-be registered into a `Connection` at once. Notable example from this module is `keymap`
-##### Consistencies
-- bound to `bind!(f::Function, ip::InputMap, args ...)`
-- bound to `bind!(c::Connection, ip::InputMap)`
+### ToolipsSession.bind
+```julia
+bind(f::Function, c::AbstractConnection, args ...; prevent_default::Bool = true) -> ::Nothing
+```
+---
+`ToolipsSession.bind` (`TooipsServables.bind`) is used to add less-traditional controls to `Toolips` 
+web-pages. `ToolipsSession` adds server-side callbacks to this binding interface. The base `bind` methods will take a `Connection`, and 
+will be provided with a normal event function, along with a key to bind it to. 
+    Keys are represented the same as they are in JavaScript -- uppercase for 
+    single letter keys, and initial uppercase for key names. For example...
+```julia
+module MyServer
+using Toolips
+using ToolipsSession
+
+main = route("/") do c::AbstractConnection
+    mainbody = body(children = [h2(text = "press keys ...")], align = "center")
+    ToolipsSession.bind(c, "Enter") do cm::ComponentModifier
+        alert!(cm, "enter was pressed")
+    end
+    ToolipsSession.bind(c, "X") do cm::ComponentModifier
+        alert!(cm, "X was pressed")
+    end
+    ToolipsSession.bind(c, "ArrowRight") do cm::ComponentModifier
+        alert!(cm, "the right arrow key was pressed")
+    end
+    write!(c, mainbody)
+end
+
+export session, main
+end
+```
+`ToolipsSession.bind` can also handle these key-presses alongside a 
+control, alt, and shift combination.These are provided as symbols.
+```julia
+main = route("/") do c::AbstractConnection
+    mainbody = body(children = [h2(text = "press keys ...")], align = "center")
+    ToolipsSession.bind(c, "Enter", :ctrl, :shift) do cm::ComponentModifier
+        alert!(cm, "ctrl + shift + enter was pressed")
+    end
+    write!(c, mainbody)
+end
+```
+Keep in mind that the dispatches taking the `ComponentModiifer` are for callbacks, 
+    whereas exclusively the `Connection` is for responses.
+```julia
+bind(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol ...; on::Symbol = :down, 
+prevent_default::Bool = true)
+bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, key::String,
+    eventkeys::Symbol ...; on::Symbol = :down, mark::String = "none")
+bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
+    key::String, eventkeys::Symbol ...; on::Symbol = :down)
+bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
+    key::String, eventkeys::Symbol ...; on::Symbol = :down)
+bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
+    key::String, eventkeys::Symbol ...; on::Symbol = :down)
+```
+"""
+function bind(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol ...;
+    on::Symbol = :down, prevent_default::Bool = true)
+    cm::Toolips.ToolipsServables.ClientModifier = ClientModifier()
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
+    end
+    eventstr::String = join([begin " event.$(event)Key && "
+                            end for event in eventkeys])
+    ref::String = gen_ref(5)
+    write!(c, """<script>
+document.addEventListener('key$on', function(event) {
+    if ($eventstr event.key == "$(key)") {
+    $(prevent)sendpage('$ref');
+    }
+    });</script>
+    """)
+    register!(f, c, ref)
+end
+
+function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, key::String,
+    eventkeys::Symbol ...; on::Symbol = :down, mark::String = "none", prevent_default::Bool = false)
+    eventstr::String = join([begin " event.$(event)Key && "
+                            end for event in eventkeys])
+    ref = gen_ref(5)
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
+    end
+    push!(cm.changes, """
+    setTimeout(function () {
+    document.addEventListener('key$on', (event) => {
+            if ($eventstr event.key == "$(key)") {
+            $(prevent)sendpage('$ref');
+            }
+            });}, 1000);""")
+    register!(f, c, ref)
+end
+
+function bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
+    key::String, eventkeys::Symbol ...; on::Symbol = :down, prevent_default::Bool = false)
+    cm::AbstractComponentModifier = Toolips.Components.ClientModifier()
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
+    end
+    eventstr::String = join((begin " event.$(event)Key && "
+                            end for event in eventkeys))
+    ref::String = gen_ref(5)
+    write!(c, """<script>
+    setTimeout(function () {
+    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
+        if ($eventstr event.key == "$(key)") {
+        $(prevent)sendpage('$ref');
+        }
+});}, 1000)</script>
+    """)
+    register!(f, c, ref)
+end
+
+
+function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
+    key::String, eventkeys::Symbol ...; on::Symbol = :down, prevent_default::Bool = false)
+    ref::String = gen_ref(5)
+    name::String = comp.name
+    prevent::String = ""
+    if prevent_default
+        prevent = "event.preventDefault();"
+    end
+    eventstr::String = join([begin " event.$(event)Key && "
+                            end for event in eventkeys])
+push!(cm.changes, """setTimeout(function () {
+document.getElementById('$(name)').onkeydown = function(event){
+        if ($eventstr event.key == '$(key)') {
+        $(prevent)sendpage('$ref')
+        }
+        }}, 1000);""")
+    register!(f, c, ref)
+end
+
+"""
+```julia
+abstract type InputMap
+```
+The `InputMap` is used to bind multiple event references into one 
+client-side function. This is necessary for binding multiple keys, for 
+example, as there is only one `keydown` event.
+---
+- See also: `ToolipsSession.bind`, `KeyMap`, `SwipeMap`, `Session`, `on`
 """
 abstract type InputMap end
 
 """
-### KeyMap
-- keys::Dict{String, Pair{Tuple, Function}}
-
-The `KeyMap` allows one to `bind!` more than one key press with incredible ease.
-##### example
+```julia
+mutable struct SwipeMap <: InputMap
 ```
-r = route("/") do c::Connection
-    km = KeyMap()
-    bind!(km, "S", :ctrl) do cm::ComponentModifier
-        alert!(cm, "saved!")
+- `bindings`**::Dict{String, Function}**
+
+A `SwipeMap` is used to bind swipes to different events. These swipe 
+events include `"left"`, `"right"`, `"up"`, `"down"`. The events are 
+bound with `bind(::Function, ::AbstractConnection, sm::SwipeMap, swipe::String)` 
+to a `SwipeMap` and then bound to a `Connection` with `bind(::AbstractConnection, ::SwipeMap)`.
+```example
+module MobileSample
+using Toolips
+using Toolips.Components
+using ToolipsSession
+
+page1 = div("sample")
+push!(page1, h2(text = "welcome to my page"))
+push!(page1, p("main", text = "swipe to change colors"))
+
+session = Session()
+
+mob = route("/") do c::Connection
+    mainbody::Component{:body} = body("main-body")
+    style!(mainbody, "transition" => 1s)
+    sm = SwipeMap()
+    ToolipsSession.bind(c, sm, "left") do cm::ComponentModifier
+        style!(cm, mainbody, "background-color" => "orange")
+        set_text!(cm, "main", "swiped left")
     end
-    bind!(km, "C", :ctrl) do cm::ComponentModifier
-        alert!(cm, "copied!")
+    ToolipsSession.bind(c, sm, "up") do cm::ComponentModifier
+        style!(cm, mainbody, "background-color" => "blue")
+        set_text!(cm, "main", "swiped up")
     end
-    bind!(c, km)
+    push!(mainbody, page1)
+    write!(c, mainbody)
+    ToolipsSession.bind(c, sm)
+end
+
+export mob, start!, session
 end
 ```
-------------------
-##### constructors
-- KeyMap()
+```julia
+Event(f::Function, name::String)
+```
+- See also: `Session`, `on`, `ToolipsSession`, `bind`, `AbstractEvent`
+"""
+mutable struct SwipeMap <: InputMap
+    bindings::Dict{String, Function}
+    SwipeMap() = new(Dict{String, Function}())
+end
+
+function bind(f::Function, c::AbstractConnection, sm::SwipeMap, swipe::String)
+    swipes = ("left", "right", "up", "down")
+    if ~(swipe in swipes)
+        throw(
+        "Swipe is not a proper direction, please use up, down, left, or right!")
+    end
+    sm.bindings[swipe] = f
+end
+
+"""
+##### swipemap bindings
+```julia
+bind(c::AbstractConnection, sm::SwipeMap)
+bind(f::Function, c::AbstractConnection, sm::SwipeMap, swipe::String)
+```
+`ToolipsSession.bind` is used to bind new swipes to a `SwipeMap`. A `SwipeMap` is an `InputMap` that processes swipe input. The swipes come in 
+the form of 4-way strings, `left`, `right`, `up`, and `down`. These are bound to a 
+constructed `SwipeMap` with `bind(f::Function, c::AbstractConnection, sm::SwipeMap, swipe::String)` 
+and then binded to the `Connection` with `bind(c::AbstractConnection, sm::SwipeMap)`
+```julia
+
+```
+"""
+function bind(c::AbstractConnection, sm::SwipeMap)
+    swipes = keys
+    swipes = ("left", "right", "up", "down")
+    newswipes = Dict([begin
+        if swipe in keys(sm.bindings)
+            ref::String = ToolipsSession.gen_ref(5)
+            register!(sm.bindings[swipe], c, ref)
+            swipe => "sendpage('$ref');"
+        else
+            swipe => ""
+        end
+    end for swipe in swipes])
+    sc::Component{:script} = script("swipemap", text = """
+    document.addEventListener('touchstart', handleTouchStart, false);
+document.addEventListener('touchmove', handleTouchMove, false);
+
+var xDown = null;
+var yDown = null;
+
+function getTouches(evt) {
+  return evt.touches ||             // browser API
+         evt.originalEvent.touches; // jQuery
+}
+
+function handleTouchStart(evt) {
+    const firstTouch = getTouches(evt)[0];
+    xDown = firstTouch.clientX;
+    yDown = firstTouch.clientY;
+};
+
+function handleTouchMove(evt) {
+    if ( ! xDown || ! yDown ) {
+        return;
+    }
+
+    var xUp = evt.touches[0].clientX;
+    var yUp = evt.touches[0].clientY;
+
+    var xDiff = xDown - xUp;
+    var yDiff = yDown - yUp;
+
+    if ( Math.abs( xDiff ) > Math.abs( yDiff ) ) {/*most significant*/
+        if ( xDiff > 0 ) {
+            $(newswipes["left"])
+        } else {
+
+            $(newswipes["right"])
+        }
+    } else {
+        if ( yDiff > 0 ) {
+            $(newswipes["up"])
+        } else {
+            $(newswipes["down"])
+        }
+    }
+    /* reset values */
+    xDown = null;
+    yDown = null;
+};
+
+""")
+    write!(c, sc)
+end
+
+"""
+```julia
+mutable struct KeyMap <: InputMap
+```
+- keys**::Dict{String, Pair{Tuple, Function}}**
+- prevents**::Vector{String}**
+
+
+
+- See also: 
+```julia
+KeyMap() <: ToolipsSession.InputMap
+```
+The `KeyMap` is used to handle more complicated inputs with `ToolipsSession` 
+events. This is *the* way to bind multiple keys to the same function, for example.
+The `KeyMap` is bound using `ToolipsSession.bind(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)` 
+and then bound again to the `Connection` -- and optionally in a callback with a `ComponentModifier`, or with a 
+`Connection`.
+```julia
+- `KeyMap()` -> ::KeyMap
+```
+```julia
+# binding to keymap
+bind(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)
+#                            e.g. ["Enter", "ctrl"]
+bind(f::Function, km::KeyMap, events::Vector{String}; prevent_default::Bool = true)
+# binding to connection
+bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
+bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symbol = :down, prevent_default::Bool = true)
+bind(c::AbstractConnection, cm::ComponentModifier, comp::Component{<:Any},
+    km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
+```
+```julia
+module KeyMapSample
+using Toolips
+using Toolips.Components
+using ToolipsSession
+session = Session()
+
+main = route("/") do c::AbstractConnection
+    txtbox = textdiv("text-input")
+    km = ToolipsSession.KeyMap()
+    ToolipsSession.bind(km, "C", :ctrl) do cm::ComponentModifier
+        alert!(cm, "copied")
+    end
+    ToolipsSession.bind(km, "V", :ctrl) do cm::ComponentModifier
+        alert!(cm, "pasted")
+    end
+    ToolipsSession.bind(c, txtbox, km)
+    mainbody = body()
+    push!(mainbody, txtbox)
+    write!(c, mainbody)
+end
+
+export session, main
+end
+```
+- See also: `ToolipsSession.bind`, `on`, `ToolipsSession`, `Session`, `InputMap`, `SwipeMap`
 """
 mutable struct KeyMap <: InputMap
     keys::Dict{String, Pair{Tuple, Function}}
@@ -599,26 +1019,7 @@ mutable struct KeyMap <: InputMap
     KeyMap() = new(Dict{String, Pair{Tuple, Function}}(), Vector{String}())
 end
 
-"""
-**Session**
-### bind!(f::Function, km::KeyMap, key::String, event::Symbol ...)
-------------------
-binds the `key` with the event keys (:ctrl, :shift, :alt) to `f` in `km`.
-#### example
-```
-r = route("/") do c::Connection
-    km = KeyMap()
-    bind!(km, "S", :ctrl) do cm::ComponentModifier
-        alert!(cm, "saved!")
-    end
-    bind!(km, "C", :ctrl) do cm::ComponentModifier
-        alert!(cm, "copied!")
-    end
-    bind!(c, km)
-end
-```
-"""
-function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)
+function bind(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)
     if prevent_default == true
         push!(km.prevents, key * join([string(ev) for ev in event]))
     end
@@ -630,7 +1031,7 @@ function bind!(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_
     km.keys[key] = event => f
 end
 
-function bind!(f::Function, km::KeyMap, vs::Vector{String}; prevent_default::Bool = true)
+function bind(f::Function, km::KeyMap, vs::Vector{String}; prevent_default::Bool = true)
     if length(vs) > 1
         event = Tuple(vs[2:length(vs)])
     else
@@ -648,142 +1049,56 @@ function bind!(f::Function, km::KeyMap, vs::Vector{String}; prevent_default::Boo
 end
 
 """
-**Session**
-### bind!(c::Connection, cm::ComponentModifier, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
-------------------
-Binds the `KeyMap` `km` to the `Connection` in a `ComponentModifier` callback.
-#### example
+##### KeyMap bindings
+```julia
+# binding to keymap
+bind(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)
+#                            e.g. ["Enter", "ctrl"]
+bind(f::Function, km::KeyMap, events::Vector{String}; prevent_default::Bool = true)
+# binding to connection
+bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
+bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symbol = :down, prevent_default::Bool = true)
+bind(c::AbstractConnection, cm::ComponentModifier, comp::Component{<:Any},
+    km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
 ```
-r = route("/") do c::Connection
-    km = KeyMap()
-    bind!(km, "S", :ctrl) do cm::ComponentModifier
-        alert!(cm, "saved!")
-    end
-    bind!(km, "C", :ctrl) do cm::ComponentModifier
-        alert!(cm, "copied!")
-    end
-    bind!(c, km)
-end
+`ToolipsSession.bind` is used to bind keys to a `KeyMap` (as well as other `InputMap`s.) 
+The `KeyMap` is bound by providing it to `ToolipsSession.bind` in place of the `Connection`, 
+and then binding it to the `Connection` all at once with one `Connection`/`ComponentModifier` 
+bindings.
+```julia
+
 ```
 """
-function bind!(c::Connection, km::KeyMap,
-    readonly::Vector{String} = Vector{String}(); on::Symbol = :down, prevent_default::Bool = true, mark::String = "none")
+function bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
     firsbind = first(km.keys)
-    ip::String = getip(c)
-    first_line = """setTimeout(function () {
-    document.addEventListener('key$on', function(event) { if (1 == 2) {}"""
+    first_line::String = """
+    setTimeout(function () {
+    document.addEventListener('key$on', function (event) { if (1 == 2) {}"""
+    n = 1
     for binding in km.keys
         default::String = ""
         key = binding[1]
         if contains(key, ";")
             key = split(key, ";")[1]
         end
-        if key * join([string(bin) for bin in binding[2][1]]) in km.prevents
+        if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
             default = "event.preventDefault();"
         end
+        ref::String = gen_ref(5)
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
-        ref = gen_ref()
-        first_line = first_line * """ elseif ($eventstr event.key == "$(binding[1])") {$default
-                sendpage('$ref');
-        }"""
-        if ip in keys(c[:Session].iptable)
-            push!(c[:Session][ip], ref => binding[2][2])
-        else
-            c[:Session][ip] = Dict(ref => binding[2][2])
-        end
-        if length(readonly) > 0
-            c[:Session].readonly[getip(c) * ref] = readonly
-        end
-        if mark != "none"
-            if getip(c) * mark in keys(c[:Session].readonly)
-                push!(c[:Session].readonly[getip(c) * mark], ref)
-            else
-                push!(c[:Session].readonly, getip(c) * mark => [ref])
-            end
-        end
+        first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
+                sendpage('$(ref)');
+                }"""
+        register!(binding[2][2], c, ref)
     end
-    first_line = first_line * "});}, 1000);"
-    scr = script(gen_ref(), text = first_line)
+    first_line = first_line * "}.bind(event));}, 500);"
+    scr::Component{:script} = script(gen_ref(), text = first_line)
     write!(c, scr)
 end
 
-"""
-**Session**
-### bind!(c::Connection, cm::ComponentModifier, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
-------------------
-Binds the `KeyMap` `km` to the `Connection` in a `ComponentModifier` callback.
-#### example
-```
-r = route("/") do c::Connection
-    km = KeyMap()
-    bind!(km, "S", :ctrl) do cm::ComponentModifier
-        alert!(cm, "saved!")
-    end
-    bind!(km, "C", :ctrl) do cm::ComponentModifier
-        alert!(cm, "copied!")
-    end
-    bind!(c, km)
-end
-```
-"""
-function bind!(c::Connection, cm::ComponentModifier, km::KeyMap,
-    readonly::Vector{String} = Vector{String}(); on::Symbol = :down, prevent_default::Bool = true, mark::String = "none")
+function bind(c::AbstractConnection, comp::Component{<:Any}, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
     firsbind = first(km.keys)
-    ip::String = getip(c)
-    first_line = """setTimeout(function () {
-    document.addEventListener('key$on', function(event) { if (1 == 2) {}"""
-    for binding in km.keys
-        default::String = ""
-        key = binding[1]
-        if contains(key, ";")
-            key = split(key, ";")[1]
-        end
-        if key * join([string(ev) for ev in binding[2][1]]) in km.prevents
-            if binding[2] == km.prevents[binding[1]]
-                default = "event.preventDefault();"
-            end
-        end
-        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
-        ref = gen_ref()
-        first_line = first_line * """else if ($eventstr event.key == "$(binding[1])") {$default
-                sendpage('$ref');
-        }"""
-        if ip in keys(c[:Session].iptable)
-            push!(c[:Session][ip], ref => binding[2][2])
-        else
-            c[:Session][ip] = Dict(ref => binding[2][2])
-        end
-        if length(readonly) > 0
-            c[:Session].readonly[getip(c) * ref] = readonly
-        end
-        if mark != "none"
-            if getip(c) * mark in keys(c[:Session].readonly)
-                push!(c[:Session].readonly[getip(c) * mark], ref)
-            else
-                push!(c[:Session].readonly, getip(c) * mark => [ref])
-            end
-        end
-    end
-    first_line = first_line * "});}, 1000);"
-    push!(cm.changes, first_line)
-end
-
-"""
-**Session**
-### bind!(c::Connection, comp::Component, km::KeyMap, readonly::Vector{String} = Vector{String}; on = :down)
-------------------
-Binds the `KeyMap` `km` to the `comp`.
-#### example
-```
-
-```
-"""
-function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
-    km::KeyMap, readonly::Vector{String} = Vector{String}(); on::Symbol = :down,
-    prevent_default::Bool = true, mark::String = "none")
-    firsbind = first(km.keys)
-    ip = getip(c)
-    first_line = """
+    first_line::String = """
     setTimeout(function () {
     document.getElementById('$(comp.name)').addEventListener('key$on', function (event) { if (1 == 2) {}"""
     n = 1
@@ -796,245 +1111,106 @@ function bind!(c::Connection, cm::ComponentModifier, comp::Component{<:Any},
         if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
             default = "event.preventDefault();"
         end
-        ref = gen_ref()
+        ref::String = gen_ref(5)
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
-                sendpage('$(comp.name * key * ref)');
+                sendpage('$(ref)');
                 }"""
-        if ip in keys(c[:Session].iptable)
-            push!(c[:Session][ip], comp.name * key * ref => binding[2][2])
-        else
-            c[:Session][ip] = Dict(comp.name * key * ref => binding[2][2])
+        register!(binding[2][2], c, ref)
+    end
+    first_line = first_line * "}.bind(event));}, 500);"
+    scr::Component{:script} = script(gen_ref(), text = first_line)
+    write!(c, scr)
+end
+
+function bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symbol = :down, prevent_default::Bool = true)
+    firsbind = first(km.keys)
+    first_line::String = """
+    setTimeout(function () {
+    document.addEventListener('key$on', function (event) { if (1 == 2) {}"""
+    n = 1
+    for binding in km.keys
+        default::String = ""
+        key = binding[1]
+        if contains(key, ";")
+            key = split(key, ";")[1]
         end
-        if length(readonly) > 0
-            c[:Session].readonly["$(getip(c))$(comp.name)$key$ref"] = readonly
+        if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
+            default = "event.preventDefault();"
         end
-        if mark != "none"
-            if getip(c) * mark in keys(c[:Session].readonly)
-                push!(c[:Session].readonly[getip(c) * mark], "$(comp.name * key * ref)")
-            else
-                push!(c[:Session].readonly, getip(c) * mark => ["$(comp.name * key * ref)"])
-            end
-        end
+        ref::String = gen_ref(5)
+        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
+        first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
+                sendpage('$(ref)');
+                }"""
+        register!(binding[2][2], c, ref)
     end
     first_line = first_line * "}.bind(event));}, 500);"
     push!(cm.changes, first_line)
 end
 
-"""
-**Session Interface** 0.3
-### bind!(f::Function, c::AbstractConnection, key::String, readonly::Vector{String} = [];
-    on::Symbol = :down, client::Bool == false)  -> _
-------------------
-
-Binds a key event to a `Component`.
-#### example
-```
-
-```
-"""
-function bind!(f::Function, c::AbstractConnection, comp::Component{<:Any},
-    key::String, eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
-    on::Symbol = :down, mark::String = "none")
-    cm::Modifier = ClientModifier()
-    eventstr::String = join([begin " event.$(event)Key && "
-                            end for event in eventkeys])
-    write!(c, """<script>
+function bind(c::AbstractConnection, cm::ComponentModifier, comp::Component{<:Any},
+    km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
+    firsbind = first(km.keys)
+    first_line::String = """
     setTimeout(function () {
-    document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
-        if ($eventstr event.key == "$(key)") {
-        sendpage('$(comp.name * key)');
-        }
-});}, 1000)</script>
-    """)
-    ip::String = getip(c)
-    if ip in keys(c[:Session].iptable)
-        push!(c[:Session][ip], comp.name * key => f)
-    else
-        c[:Session][ip] = Dict(comp.name * key => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$key"] = readonly
-    end
-    if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], comp.name * key)
-        else
-            push!(c[:Session].readonly, mark => [comp.name * key])
+    document.getElementById('$(comp.name)').addEventListener('key$on', function (event) { if (1 == 2) {}"""
+    n = 1
+    for binding in km.keys
+        default::String = ""
+        key = binding[1]
+        if contains(key, ";")
+            key = split(key, ";")[1]
         end
-    end
-end
-
-"""
-**Session Interface** 0.3
-### bind!(f::Function, c::AbstractConnection, key::String, readonly::Vector{String} = [];
-    on::Symbol = :down, client::Bool == false)  -> _
-------------------
-Binds a key event to a `Connection`.
-#### example
-```
-
-```
-"""
-function bind!(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol ...;
-    readonly::Vector{String} = Vector{String}(),
-    on::Symbol = :down, prevent_default::Bool = true, mark::String = "none")
-    cm::Modifier = ClientModifier()
-    eventstr::String = join([begin " event.$(event)Key && "
-                            end for event in eventkeys])
-    ref = gen_ref()
-    write!(c, """<script>
-    setTimeout(function () {
-document.addEventListener('key$on', function(event) {
-    if ($eventstr event.key == "$(key)") {
-    sendpage('$ref');
-    }
-});}, 1000);</script>
-    """)
-    ip::String = getip(c)
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][ip], ref => f)
-    else
-        c[:Session][ip] = Dict(ref => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ref"] = readonly
-    end
-    if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], ref)
-        else
-            push!(c[:Session].readonly, mark => [ref])
+        if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
+            default = "event.preventDefault();"
         end
+        ref::String = gen_ref(5)
+        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
+        first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
+                sendpage('$(ref)');
+                }"""
+        register!(binding[2][2], c, ref)
     end
-end
-
-"""
-**Session Interface** 0.3
-### bind!(f::Function, c::Connection, cm::AbstractComponentModifier, key::String, eventkeys::Symbol ...; readonly::Vector{String} = [];
-    on::Symbol = :down, client::Bool == false)  -> _
-------------------
-Binds a key event to a `Connection` in a `ComponentModifier` callback.
-#### example
-```
-
-```
-"""
-function bind!(f::Function, c::Connection, cm::AbstractComponentModifier, key::String,
-    eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
-    on::Symbol = :down, mark::String = "none")
-    eventstr::String = join([begin " event.$(event)Key && "
-                            end for event in eventkeys])
-    ref = gen_ref()
-    push!(cm.changes, """
-    setTimeout(function () {
-    document.addEventListener('key$on', (event) => {
-            if ($eventstr event.key == "$(key)") {
-            sendpage('$ref');
-            }
-            });}, 1000);""")
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], ref => f)
-    else
-        c[:Session][getip(c)] = Dict(ref => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$ref"] = readonly
-    end
-    if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], ref)
-        else
-            push!(c[:Session].readonly, mark => [ref])
-        end
-    end
-end
-
-"""
-**Session Interface** 0.3
-### bind!(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Component{<:Any}, key::String, eventkeys::Symbol ...; readonly::Vector{String} = [];
-    on::Symbol = :down, client::Bool == false)  -> _
-------------------
-Binds a key event to a `Component` in a `ComponentModifier` callback.
-#### example
-```
-
-```
-"""
-function bind!(f::Function, c::Connection, cm::AbstractComponentModifier, comp::Component{<:Any},
-    key::String, eventkeys::Symbol ...; readonly::Vector{String} = Vector{String}(),
-    on::Symbol = :down, mark::String = "none")
-    name::String = comp.name
-    eventstr::String = join([begin " event.$(event)Key && "
-                            end for event in eventkeys])
-push!(cm.changes, """setTimeout(function () {
-document.getElementById('$(name)').onkeydown = function(event){
-        if ($eventstr event.key == '$(key)') {
-        sendpage('$(name * key)')
-        }
-        }}, 1000);""")
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], "$name$key" => f)
-    else
-        c[:Session][getip(c)] = Dict("$name$key" => f)
-    end
-    if length(readonly) > 0
-        c[:Session].readonly["$ip$name$event"] = readonly
-    end
-    if mark != "none"
-        if mark in keys(c[:Session].readonly)
-            push!(c[:Session].readonly[mark], ref)
-        else
-            push!(c[:Session].readonly, mark => [ref])
-        end
-    end
+    first_line = first_line * "}.bind(event));}, 500);"
+    push!(cm.changes, first_line)
 end
 
 #==
 script!
 ==#
 """
-**Session Interface** 0.3
-### script!(::Function, ::Connection, ::String, readonly::Vector{String} = Vector{String}; time::Integer = 500)  -> _
-------------------
-Creates an "observer" which calls back to this function at each interval of `time`.
-#### example
+```julia
+script!(f::Function, c::AbstractConnection, ...; time::Integer = 500, type::String = "Interval")
 ```
+Spawns a `Component{:script}` on the client, which makes callbacks to the server 
+without a triggering event. The `time` is the number of ms between each call, or the first 
+call. `type` is the type of event that should be ran -- `Interval` is the default, and this will 
+create a recurring event call. 
+```julia
+script!(f::Function, c::AbstractConnection, name::String = gen_ref(5); time::Integer = 500, 
+type::String = "Interval")
+
+script!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier; time::Integer = 1000, type::String = "Timeout")
+```
+---
+```example
 
 ```
 """
-function script!(f::Function, c::Connection, name::String,
-    readonly::Vector{String} = Vector{String}(); time::Integer = 500,
-    type::String = "Interval", mark = "none")
-    if getip(c) in keys(c[:Session].iptable)
-        push!(c[:Session][getip(c)], name => f)
-    else
-        c[:Session][getip(c)] = Dict(name => f)
-    end
-    obsscript = script(name, text = """
+function script!(f::Function, c::AbstractConnection, name::String = gen_ref(5); time::Integer = 500,
+    type::String = "Interval")
+    obsscript::Component{:script} = script(name, text = """
     set$(type)(function () { sendpage('$name'); }, $time);
    """)
-   if length(readonly) > 0
-       c[:Session].readonly["$(getip(c))$name"] = readonly
-   end
-   if mark != "none"
-    if mark in keys(c[:Session].readonly)
-        push!(c[:Session].readonly[mark], ref)
-    else
-        push!(c[:Session].readonly, mark => [ref])
-    end
-end
+   register!(f, c, name)
    write!(c, obsscript)
 end
 
-function script(f::Function, s::String = gen_ref())
-    cl = ClientModifier(s)
-    f(cl)
-    script(cl.name, text = funccl(cl))
-end
-
-script(cl::ClientModifier) = begin
-    script(cl.name, text = join(cl.changes))
+function script!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier; time::Integer = 1000, type::String = "Timeout")
+   ref = gen_ref(5)
+   push!(cm.changes, "set$type(function () { sendpage('$ref'); }, $time);")
+   register!(f, c, ref)
 end
 
 #==
@@ -1042,267 +1218,234 @@ rpc
 ==#
 
 """
-**Session Interface**
-### open_rpc!(c::Connection, name::String = getip(c); tickrate::Int64 = 500)
-------------------
-Creates a new rpc session inside of ToolipsSession. Other clients can then join and
-have the same `ComponentModifier` functions run.
-#### example
+```julia
+open_rpc!(c::AbstractConnection, ...; tickrate::Int64 = 500)
 ```
+Opens an `RPCHost` event with the current client, which can then be joined 
+by other clients with `join_rpc!`. Can be done inside of both a callback and a response.
+`tickrate` is the number of milliseconds between each update; which is when each Remote Procedure Call 
+is made for each peer.
+```julia
+open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
+open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64 = 500)
+```
+---
+```example
 
 ```
 """
-function open_rpc!(c::Connection, name::String = getip(c); tickrate::Int64 = 500)
-    push!(c[:Session].peers,
-     name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
-    script!(c, getip(c) * "rpc", ["none"], time = tickrate) do cm::ComponentModifier
-        push!(cm.changes, join(c[:Session].peers[name][getip(c)]))
-        c[:Session].peers[name][getip(c)] = Vector{String}()
+function open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
+    ref::String = gen_ref(5)
+    event::RPCHost = RPCHost(ref)
+    write!(c, 
+    script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
+    push!(c[:Session].events[get_ip(c)], event)
+    nothing::Nothing
+end
+
+function open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64 = 500)
+    ref::String = gen_ref(5)
+    event::RPCHost = RPCHost(ref)
+    push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
+    push!(c[:Session].events[get_ip(c)], event)
+    nothing::Nothing
+end
+
+"""
+```julia
+reconnect_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
+```
+Used to reconnect an incoming client who disconnects to an existing RPC session. This 
+just respawns the event that calls the Remote Procedure Calls accumulated by the peers. For 
+example, this function would be called when a peer refreshes the page in an active RPC session.
+---
+```example
+
+```
+"""
+reconnect_rpc!(c::Connection; tickrate::Int64 = 500) = begin
+    events::Vector{AbstractEvent} = c[:Session].events[get_ip(c)]
+    found = findfirst(event::AbstractEvent -> typeof(event) <: RPCEvent, events)
+    if isnothing(found)
+        throw("RPC Error: Trying to reconnect RPC that does not exist.")
     end
+    ref = events[found].name
+    write!(c, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
 end
 
-"""
-**Session Interface**
-### open_rpc!(c::Connection, name::String = getip(c); tickrate::Int64 = 500)
-------------------
-Creates a new rpc session inside of ToolipsSession. Other clients can then join and
-have the same `ComponentModifier` functions run.
-#### example
-```
-
-```
-"""
-function open_rpc!(c::Connection, cm::ComponentModifier, 
-    name::String = gen_ref(); tickrate::Int64 = 500)
-    push!(c[:Session].peers,
-     name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
-    script!(c, cm, name, time = tickrate, ["none"]) do cm::ComponentModifier
-        push!(cm.changes, join(c[:Session].peers[name][getip(c)]))
-        c[:Session].peers[name][getip(c)] = Vector{String}()
+function close_rpc!(session::Session, ip::String)
+    found = findfirst(event::AbstractEvent -> typeof(event) <: RPCEvent, session.events[ip])
+    if isnothing(found)
+        throw("RPC Error: You are trying to close an RPC session that does not exist.")
     end
-end
-
-"""
-**Session Interface**
-### open_rpc!(f::Function, c::Connection, name::String; tickrate::Int64 = 500)
-------------------
-Does the same thing as `open_rpc!(::Connection, ::String; tickrate::Int64)`,
-but also runs `f` on each tick.
-#### example
-```
-
-```
-"""
-function open_rpc!(f::Function, c::Connection, name::String; tickrate::Int64 = 500)
-    push!(c[:Session].peers,
-     name => Dict{String, Vector{String}}(getip(c) => Vector{String}()))
-    script!(c, name, ["none"], time = tickrate) do cm::ComponentModifier
-        f(cm)
-        push!(cm.changes, join(c[:Session].peers[name][getip(c)]))
-        c[:Session].peers[name][getip(c)] = Vector{String}()
-    end
-end
-
-"""
-**Session Interface**
-### close_rpc!(c::Connection)
-------------------
-Removes the current RPC session from `c`.
-#### example
-```
-
-```
-"""
-function close_rpc!(c::Connection)
-    delete!(c[:Session].peers, getip(c))
-end
-
-"""
-**Session Interface**
-### join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
-------------------
-Joins an rpc session by name.
-#### example
-```
-
-```
-"""
-function join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
-    push!(c[:Session].peers[host], getip(c) => Vector{String}())
-    script!(c, getip(c) * "rpc", ["none"], time = tickrate) do cm::ComponentModifier
-        push!(cm.changes, join(c[:Session].peers[host][getip(c)]))
-        c[:Session].peers[host][getip(c)] = Vector{String}()
-    end
-end
-
-"""
-**Session Interface**
-### join_rpc!(c::Connection, host::String; tickrate::Int64 = 500)
-------------------
-Joins an rpc session by name.
-#### example
-```
-
-```
-"""
-function join_rpc!(c::Connection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
-    push!(c[:Session].peers[host], getip(c) => Vector{String}())
-    script!(c, cm, gen_ref(), ["none"], time = tickrate) do cm::ComponentModifier
-        push!(cm.changes, join(c[:Session].peers[host][getip(c)]))
-        c[:Session].peers[host][getip(c)] = Vector{String}()
-    end
-end
-
-"""
-**Session Interface**
-### join_rpc!(f::Function, c::Connection, host::String; tickrate::Int64 = 500)
-------------------
-Joins an rpc session by name, runs `f` on each tick.
-#### example
-```
-
-```
-"""
-function join_rpc!(f::Function, c::Connection, host::String; tickrate::Int64 = 500)
-    push!(c[:Session].peers[host], getip(c) => Vector{String}())
-    script!(c, cm, getip(c) * "rpc", ["none"], time = tickrate) do cm::ComponentModifier
-        f(cm)
-        location::String = find_client(c)
-        push!(cm.changes, join(c[:Session].peers[location][getip(c)]))
-        c[:Session].peers[location][getip(c)] = Vector{String}()
-    end
-    f(cm)
-end
-
-"""
-**Session Interface**
-### find_client(c::Connection)
-------------------
-Finds the RPC session name of this client.
-#### example
-```
-
-```
-"""
-function find_client(c::Connection)
-    clientlocation = findfirst(x -> getip(c) in keys(x), c[:Session].peers)
-    clientlocation::String
-end
-
-"""
-**Session Interface**
-### rpc!(c::Connection, cm::ComponentModifier)
-------------------
-Does an rpc for all other connection clients, also clears `ComponentModifier` changes.
- You can use this interchangeably with local function calls by calling `rpc!` first
-then calling your regular `ComponentModifier` functions.
-#### example
-```
-
-```
-"""
-function rpc!(c::Connection, cm::ComponentModifier)
-    mods::String = find_client(c)
-    [push!(mod, join(cm.changes)) for mod in values(c[:Session].peers[mods])]
-    deleteat!(cm.changes, 1:length(cm.changes))
-end
-
-"""
-**Session Interface**
-### rpc!(f::Function, c::Connection)
-------------------
-Does RPC with a new `ComponentModifier` and will rpc everything inside of `f`.
-#### example
-```
-rpc!(c) do cm::ComponentModifier
-
-end
-```
-"""
-function rpc!(f::Function, c::Connection)
-    cm = ComponentModifier("")
-    f(cm)
-    mods::String = find_client(c)
-    for mod in values(c[:Session].peers[mods])
-        push!(mod, join(cm.changes))
-    end
-end
-
-function call!(c::Connection, cm::ComponentModifier)
-    mods::String = find_client(c)
-    [if mod[1] != getip(c); push!(mod[2], join(cm.changes)); end for mod in c[:Session].peers[mods]]
-    deleteat!(cm.changes, 1:length(cm.changes))
-end
-
-function call!(f::Function, c::Connection)
-    cm = ComponentModifier("")
-    f(cm)
-    mods::String = find_client(c)
-    for mod in c[:Session].peers[mods]
-        if mod[1] != getip(c)
-            push!(mod[2], join(cm.changes))
+    event = session.events[ip][found]
+    if typeof(event) == RPCHost
+        [close_rpc!(session, client) for client in event.clients]
+    else
+        host_event = findfirst(event::AbstractEvent -> typeof(event) == RPCHost,
+        session.events[event.host])
+        if ~(isnothing(host_event))
+            host_event = session.events[event.host][host_event]
+            client_rep = findfirst(client_ip::String -> client_ip == ip, host_event.clients)
+            if ~(isnothing(client_rep))
+                deleteat!(host_event.clients, client_rep)
+            end
         end
     end
-end
-
-
-"""
-**Session Interface**
-### disconnect_rpc!(c::Connection)
-------------------
-Removes the client from the current rpc session.
-#### example
-```
-
-```
-"""
-function disconnect_rpc!(c::Connection)
-    mods::String = find_client(c)
-    delete!(c[:Session].peers[mods], getip(c))
+    deleteat!(events[ip], found)
+    nothing::Nothing
 end
 
 """
-**Session Interface**
-### is_host(c::Connection) -> ::Bool
-------------------
-Checks if the current `Connection` is hosting an rpc session.
-#### example
+```julia
+close_rpc!(c::AbstractConnection) -> ::Nothing
 ```
+`close_rpc!` will remove an active RPC session, whether from client or host. 
+If host, all subsequent clients will also have their RPC closed.
+```example
 
 ```
 """
-is_host(c::Connection) = getip(c) in keys(c[:Session].peers)
+function close_rpc!(c::AbstractConnection)
+    close_rpc!(c[:Session], get_ip(c))
+    nothing
+end
 
 """
-**Session Interface**
-### is_client(c::Connection, s::String) -> ::Bool
-------------------
-Checks if the client is in the `s` RPC session..
-#### example
+```julia
+join_rpc!(c::AbstractConnection, ...; tickrate::Int64 = 500)
 ```
-
+`join_rpc` is the companion to `open_rpc!`. This takes one additional argument, 
+the IP of the host who we want to join the RPC of. We get their ip with `get_ip(c)`, 
+and then we later connect a partner client to that session. Like `open_rpc!` this can 
+be done in both a response and a callback using the appropriate functions.
+```julia
+join_rpc!(c::AbstractConnection, host::String; tickrate::Int64 = 500)
+join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
 ```
-"""
-is_client(c::Connection, s::String) = getip(c) in keys(c[:Session].peers[s])
-
-"""
-**Session Interface**
-### is_dead(c::Connection) -> ::Bool
-------------------
-Checks if the current `Connection` is still connected to `Session`
-#### example
-```
+---
+```example
 
 ```
 """
-is_dead(c::Connection) = getip(c) in keys(c[:Session].iptable)
+function join_rpc!(c::AbstractConnection, host::String; tickrate::Int64 = 500)
+    ref::String = gen_ref(5)
+    event::RPCClient = RPCClient(c, host, ref)
+    write!(c, 
+    script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
+    push!(c[:Session].events[get_ip(c)], event)
+    push!(find_host(c).clients, get_ip(c))
+    nothing::Nothing
+end
 
-export Session, on, bind!, script!, script, ComponentModifier, ClientModifier
-export KeyMap
-export playanim!, alert!, redirect!, modify!, move!, remove!, set_text!
-export update!, insert_child!, append_first!, animate!, pauseanim!, next!
-export set_children!, get_text, style!, free_redirects!, confirm_redirects!, store!
-export scroll_by!, scroll_to!, focus!, set_selection!
-export rpc!, disconnect_rpc!, find_client, join_rpc!, close_rpc!, open_rpc!
-export join_rpc!, is_client, is_dead, is_host, call!
+function join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
+    ref::String = gen_ref(5)
+    event::RPCClient = RPCClient(c, host, ref)
+    push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
+    push!(c[:Session].events[get_ip(c)], event)
+    push!(find_host(c).clients, get_ip(c))
+    nothing::Nothing
+end
+
+"""
+```julia
+find_host(c::AbstractConnection) -> ::RPCEvent
+```
+Finds the `RPCHost` of an actively connected RPC session.
+```example
+
+```
+"""
+function find_host(c::AbstractConnection)
+    events = c[:Session].events
+    ip::String = get_ip(c)
+    found = findfirst(event::AbstractEvent -> typeof(event) <: RPCEvent, events[ip])
+    if isnothing(found)
+        throw("RPC error: unable to find RPC event")
+    elseif typeof(events[ip][found]) == RPCClient
+        host = events[ip][found].host
+        found = findfirst(event::AbstractEvent -> typeof(event) == RPCHost, events[host])
+        return(events[host][found])::RPCHost
+    end
+    return(events[ip][found])::RPCEvent
+end
+
+function rpc!(session::Session, event::RPCHost, cm::ComponentModifier)
+    changes::String = join(cm.changes)
+    push!(event.changes, changes)
+    [begin 
+        found = findfirst(e -> typeof(e) == RPCClient, session.events[client])
+        push!(session.events[client][found].changes, changes)
+    end for client in event.clients]
+    cm.changes = Vector{String}()
+    nothing::Nothing
+end
+
+"""
+```julia
+rpc!(c::AbstractConnection, cm::ComponentModifier) -> ::Nothing
+```
+Performs an RPC call on all peers connected to the same RPC session as the 
+client associated with `c`, the `Connection`. `rpc!` is used to run these on all 
+peers, whereas `call!(::AbstractConnection, ::ComponentModifier)` is used to run on all other peers or a certain peer by IP.
+For changes on the client associated with `c` without using RPC, simply use the `ComponentModifier`.
+
+Note that changes will clear with the use of `call!` or `rpc!`, so changes to the client making the 
+call will always happen last. The order of `call!` and `rpc!` does not matter, so long as it is before 
+`rpc!`.
+```example
+
+```
+"""
+function rpc!(c::AbstractConnection, cm::ComponentModifier)
+    rpc!(c[:Session], find_host(c), cm)
+end
+
+function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::String)
+    changes::String = join(cm.changes)
+    if ip in event.clients
+        push!(event.changes, changes)
+    end
+    filt = filter(e -> e != ip, event.clients)
+    [begin 
+        found = findfirst(e -> typeof(e) == RPCClient, session.events[client])
+        push!(session.events[client][found].changes, changes)
+    end for client in filt]
+    cm.changes = Vector{String}()
+    nothing::Nothing
+end
+
+function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::String, target::String)
+    changes::String = join(cm.changes)
+    found = findfirst(e -> typeof(e) <: RPCEvent, session.events[target])
+    push!(session.events[target][found].changes, changes)
+    cm.changes = Vector{String}()
+    nothing::Nothing
+end
+
+"""
+```julia
+call!(c::AbstractConnection, cm::ComponentModifier, args ...) -> ::Nothing
+```
+`call!` performs a remote procedure call on either all other clients, or a peer client by IP. 
+This is similar to `rpc!`, which will perform the action on all clients.
+```julia
+call!(c::AbstractConnection, cm::ComponentModifier)
+call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
+```
+```example
+
+```
+"""
+function call!(c::AbstractConnection, cm::ComponentModifier)
+    call!(c[:Session], find_host(c), cm, get_ip(c))
+end
+
+function call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
+    call!(c[:Session], find_host(c), cm, get_ip(c), peerip)
+end
+
+export Session, on, script!, ComponentModifier, authorize!, auth_redirect!, auth_pass!
+export set_selection!, pauseanim!, playanim!, free_redirects!, confirm_redirects!, scroll_to!, scroll_by!, next!
+export rpc!, call!, disconnect_rpc!, find_client, join_rpc!, close_rpc!, open_rpc!, reconnect_rpc!
 end # module
