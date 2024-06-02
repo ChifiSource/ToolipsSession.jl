@@ -548,7 +548,7 @@ on(name::String, c::AbstractConnection, event::String;
     write!(c, "<script>document.addEventListener('$event', sendpage('$name'));</script>")
 end
 
-on(name::String, c::AbstractConnection, comp::Component{<:Any}, event::String; 
+on(name::String, comp::Component{<:Any}, event::String; 
     prevent_default::Bool = false) = begin
     name::String = "GLOBAL-" * name
     prevent::String = ""
