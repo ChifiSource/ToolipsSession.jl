@@ -174,6 +174,8 @@ Scrolls a document window or `Component` **to** `xy`, a `Tuple` of integers.
 scroll_to!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
 scroll_to!(cm::AbstractComponentModifier, s::String,
     xy::Tuple{Int64, Int64})
+# scroll to a `Component` by `Component.name` or providing the `Component`:
+scroll_to!(cm::AbstractComponentModifier, component::Any; align_top::Bool = true)
 ```
 """
 function scroll_to!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
@@ -184,6 +186,10 @@ function scroll_to!(cm::AbstractComponentModifier, s::String,
     xy::Tuple{Int64, Int64})
     push!(cm.changes,
     """document.getElementById('$s').scrollTo($(xy[1]), $(xy[2]));""")
+end
+
+function scroll_to!(cm::AbstractComponentModifier, component::Any; align_top::Bool = true)
+    push!(cm.changes, """document.getElementById('$component').scrollIntoView($align_top);""")
 end
 
 """
