@@ -138,6 +138,10 @@ There is a major thing to be aware of when using `Toolips` multi-threading along
 
 ## changes overview
 :)
+###### 0.4.1
+The first `0.4` patch incoming... Changes are very slight
+- updated permanent event `on` binding for `Components`
+- added `scroll_to!` binding for scrolling to components.
 ###### 0.4.0
 **alot** has now changed. Most of `ToolipsSession` is now part of `Toolips` itself. Now `ToolipsSession` uses `htmlcomponent` from `ToolipsServables`, rather than here. Parsing is also done on command, the `Session` extension itself is a lot smaller and requires a lot less data to function. This also follows the new `Toolips` `0.3` syntax, which is pretty sweet!
 - Brought `Session` extension into `0.3` compatibility.
