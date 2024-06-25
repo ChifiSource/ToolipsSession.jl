@@ -133,12 +133,7 @@ function document_linker(c::AbstractConnection)
     if contains(ref, "GLOBAL")
         ip = "GLOBAL"
     end
-    try
-        call!(c, c[:Session].events[ip][ref], cm)
-    catch e
-        print(e)
-        [println(event.name for event in c[:Session.events[ip]])]
-    end
+    call!(c, c[:Session].events[ip][ref], cm)
     write!(c, " ", cm)
     cm = nothing
     nothing::Nothing
