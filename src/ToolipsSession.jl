@@ -133,7 +133,12 @@ function document_linker(c::AbstractConnection)
     if contains(ref, "GLOBAL")
         ip = "GLOBAL"
     end
-    call!(c, c[:Session].events[ip][ref], cm)
+    try
+        call!(c, c[:Session].events[ip][ref], cm)
+    catch e
+        print(e)
+        [println(event.name for event in c[:Session.events[ip]])]
+    end
     write!(c, " ", cm)
     cm = nothing
     nothing::Nothing
@@ -369,7 +374,7 @@ mutable struct Session <: Toolips.AbstractExtension
     iptable::Dict{String, Dates.DateTime}
     gc::Int64
     timeout::Int64
-    function Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 5)
+    function Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 30)
         events = Dict{String, Vector{AbstractEvent}}("GLOBAL" => Vector{AbstractEvent}()) 
         iptable = Dict{String, Dates.DateTime}()
         new(active_routes, events, iptable, 0, timeout)::Session
@@ -548,7 +553,7 @@ on(name::String, c::AbstractConnection, event::String;
     write!(c, "<script>document.addEventListener('$event', sendpage('$name'));</script>")
 end
 
-on(name::String, c::AbstractConnection, comp::Component{<:Any}, event::String; 
+on(name::String, comp::Component{<:Any}, event::String; 
     prevent_default::Bool = false) = begin
     name::String = "GLOBAL-" * name
     prevent::String = ""
@@ -627,7 +632,6 @@ end
 function on(f::Function, c::AbstractConnection, s::AbstractComponent, event::AbstractString;
     prevent_default::Bool = false)
     ref::String = gen_ref(5)
-    ip::String = string(get_ip(c))
     prevent::String = ""
     if prevent_default
         prevent = "event.preventDefault();"

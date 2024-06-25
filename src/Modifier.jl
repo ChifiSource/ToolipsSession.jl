@@ -34,7 +34,13 @@ string(cm::ComponentModifier) = join(cm.changes)::String
 
 getindex(cc::ComponentModifier, s::AbstractComponent) = htmlcomponent(cc.rootc, [s.name])[1]
 
-getindex(cc::ComponentModifier, s::String) = htmlcomponent(cc.rootc, [s])[1]
+getindex(cc::ComponentModifier, s::String) = begin
+    comps = htmlcomponent(cc.rootc, [s])
+    if length(comps) == 0
+        throw("$s was not found inside of your callback. Is it written to the client's page?")
+    end
+    comps[1]
+end
 
 getindex(cc::ComponentModifier, s::AbstractComponent ...) = htmlcomponent(cc.rootc, [comp.name for comp in s])[1]
 
@@ -90,7 +96,7 @@ component's `name` (`String`), or the `Component` itself.)
 ```
 """
 function set_selection!(cm::ComponentModifier, comp::Any, r::UnitRange{Int64})
-    if comp <: Toolips.AbstractComponent
+    if typeof(comp) <: Toolips.AbstractComponent
         comp = comp.name
     end
     push!(cm.changes, "document.getElementById('$comp').setSelectionRange($(r[1]), $(maximum(r)))")
@@ -107,7 +113,7 @@ Pauses the animation on the `Component` or `Component` `name`.
 ```
 """
 function pauseanim!(cm::AbstractComponentModifier, name::Any)
-    if name <: Toolips.AbstractComponent
+    if typeof(name) <: Toolips.AbstractComponent
         name = name.name
     end
     push!(cm.changes,
@@ -125,7 +131,7 @@ Pauses the animation on the `Component` or `Component` `name`.
 ```
 """
 function playanim!(cm::AbstractComponentModifier, comp::Any)
-    if comp <: Toolips.AbstractComponent
+    if typeof(comp) <: Toolips.AbstractComponent
         comp = comp.name
     end
     push!(cm.changes,
@@ -174,6 +180,8 @@ Scrolls a document window or `Component` **to** `xy`, a `Tuple` of integers.
 scroll_to!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
 scroll_to!(cm::AbstractComponentModifier, s::String,
     xy::Tuple{Int64, Int64})
+# scroll to a `Component` by `Component.name` or providing the `Component`:
+scroll_to!(cm::AbstractComponentModifier, component::Any; align_top::Bool = true)
 ```
 """
 function scroll_to!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
@@ -184,6 +192,13 @@ function scroll_to!(cm::AbstractComponentModifier, s::String,
     xy::Tuple{Int64, Int64})
     push!(cm.changes,
     """document.getElementById('$s').scrollTo($(xy[1]), $(xy[2]));""")
+end
+
+function scroll_to!(cm::AbstractComponentModifier, component::Any; align_top::Bool = true)
+    if typeof(component) <: Toolips.AbstractComponent
+        component = component.name
+    end
+    push!(cm.changes, """document.getElementById('$component').scrollIntoView({ behavior: "smooth", });""")
 end
 
 """
