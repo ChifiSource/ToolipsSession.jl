@@ -436,7 +436,14 @@ function route!(c::AbstractConnection, e::Session)
     end
 end
 
-register!(f::Function, c::AbstractConnection, name::String) = push!(c[:Session].events[get_ip(c)], Event(f, name))
+register!(f::Function, c::AbstractConnection, name::String) = begin
+    client_events = c[:Session].events[get_ip(c)]
+    found = findfirst(event::Event -> event.name == name, client_events)
+    if ~(isnothing(found))
+        deleteat!(client_events, found)
+    end
+    push!(client_events, Event(f, name))
+end
 
 getindex(m::Session, s::AbstractString) = m.events[s]
 
