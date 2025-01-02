@@ -438,7 +438,7 @@ end
 
 register!(f::Function, c::AbstractConnection, name::String) = begin
     client_events = c[:Session].events[get_ip(c)]
-    found = findfirst(event::Event -> event.name == name, client_events)
+    found = findfirst(event::AbstractEvent -> event.name == name, client_events)
     if ~(isnothing(found))
         deleteat!(client_events, found)
     end
@@ -1349,6 +1349,7 @@ function join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; t
     event::RPCClient = RPCClient(c, host, ref)
     push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
     push!(c[:Session].events[get_ip(c)], event)
+    @info find_host(c)
     push!(find_host(c).clients, get_ip(c))
     nothing::Nothing
 end
@@ -1407,13 +1408,23 @@ function rpc!(c::AbstractConnection, cm::ComponentModifier)
     rpc!(c[:Session], find_host(c), cm)
 end
 
+
+function rpc!(f::Function, c::AbstractConnection, cm::ComponentModifier)
+    cm2 = ComponentModifier(cm.rootc)
+    f(cm2)
+    rpc!(c[:Session], find_host(c), cm2)
+end
+
 function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::String)
     changes::String = join(cm.changes)
     if ip in event.clients
         push!(event.changes, changes)
     end
+    @info event.clients
+    @info ip
     filt = filter(e -> e != ip, event.clients)
     [begin 
+        @info "called rpc on client $client"
         found = findfirst(e -> typeof(e) == RPCClient, session.events[client])
         push!(session.events[client][found].changes, changes)
     end for client in filt]
@@ -1445,6 +1456,12 @@ call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
 """
 function call!(c::AbstractConnection, cm::ComponentModifier)
     call!(c[:Session], find_host(c), cm, get_ip(c))
+end
+
+function call!(f::Function, c::AbstractConnection, cm::ComponentModifier)
+    cm2 = ComponentModifier(cm.rootc)
+    f(cm2)
+    call!(c[:Session], find_host(c), cm2, get_ip(c))
 end
 
 function call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
