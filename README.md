@@ -1,4 +1,10 @@
-<div align = "center"><img src = "https://github.com/ChifiSource/image_dump/blob/main/toolips/toolipssession.png" href = "https://toolips.app"></img></div>
+<div align = "center"><img src = "https://github.com/ChifiSource/image_dump/blob/main/toolips/toolipssession.png" href = "https://toolips.app"></img>
+
+[![deps](https://juliahub.com/docs/General/ToolipsSession/stable/deps.svg)](https://juliahub.com/ui/Packages/General/ToolipsSession?t=2)
+[![version](https://juliahub.com/docs/General/ToolipsSession/stable/version.svg)](https://juliahub.com/ui/Packages/General/ToolipsSession)
+[![pkgeval](https://juliahub.com/docs/General/ToolipsSession/stable/pkgeval.svg)](https://juliahub.com/ui/Packages/General/ToolipsSession)
+
+</div>
 
 ###### full-stack for toolips !
 `ToolipsSession` provides `Toolips` with the `Session` extension, which registers fullstack callbacks on a client-to-client basis. Alongside this, the module provides InputMaps (swipe and keyboard input), `rpc!` callbacks, Authentication via the `Auth` extension, and `next!` animation callbacks.
