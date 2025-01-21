@@ -1350,7 +1350,6 @@ function join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; t
     event::RPCClient = RPCClient(c, host, ref)
     push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
     push!(c[:Session].events[get_ip(c)], event)
-    @info find_host(c)
     push!(find_host(c).clients, get_ip(c))
     nothing::Nothing
 end
@@ -1421,11 +1420,8 @@ function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::Stri
     if ip in event.clients
         push!(event.changes, changes)
     end
-    @info event.clients
-    @info ip
     filt = filter(e -> e != ip, event.clients)
     [begin 
-        @info "called rpc on client $client"
         found = findfirst(e -> typeof(e) == RPCClient, session.events[client])
         push!(session.events[client][found].changes, changes)
     end for client in filt]
