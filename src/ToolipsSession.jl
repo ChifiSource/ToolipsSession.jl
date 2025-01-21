@@ -366,13 +366,14 @@ Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 5)
 mutable struct Session <: Toolips.AbstractExtension
     active_routes::Vector{String}
     events::Dict{String, Vector{AbstractEvent}}
+    invert_active::Bool
     iptable::Dict{String, Dates.DateTime}
     gc::Int64
     timeout::Int64
-    function Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 30)
+    function Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 30, invert_active::Bool = false)
         events = Dict{String, Vector{AbstractEvent}}("GLOBAL" => Vector{AbstractEvent}()) 
         iptable = Dict{String, Dates.DateTime}()
-        new(active_routes, events, iptable, 0, timeout)::Session
+        new(active_routes, events, invert_active, iptable, 0, timeout)::Session
     end
 end
 
@@ -383,7 +384,7 @@ on_start(ext::Session, data::Dict{Symbol, Any}, routes::Vector{<:AbstractRoute})
 end
 
 function route!(c::AbstractConnection, e::Session)
-    if get_route(c) in e.active_routes
+    if ~ e.invert_active && get_route(c) in e.active_routes || e.invert_active && ~(get_route(c) in e.active_routes)
         e.gc += 1
         if e.gc == 1000
             e.gc = 0
