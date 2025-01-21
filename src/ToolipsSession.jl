@@ -366,13 +366,14 @@ Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 5)
 mutable struct Session <: Toolips.AbstractExtension
     active_routes::Vector{String}
     events::Dict{String, Vector{AbstractEvent}}
+    invert_active::Bool
     iptable::Dict{String, Dates.DateTime}
     gc::Int64
     timeout::Int64
-    function Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 30)
+    function Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 30, invert_active::Bool = false)
         events = Dict{String, Vector{AbstractEvent}}("GLOBAL" => Vector{AbstractEvent}()) 
         iptable = Dict{String, Dates.DateTime}()
-        new(active_routes, events, iptable, 0, timeout)::Session
+        new(active_routes, events, invert_active, iptable, 0, timeout)::Session
     end
 end
 
@@ -383,7 +384,7 @@ on_start(ext::Session, data::Dict{Symbol, Any}, routes::Vector{<:AbstractRoute})
 end
 
 function route!(c::AbstractConnection, e::Session)
-    if get_route(c) in e.active_routes
+    if ~ e.invert_active && get_route(c) in e.active_routes || e.invert_active && ~(get_route(c) in e.active_routes)
         e.gc += 1
         if e.gc == 1000
             e.gc = 0
@@ -436,7 +437,14 @@ function route!(c::AbstractConnection, e::Session)
     end
 end
 
-register!(f::Function, c::AbstractConnection, name::String) = push!(c[:Session].events[get_ip(c)], Event(f, name))
+register!(f::Function, c::AbstractConnection, name::String) = begin
+    client_events = c[:Session].events[get_ip(c)]
+    found = findfirst(event::AbstractEvent -> event.name == name, client_events)
+    if ~(isnothing(found))
+        deleteat!(client_events, found)
+    end
+    push!(client_events, Event(f, name))
+end
 
 getindex(m::Session, s::AbstractString) = m.events[s]
 
@@ -1400,6 +1408,13 @@ function rpc!(c::AbstractConnection, cm::ComponentModifier)
     rpc!(c[:Session], find_host(c), cm)
 end
 
+
+function rpc!(f::Function, c::AbstractConnection, cm::ComponentModifier)
+    cm2 = ComponentModifier(cm.rootc)
+    f(cm2)
+    rpc!(c[:Session], find_host(c), cm2)
+end
+
 function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::String)
     changes::String = join(cm.changes)
     if ip in event.clients
@@ -1438,6 +1453,12 @@ call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
 """
 function call!(c::AbstractConnection, cm::ComponentModifier)
     call!(c[:Session], find_host(c), cm, get_ip(c))
+end
+
+function call!(f::Function, c::AbstractConnection, cm::ComponentModifier)
+    cm2 = ComponentModifier(cm.rootc)
+    f(cm2)
+    call!(c[:Session], find_host(c), cm2, get_ip(c))
 end
 
 function call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
