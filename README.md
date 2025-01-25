@@ -143,6 +143,11 @@ There is a major thing to be aware of when using `Toolips` multi-threading along
 ### auth
 
 ## changes overview
+###### 0.4.2
+- More updates to RPC functionality, fixed reconnect on reload for response-based open/join
+- shortened reference codes (by two bytes)
+- measured improvements to the included `Auth` extension.
+- replaced `script!` with `on` in accordance to the new `ToolipsServables` version. `script!` is still available but will be deprecated in `ToolipsSession` `0.5`, which is liable to release sometime after the rapidly approaching release of `Olive` `0.1` *beta*.
 :)
 ###### 0.4.1
 The first `0.4` patch incoming... Changes are very slight
