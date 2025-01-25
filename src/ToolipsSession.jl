@@ -556,6 +556,7 @@ on(name::String, c::AbstractConnection, event::String;
     write!(c, "<script>document.addEventListener('$event', sendpage('$name'));</script>")
 end
 
+
 on(name::String, comp::Component{<:Any}, event::String; 
     prevent_default::Bool = false) = begin
     name::String = "GLOBAL-" * name
@@ -621,7 +622,7 @@ end
 """
 function on(f::Function, c::AbstractConnection, event::AbstractString;
     prevent_default::Bool = false)
-    ref::String = Toolips.gen_ref(5)
+    ref::String = Toolips.gen_ref(3)
     ip::String = get_ip(c)
     prevent::String = ""
     if prevent_default
@@ -634,7 +635,7 @@ end
 
 function on(f::Function, c::AbstractConnection, s::AbstractComponent, event::AbstractString;
     prevent_default::Bool = false)
-    ref::String = gen_ref(5)
+    ref::String = gen_ref(3)
     prevent::String = ""
     if prevent_default
         prevent = "event.preventDefault();"
@@ -643,10 +644,35 @@ function on(f::Function, c::AbstractConnection, s::AbstractComponent, event::Abs
     register!(f, c, ref)
 end
 
+on(f::Function, c::AbstractConnection, time::Int64; recurring::Bool = false, 
+    prevent_default::Bool = false) = begin
+    name::String = gen_ref(3)
+    type::String = "Timeout"
+    if recurring
+        type = "Interval"
+    end
+    obsscript::Component{:script} = script(name, text = """
+    set$(type)(function () { sendpage('$name'); }, $time);
+    """)
+    register!(f, c, name)
+    write!(c, obsscript)
+end
+
+on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, time::Int64; recurring::Bool = false, 
+    prevent_default::Bool = false) = begin
+    ref::String = gen_ref(3)
+    type::String = "Timeout"
+    if recurring
+        type = "Interval"
+    end
+    push!(cm.changes, "set$type(function () { sendpage('$ref'); }, $time);;")
+    register!(f, c, ref)
+end
+
 function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, event::AbstractString; 
     prevent_default::Bool = false)
     ip::String = get_ip(c)
-    ref::String = gen_ref(5)
+    ref::String = gen_ref(3)
     prevent::String = ""
     if prevent_default
         prevent = "event.preventDefault();"
@@ -659,7 +685,7 @@ end
 function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
      event::AbstractString; prevent_default::Bool = false)
      name::String = comp.name
-     ref::String = gen_ref(5)
+     ref::String = gen_ref(3)
      prevent::String = ""
      if prevent_default
          prevent = "event.preventDefault();"
@@ -739,7 +765,7 @@ function bind(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol
     end
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
-    ref::String = gen_ref(5)
+    ref::String = gen_ref(3)
     write!(c, """<script>
 document.addEventListener('key$on', function(event) {
     if ($eventstr event.key == "$(key)") {
@@ -754,7 +780,7 @@ function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier,
     eventkeys::Symbol ...; on::Symbol = :down, mark::String = "none", prevent_default::Bool = false)
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
-    ref = gen_ref(5)
+    ref = gen_ref(3)
     prevent::String = ""
     if prevent_default
         prevent = "event.preventDefault();"
@@ -778,7 +804,7 @@ function bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
     end
     eventstr::String = join((begin " event.$(event)Key && "
                             end for event in eventkeys))
-    ref::String = gen_ref(5)
+    ref::String = gen_ref(3)
     write!(c, """<script>
     setTimeout(function () {
     document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
@@ -793,7 +819,7 @@ end
 
 function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
     key::String, eventkeys::Symbol ...; on::Symbol = :down, prevent_default::Bool = false)
-    ref::String = gen_ref(5)
+    ref::String = gen_ref(3)
     name::String = comp.name
     prevent::String = ""
     if prevent_default
@@ -902,7 +928,7 @@ function bind(c::AbstractConnection, sm::SwipeMap)
     swipes = ("left", "right", "up", "down")
     newswipes = Dict([begin
         if swipe in keys(sm.bindings)
-            ref::String = ToolipsSession.gen_ref(5)
+            ref::String = ToolipsSession.gen_ref(3)
             register!(sm.bindings[swipe], c, ref)
             swipe => "sendpage('$ref');"
         else
@@ -1091,7 +1117,7 @@ function bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_def
         if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
             default = "event.preventDefault();"
         end
-        ref::String = gen_ref(5)
+        ref::String = gen_ref(3)
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
                 sendpage('$(ref)');
@@ -1118,7 +1144,7 @@ function bind(c::AbstractConnection, comp::Component{<:Any}, km::KeyMap; on::Sym
         if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
             default = "event.preventDefault();"
         end
-        ref::String = gen_ref(5)
+        ref::String = gen_ref(3)
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
                 sendpage('$(ref)');
@@ -1145,7 +1171,7 @@ function bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symb
         if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
             default = "event.preventDefault();"
         end
-        ref::String = gen_ref(5)
+        ref::String = gen_ref(3)
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
                 sendpage('$(ref)');
@@ -1172,7 +1198,7 @@ function bind(c::AbstractConnection, cm::ComponentModifier, comp::Component{<:An
         if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
             default = "event.preventDefault();"
         end
-        ref::String = gen_ref(5)
+        ref::String = gen_ref(3)
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
                 sendpage('$(ref)');
@@ -1195,7 +1221,7 @@ without a triggering event. The `time` is the number of ms between each call, or
 call. `type` is the type of event that should be ran -- `Interval` is the default, and this will 
 create a recurring event call. 
 ```julia
-script!(f::Function, c::AbstractConnection, name::String = gen_ref(5); time::Integer = 500, 
+script!(f::Function, c::AbstractConnection, name::String = gen_ref(3); time::Integer = 500, 
 type::String = "Interval")
 
 script!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier; time::Integer = 1000, type::String = "Timeout")
@@ -1205,18 +1231,22 @@ script!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier; time:
 
 ```
 """
-function script!(f::Function, c::AbstractConnection, name::String = gen_ref(5); time::Integer = 500,
+function script!(f::Function, c::AbstractConnection, name::String = gen_ref(3); time::Integer = 500,
     type::String = "Interval")
     obsscript::Component{:script} = script(name, text = """
     set$(type)(function () { sendpage('$name'); }, $time);
    """)
    register!(f, c, name)
+   @warn "Deprecation warning: In `ToolipsSession` 0.5, `script! will be deprecated in favor of using `on`."
+   @info "e.g. on(f::Function, c::AbstractConnection, time::Int64; recurring::Bool = false)"
    write!(c, obsscript)
 end
 
 function script!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier; time::Integer = 1000, type::String = "Timeout")
-   ref = gen_ref(5)
+   ref = gen_ref(3)
    push!(cm.changes, "set$type(function () { sendpage('$ref'); }, $time);")
+   @warn "Deprecation warning: In `ToolipsSession` 0.5, `script! will be deprecated in favor of using `on`."
+   @info "e.g. on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, time::Int64; recurring::Bool = false)"
    register!(f, c, ref)
 end
 
@@ -1242,7 +1272,7 @@ open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64 = 500)
 ```
 """
 function open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
-    ref::String = gen_ref(5)
+    ref::String = gen_ref(3)
     event::RPCHost = RPCHost(ref)
     write!(c, 
     script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
@@ -1251,7 +1281,7 @@ function open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
 end
 
 function open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64 = 500)
-    ref::String = gen_ref(5)
+    ref::String = gen_ref(3)
     event::RPCHost = RPCHost(ref)
     push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
     push!(c[:Session].events[get_ip(c)], event)
@@ -1336,7 +1366,7 @@ join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; tickrate::
 ```
 """
 function join_rpc!(c::AbstractConnection, host::String; tickrate::Int64 = 500)
-    ref::String = gen_ref(5)
+    ref::String = gen_ref(3)
     event::RPCClient = RPCClient(c, host, ref)
     write!(c, 
     script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
@@ -1346,7 +1376,7 @@ function join_rpc!(c::AbstractConnection, host::String; tickrate::Int64 = 500)
 end
 
 function join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
-    ref::String = gen_ref(5)
+    ref::String = gen_ref(3)
     event::RPCClient = RPCClient(c, host, ref)
     push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
     push!(c[:Session].events[get_ip(c)], event)
