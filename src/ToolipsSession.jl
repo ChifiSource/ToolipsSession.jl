@@ -44,7 +44,7 @@ the `Function` provided to `route` takes an `AbstractConnection`.
 ```julia
 
 ```
-## provides
+### provides
 ###### session
 - `AbstractEvent`
 - `Event`

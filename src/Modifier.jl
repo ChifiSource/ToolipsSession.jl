@@ -32,19 +32,13 @@ end
 
 string(cm::ComponentModifier) = join(cm.changes)::String
 
-getindex(cc::ComponentModifier, s::AbstractComponent) = htmlcomponent(cc.rootc, [s.name])[1]
+getindex(cc::ComponentModifier, s::AbstractComponent) = htmlcomponent(cc.rootc, s.name)::Component{<:Any}
 
-getindex(cc::ComponentModifier, s::String) = begin
-    comps = htmlcomponent(cc.rootc, [s])
-    if length(comps) == 0
-        throw("$s was not found inside of your callback. Is it written to the client's page?")
-    end
-    comps[1]
-end
+getindex(cc::ComponentModifier, s::String) = htmlcomponent(cc.rootc, s)::Component{<:Any}
 
-getindex(cc::ComponentModifier, s::AbstractComponent ...) = htmlcomponent(cc.rootc, [comp.name for comp in s])[1]
+getindex(cc::ComponentModifier, s::AbstractComponent ...) = htmlcomponent(cc.rootc, [comp.name for comp in s])
 
-getindex(cc::ComponentModifier, s::String ...) = htmlcomponent(cc.rootc, [s ...])[1]
+getindex(cc::ComponentModifier, s::String ...) = htmlcomponent(cc.rootc, [s ...])
 
 in(s::String, cm::ComponentModifier) = contains(cm.rootc, s)::Bool
 
