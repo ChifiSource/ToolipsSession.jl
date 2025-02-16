@@ -22,6 +22,7 @@
   - [input maps](#input-maps)
 - [rpc](#rpc)
 - [changes overview](#changes-overview)
+---
 ### get started
 To get started with `ToolipsSession`, we will need a [Toolips](https://github.com/ChifiSource/Toolips.jl) project. Either generate a new `Toolips` app with `new_app`, or create a new `Module` in the REPL:
 ```julia
@@ -145,10 +146,11 @@ There is a major thing to be aware of when using `Toolips` multi-threading along
 ## changes overview
 ###### 0.4.2
 - More updates to RPC functionality, fixed reconnect on reload for response-based open/join
-- shortened reference codes (by two bytes)
+- changed reference length
 - measured improvements to the included `Auth` extension.
 - replaced `script!` with `on` in accordance to the new `ToolipsServables` version. `script!` is still available but will be deprecated in `ToolipsSession` `0.5`, which is liable to release sometime after the rapidly approaching release of `Olive` `0.1` *beta*.
 - `on` calls now return event references.
+- changed to `ToiletServables` `1.81` singular `htmlcomponent` indexing for linker
 :)
 ###### 0.4.1
 The first `0.4` patch incoming... Changes are very slight
