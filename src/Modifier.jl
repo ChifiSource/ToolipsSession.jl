@@ -192,7 +192,7 @@ function scroll_to!(cm::AbstractComponentModifier, component::Any; align_top::Bo
     if typeof(component) <: Toolips.AbstractComponent
         component = component.name
     end
-    push!(cm.changes, """document.getElementById('$component').scrollIntoView({ behavior: "smooth", });""")
+    push!(cm.changes, """document.getElementById('$component').scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest"});""")
 end
 
 """
