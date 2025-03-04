@@ -139,46 +139,6 @@ function document_linker(c::AbstractConnection)
     nothing::Nothing
 end
 
-#== WIP websocket server... Not sure if this is to be part of `ToolipsSession`, 
-or another extension -- but for now, this code sits here. Obviously, a lot will need to be done 
-to actually get this working properly.
-abstract type SocketServer <: Toolips.ServerTemplate end
-
-function start!(mod::Module = server_cli(Main.ARGS), from::Type{SocketServer}; ip::IP4 = ip4_cli(Main.ARGS), 
-    router_threads::Int64 = 1, threads::Int64 = 1)
-    IP = Sockets.InetAddr(parse(IPAddr, ip.ip), ip.port)
-    server::Sockets.TCPServer = Sockets.listen(IP)
-    mod.server = server
-    routefunc::Function, pm::ProcessManager = generate_router(mod, router_threads)
-    if router_threads == 1
-        w = pm["$mod router"]
-        serve_router = @async HTTP.listen(routefunc, ip.ip, ip.port, server = server)
-        w.task = serve_router
-        w.active = true
-        return(pm)::ProcessManager
-    end
-end
-
-begin
-    function handler(req)
-        println("someone landed")
-        open("ws://127.0.0.1:8000") do ws_client
-            
-        end
-    end
-    function wshandler(ws_server)
-        println("websockethandled")
-        writeguarded(ws_server, "Hello")
-        readguarded(ws_server)
-    end
-    serverWS = ServerWS(handler, wshandler)
-    servetask = @async with_logger(WebSocketLogger()) do
-        serve(serverWS, port = 8000)
-        "Task ended"
-    end
-end
-==#
-
 """
 ```julia
 abstract type AbstractEvent <: Servable
@@ -690,6 +650,7 @@ function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, c
      function (event) {$(prevent)sendpage('$ref');});
      }, 1000);""")
      register!(f, c, ref)
+     nothing::Nothing
 end
 
 """
@@ -767,6 +728,7 @@ document.addEventListener('key$on', function(event) {
     });</script>
     """)
     register!(f, c, ref)
+    nothing::Nothing
 end
 
 function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, key::String,
@@ -786,6 +748,7 @@ function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier,
             }
             });}, 1000);""")
     register!(f, c, ref)
+    nothing::Nothing
 end
 
 function bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
@@ -807,6 +770,7 @@ function bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
 });}, 1000)</script>
     """)
     register!(f, c, ref)
+    nothing::Nothing
 end
 
 
@@ -827,6 +791,7 @@ document.getElementById('$(name)').onkeydown = function(event){
         }
         }}, 1000);""")
     register!(f, c, ref)
+    nothing::Nothing
 end
 
 """
@@ -1088,7 +1053,17 @@ The `KeyMap` is bound by providing it to `ToolipsSession.bind` in place of the `
 and then binding it to the `Connection` all at once with one `Connection`/`ComponentModifier` 
 bindings.
 ```julia
-
+route("/") do c::AbstractConnection
+    km = ToolipsSession.KeyMap()
+    bind(km, "A") do cm::ComponentModifier
+        alert!(cm, "pressed A")
+    end
+    bind(km, "D") do cm::ComponentModifier
+        alert!(cm, "pressed D")
+    end
+    action_box = Components.textdiv("mybox")
+    bind(c, action_box, km, on = :down)
+end
 ```
 """
 function bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
@@ -1295,7 +1270,6 @@ reconnect_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
 Used to reconnect an incoming client who disconnects to an existing RPC session. This 
 just respawns the event that calls the Remote Procedure Calls accumulated by the peers. For 
 example, this function would be called when a peer refreshes the page in an active RPC session.
----
 ```example
 
 ```
@@ -1360,7 +1334,6 @@ be done in both a response and a callback using the appropriate functions.
 join_rpc!(c::AbstractConnection, host::String; tickrate::Int64 = 500)
 join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
 ```
----
 ```example
 
 ```
