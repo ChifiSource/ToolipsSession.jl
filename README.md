@@ -12,15 +12,11 @@
 - [get started](#get-started)
   - [session](#session)
     - [creating callbacks](#creating-callbacks)
-- [authentication](#authentication)
-  - [clients](#clients)
-  - [authenticating callbacks](#authenticating-callbacks)
-- [modifier functions](#modifier-functions)
+    - [modifier functions](#modifier-functions)
+  - [other features](#more-features)
+  
 - [**read before** multi-threading](#multi-threading)
-- [input](#input)
-  - [bind](#bind)
-  - [input maps](#input-maps)
-- [rpc](#rpc)
+
 - [changes overview](#changes-overview)
 ---
 ### get started
