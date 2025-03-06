@@ -150,8 +150,8 @@ There is a major thing to be aware of when using `Toolips` multi-threading along
 - measured improvements to the included `Auth` extension.
 - replaced `script!` with `on` in accordance to the new `ToolipsServables` version. `script!` is still available but will be deprecated in `ToolipsSession` `0.5`, which is liable to release sometime after the rapidly approaching release of `Olive` `0.1` *beta*.
 - `on` calls now return event references.
-- changed to `ToiletServables` `1.81` singular `htmlcomponent` indexing for linker
-:)
+- changed to `ToiletServables` ( ;) )`1.81` singular `htmlcomponent` indexing for linker
+- Binded to `Toolips `3.8` and `ToolipsServables` `2.0`
 ###### 0.4.1
 The first `0.4` patch incoming... Changes are very slight
 - updated permanent event `on` binding for `Components`
