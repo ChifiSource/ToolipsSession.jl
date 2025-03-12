@@ -476,7 +476,7 @@ end
 
 """
 ```julia
-on(name::String, c::AbstractConnection, ...; prevent_default::Bool = false) -> ::Nothing
+on(name::String, ...; prevent_default::Bool = false) -> ::Nothing
 ```
 These `on` bindings are used to bind existing events, registered using `on(::Function, ::Session, ::String)` 
 to components and `Connections`. This makes it possible to create reusable global bindings for each client, for 
@@ -485,7 +485,7 @@ this will be a server-side callback.
 ```julia
 on(name::String, c::AbstractConnection, event::String; 
     prevent_default::Bool = false)
-on(name::String, c::AbstractConnection, comp::Component{<:Any}, event::String; 
+on(name::String, comp::Component{<:Any}, event::String; 
     prevent_default::Bool = false)
 on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, event::String;
     prevent_default::Bool = false)
@@ -510,7 +510,7 @@ export main, session
 end
 ```
 """
-on(name::String, event::String; 
+on(name::String, c::AbstractConnection, event::String; 
     prevent_default::Bool = false) = begin
     name::String = "GLOBAL-" * name
     write!(c, "<script>document.addEventListener('$event', sendpage('$name'));</script>")
