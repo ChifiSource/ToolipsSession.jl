@@ -27,7 +27,7 @@ To get started with `ToolipsSession`, we will need a [Toolips](https://github.co
 ```julia
 using Pkg
 Pkg.add("Toolips")
-
+ # create default project and add `Sesssion`
 using Toolips; Toolips.new_app("MyApp"); Pkg.add("ToolipsSession")
 ```
 ```julia
@@ -63,7 +63,7 @@ end
 ```
 The `Session` constructor takes two optional arguments, `active_routes` and `timeout`.
 ```julia
-Session(active_routes::Vector{String} = ["/"]; timeout = 5)
+Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 10, invert_active::Bool = false)
 ```
 `Session` will only provide interactivity to the route paths provided in `active_routes`. `timeout` represents the number of minutes after not recieving a callback that we will terminate a user's session. Once `Session` is loaded, we can immediately register callbacks on its active routes.
 ##### creating callbacks
@@ -132,6 +132,30 @@ end
 ```
 Callbacks can also be registered by using [ToolipsSession.bind](#bind) to bind keys or keymaps to components and connections.
 ### modifier functions
+**Modifier functions** are used in `Toolips` callbacks to accomplish element functionality. In the case of `ToolipsSession`, these callbacks are fully made to the server and can also be responsible for Julia-side code. Like `ToolipsServables`, `ToolipsSession` uses `on` to register events for incoming clients. Most common among these are
+- `set_children!`
+- `set_text!`
+- `focus!`
+- and `remove!`
+
+... All of these are provided by `Toolips.Components` -- `ToolipsSession` also provides some new bindings and functions. Here is a comprehensive list:
+- `set_selection!(cm::ComponentModifier, comp::Any, r::UnitRange{Int64})`
+- `pauseanim!(cm::AbstractComponentModifier, name::Any)`
+- `playanim!(cm::AbstractComponentModifier, comp::Any)`
+- `free_redirects!(cm::AbstractComponentModifier)`
+- `confirm_redirects!(cm::AbstractComponentModifier)`
+- `scroll_to!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})`
+- `scroll_to!(cm::AbstractComponentModifier, s::String,
+    xy::Tuple{Int64, Int64})`
+- `scroll_to!(cm::AbstractComponentModifier, component::Any; align_top::Bool = true)`
+- `scroll_by!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})`
+- `scroll_by!(cm::AbstractComponentModifier, s::String, xy::Tuple{Int64, Int64})`
+- `next!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, s::Any)`
+- `next!(f::Function, cm::AbstractComponentModifier, time::Integer = 1000)`
+
+**Many of these bindings will likely find their way into `ToolipsServables`**, as well.
+
+These functions are then used with the `ComponentModifier` in the fullstack callbacks we create with `ToolipsSession.on` and `ToolipsSession.bind`.
 ### multi-threading
 There is a major thing to be aware of when using `Toolips` multi-threading alongside `ToolipsSession`... First, a prerequisite; t is recommended to read [toolips' overview on multi-threading](https://github.com/ChifiSource/Toolips.jl#multi-threading) before trying to use multi-threading alongside this package. The main thing to be aware of is that closures will **not** *serialize over threads*. This means that each `Function` provided for a callback must be a defined `Function` inside of a `Module`, not a `Function` provided as an argument -- like in the case of using `do`.
 
