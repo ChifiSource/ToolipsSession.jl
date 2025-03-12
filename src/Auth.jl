@@ -264,7 +264,7 @@ function route!(c::AbstractConnection, e::Auth)
         cl::AbstractClient = e.clients[get_ip(c)]
         cl.lastup = now()
         cl.n_requests += 1
-        if sum((client.n_requests)) > 10000
+        if sum((cl.n_requests)) > 10000
             gc_routine(auth)
         end
         if cl.n_requests > e.max_requests

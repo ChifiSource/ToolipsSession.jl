@@ -510,7 +510,7 @@ export main, session
 end
 ```
 """
-on(name::String, c::AbstractConnection, event::String; 
+on(name::String, event::String; 
     prevent_default::Bool = false) = begin
     name::String = "GLOBAL-" * name
     write!(c, "<script>document.addEventListener('$event', sendpage('$name'));</script>")

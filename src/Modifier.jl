@@ -194,8 +194,7 @@ scroll_by!(cm::AbstractComponentModifier, ...) -> ::Nothing
 Scrolls a document window or `Component` **by** `xy`, a `Tuple` of integers.
 ```julia
 scroll_by!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
-scroll_by!(cm::AbstractComponentModifier, s::String,
-    xy::Tuple{Int64, Int64})
+scroll_by!(cm::AbstractComponentModifier, s::String, xy::Tuple{Int64, Int64})
 ```
 ```example
 
@@ -205,8 +204,7 @@ function scroll_by!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
     push!(cm.changes, """window.scrollBy($(xy[1]), $(xy[2]));""")
 end
 
-function scroll_by!(cm::AbstractComponentModifier, s::String,
-    xy::Tuple{Int64, Int64})
+function scroll_by!(cm::AbstractComponentModifier, s::String, xy::Tuple{Int64, Int64})
     push!(cm.changes,
     """document.getElementById('$s').scrollBy($(xy[1]), $(xy[2]))""")
 end
@@ -234,7 +232,7 @@ function next!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier
 end
 
 function next!(f::Function, cm::AbstractComponentModifier, time::Integer = 1000)
-    mod = ClientModifier()
+    mod::ClientModifier = ClientModifier()
     f(mod)
     push!(cm.changes,
     "new Promise(resolve => setTimeout($(Components.funccl(mod, gen_ref(5))), $time));")
