@@ -44,7 +44,7 @@ the `Function` provided to `route` takes an `AbstractConnection`.
 ```julia
 
 ```
-## provides
+### provides
 ###### session
 - `AbstractEvent`
 - `Event`
@@ -139,46 +139,6 @@ function document_linker(c::AbstractConnection)
     nothing::Nothing
 end
 
-#== WIP websocket server... Not sure if this is to be part of `ToolipsSession`, 
-or another extension -- but for now, this code sits here. Obviously, a lot will need to be done 
-to actually get this working properly.
-abstract type SocketServer <: Toolips.ServerTemplate end
-
-function start!(mod::Module = server_cli(Main.ARGS), from::Type{SocketServer}; ip::IP4 = ip4_cli(Main.ARGS), 
-    router_threads::Int64 = 1, threads::Int64 = 1)
-    IP = Sockets.InetAddr(parse(IPAddr, ip.ip), ip.port)
-    server::Sockets.TCPServer = Sockets.listen(IP)
-    mod.server = server
-    routefunc::Function, pm::ProcessManager = generate_router(mod, router_threads)
-    if router_threads == 1
-        w = pm["$mod router"]
-        serve_router = @async HTTP.listen(routefunc, ip.ip, ip.port, server = server)
-        w.task = serve_router
-        w.active = true
-        return(pm)::ProcessManager
-    end
-end
-
-begin
-    function handler(req)
-        println("someone landed")
-        open("ws://127.0.0.1:8000") do ws_client
-            
-        end
-    end
-    function wshandler(ws_server)
-        println("websockethandled")
-        writeguarded(ws_server, "Hello")
-        readguarded(ws_server)
-    end
-    serverWS = ServerWS(handler, wshandler)
-    servetask = @async with_logger(WebSocketLogger()) do
-        serve(serverWS, port = 8000)
-        "Task ended"
-    end
-end
-==#
-
 """
 ```julia
 abstract type AbstractEvent <: Servable
@@ -187,7 +147,6 @@ An `Event` is a type of registered callback for `ToolipsSession` to call.
     `ToolipsSession` provides the `Event`, `RPCClient`, and `RPCHost`. Events 
     are indexed by their `Event.name`. The `Function` `call!` is used on an 
     event whenever it is determined to be registered to an occurring input action.
----
 - See also: `Session`, `on`, `ToolipsSession`, `bind`, `Toolips`, `Event`, `RPCEvent`
 """
 abstract type AbstractEvent <: Servable end
@@ -214,7 +173,14 @@ usually a small reference code, and this name is called by the client before the
 or `bind` is used to create an event.
 
 ```example
-
+function call!(c::AbstractConnection, event::AbstractEvent, cm::ComponentModifier)
+    if length(methods(event.f)[1].sig.parameters) > 2
+        event.f(c, cm)
+        return(nothing)::Nothing
+    end
+    event.f(cm)
+    nothing::Nothing
+end
 ```
 ```julia
 Event(f::Function, name::String)
@@ -230,7 +196,6 @@ end
 ```julia
 call!(c::AbstractConnection, ...) -> ::Nothing
 ```
----
 `call!` is used call events on a client. `call!` is used for RPC and by the document linker 
 to call event references. The first method is indicitave of the latter:
 ```julia
@@ -255,7 +220,6 @@ abstract type RPCEvent <: AbstractEvent
 An `RPCEvent` is an event that manages RPC changes for multiple clients. The main 
     two types of rpc events are the `RPCClient` and `RPCHost`. These events are 
     created whenever `join_rpc!` or `open_rpc!` is called.
----
 - See also: `Session`, `on`, `AbstractEvent`, `Event`, `RPCHost`, `RPCClient`, `open_rpc!`
 """
 abstract type RPCEvent <: AbstractEvent end
@@ -275,7 +239,6 @@ its RPC session.
 ```julia
 RPCClient(c::AbstractConnection, host::String, ref::String)
 ```
----
 ```example
 
 ```
@@ -302,7 +265,6 @@ track the changes to itself, as well as which clients are meant to be part of it
 ```julia
 RPCHost(ref::String)
 ```
----
 ```example
 
 ```
@@ -437,7 +399,7 @@ function route!(c::AbstractConnection, e::Session)
     end
 end
 
-register!(f::Function, c::AbstractConnection, name::String) = begin
+register!(f::Function, c::AbstractConnection, name::String; ref::Bool = true) = begin
     client_events = c[:Session].events[get_ip(c)]
     found = findfirst(event::AbstractEvent -> event.name == name, client_events)
     if ~(isnothing(found))
@@ -454,12 +416,9 @@ setindex!(m::Session, d::Any, s::AbstractString) = m.events[s] = d
 ```julia
 kill!(c::AbstractConnection) -> ::Nothing
 ```
----
 Deletes a `Connection`'s active session, removing the client from 
 the `iptable` and removing all events associated with the client.
 - See also: `Session`, `clear!`, `on`, `ToolipsSession.bind`
----
-##### example
 ```julia
 module InstantKill
 using Toolips
@@ -484,7 +443,6 @@ end
 ```julia
 clear!(c::AbstractConnection) -> ::Nothing
 ```
----
 Deletes a `Connection`'s active session.
 ```julia
 call!(c::AbstractConnection, event::AbstractEvent, cm::ComponentModifier)
@@ -518,15 +476,18 @@ end
 
 """
 ```julia
-on(name::String, c::AbstractConnection, ...; prevent_default::Bool = false) -> ::Nothing
+on(name::String, ...; prevent_default::Bool = false) -> ::Nothing
 ```
 These `on` bindings are used to bind existing events, registered using `on(::Function, ::Session, ::String)` 
 to components and `Connections`. This makes it possible to create reusable global bindings for each client, for 
-callbacks that have no variation and don't require function variables.
+callbacks that have no variation and don't require function variables. Anytime the `Connection` is provided, 
+this will be a server-side callback.
 ```julia
 on(name::String, c::AbstractConnection, event::String; 
     prevent_default::Bool = false)
-on(name::String, c::AbstractConnection, comp::Component{<:Any}, event::String; 
+on(name::String, comp::Component{<:Any}, event::String; 
+    prevent_default::Bool = false)
+on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, event::String;
     prevent_default::Bool = false)
 ```
 ```julia
@@ -548,13 +509,13 @@ end
 export main, session
 end
 ```
-```
 """
 on(name::String, c::AbstractConnection, event::String; 
     prevent_default::Bool = false) = begin
     name::String = "GLOBAL-" * name
     write!(c, "<script>document.addEventListener('$event', sendpage('$name'));</script>")
 end
+
 
 on(name::String, comp::Component{<:Any}, event::String; 
     prevent_default::Bool = false) = begin
@@ -566,11 +527,7 @@ on(name::String, comp::Component{<:Any}, event::String;
     comp["on$event"] = "$(prevent)sendpage('$name');"
 end
 
-"""
-```julia
-on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, event::String)
-```
-"""
+
 function on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, event::String;
     prevent_default::Bool = false)
     name::String = comp.name
@@ -588,7 +545,6 @@ function on(f::Function, cm::AbstractComponentModifier, comp::Component{<:Any}, 
 end
 
 """
-##### ToolipsSession.on
 ```julia
 on(f::Function, c::AbstractConnection, args ...; prevent_default::Bool = false)
 ```
@@ -621,7 +577,7 @@ end
 """
 function on(f::Function, c::AbstractConnection, event::AbstractString;
     prevent_default::Bool = false)
-    ref::String = Toolips.gen_ref(5)
+    ref::String = Toolips.gen_ref(8)
     ip::String = get_ip(c)
     prevent::String = ""
     if prevent_default
@@ -634,7 +590,7 @@ end
 
 function on(f::Function, c::AbstractConnection, s::AbstractComponent, event::AbstractString;
     prevent_default::Bool = false)
-    ref::String = gen_ref(5)
+    ref::String = gen_ref(8)
     prevent::String = ""
     if prevent_default
         prevent = "event.preventDefault();"
@@ -643,10 +599,35 @@ function on(f::Function, c::AbstractConnection, s::AbstractComponent, event::Abs
     register!(f, c, ref)
 end
 
+on(f::Function, c::AbstractConnection, time::Int64; recurring::Bool = false, 
+    prevent_default::Bool = false) = begin
+    name::String = gen_ref(8)
+    type::String = "Timeout"
+    if recurring
+        type = "Interval"
+    end
+    obsscript::Component{:script} = script(name, text = """
+    set$(type)(function () { sendpage('$name'); }, $time);
+    """)
+    register!(f, c, name)
+    write!(c, obsscript)
+end
+
+on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, time::Int64; recurring::Bool = false, 
+    prevent_default::Bool = false) = begin
+    ref::String = gen_ref(8)
+    type::String = "Timeout"
+    if recurring
+        type = "Interval"
+    end
+    push!(cm.changes, "set$type(function () { sendpage('$ref'); }, $time);;")
+    register!(f, c, ref)
+end
+
 function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, event::AbstractString; 
     prevent_default::Bool = false)
     ip::String = get_ip(c)
-    ref::String = gen_ref(5)
+    ref::String = gen_ref(8)
     prevent::String = ""
     if prevent_default
         prevent = "event.preventDefault();"
@@ -659,7 +640,7 @@ end
 function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
      event::AbstractString; prevent_default::Bool = false)
      name::String = comp.name
-     ref::String = gen_ref(5)
+     ref::String = gen_ref(8)
      prevent::String = ""
      if prevent_default
          prevent = "event.preventDefault();"
@@ -669,14 +650,13 @@ function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, c
      function (event) {$(prevent)sendpage('$ref');});
      }, 1000);""")
      register!(f, c, ref)
+     nothing::Nothing
 end
 
 """
-### ToolipsSession.bind
 ```julia
 bind(f::Function, c::AbstractConnection, args ...; prevent_default::Bool = true) -> ::Nothing
 ```
----
 `ToolipsSession.bind` (`TooipsServables.bind`) is used to add less-traditional controls to `Toolips` 
 web-pages. `ToolipsSession` adds server-side callbacks to this binding interface. The base `bind` methods will take a `Connection`, and 
 will be provided with a normal event function, along with a key to bind it to. 
@@ -739,7 +719,7 @@ function bind(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol
     end
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
-    ref::String = gen_ref(5)
+    ref::String = gen_ref(8)
     write!(c, """<script>
 document.addEventListener('key$on', function(event) {
     if ($eventstr event.key == "$(key)") {
@@ -748,13 +728,14 @@ document.addEventListener('key$on', function(event) {
     });</script>
     """)
     register!(f, c, ref)
+    nothing::Nothing
 end
 
 function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, key::String,
     eventkeys::Symbol ...; on::Symbol = :down, mark::String = "none", prevent_default::Bool = false)
     eventstr::String = join([begin " event.$(event)Key && "
                             end for event in eventkeys])
-    ref = gen_ref(5)
+    ref = gen_ref(8)
     prevent::String = ""
     if prevent_default
         prevent = "event.preventDefault();"
@@ -767,6 +748,7 @@ function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier,
             }
             });}, 1000);""")
     register!(f, c, ref)
+    nothing::Nothing
 end
 
 function bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
@@ -778,7 +760,7 @@ function bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
     end
     eventstr::String = join((begin " event.$(event)Key && "
                             end for event in eventkeys))
-    ref::String = gen_ref(5)
+    ref::String = gen_ref(8)
     write!(c, """<script>
     setTimeout(function () {
     document.getElementById('$(comp.name)').addEventListener('key$on', function(event) {
@@ -788,12 +770,13 @@ function bind(f::Function, c::AbstractConnection, comp::Component{<:Any},
 });}, 1000)</script>
     """)
     register!(f, c, ref)
+    nothing::Nothing
 end
 
 
 function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, comp::Component{<:Any},
     key::String, eventkeys::Symbol ...; on::Symbol = :down, prevent_default::Bool = false)
-    ref::String = gen_ref(5)
+    ref::String = gen_ref(8)
     name::String = comp.name
     prevent::String = ""
     if prevent_default
@@ -808,6 +791,7 @@ document.getElementById('$(name)').onkeydown = function(event){
         }
         }}, 1000);""")
     register!(f, c, ref)
+    nothing::Nothing
 end
 
 """
@@ -817,7 +801,6 @@ abstract type InputMap
 The `InputMap` is used to bind multiple event references into one 
 client-side function. This is necessary for binding multiple keys, for 
 example, as there is only one `keydown` event.
----
 - See also: `ToolipsSession.bind`, `KeyMap`, `SwipeMap`, `Session`, `on`
 """
 abstract type InputMap end
@@ -874,7 +857,7 @@ mutable struct SwipeMap <: InputMap
     SwipeMap() = new(Dict{String, Function}())
 end
 
-function bind(f::Function, c::AbstractConnection, sm::SwipeMap, swipe::String)
+function bind(f::Function, sm::SwipeMap, swipe::String)
     swipes = ("left", "right", "up", "down")
     if ~(swipe in swipes)
         throw(
@@ -884,17 +867,24 @@ function bind(f::Function, c::AbstractConnection, sm::SwipeMap, swipe::String)
 end
 
 """
-##### swipemap bindings
 ```julia
 bind(c::AbstractConnection, sm::SwipeMap)
 bind(f::Function, c::AbstractConnection, sm::SwipeMap, swipe::String)
 ```
-`ToolipsSession.bind` is used to bind new swipes to a `SwipeMap`. A `SwipeMap` is an `InputMap` that processes swipe input. The swipes come in 
+`ToolipsSession.bind` is *also* used to bind new swipes to a `SwipeMap`. A `SwipeMap` is an `InputMap` that processes swipe input. The swipes come in 
 the form of 4-way strings, `left`, `right`, `up`, and `down`. These are bound to a 
 constructed `SwipeMap` with `bind(f::Function, c::AbstractConnection, sm::SwipeMap, swipe::String)` 
 and then binded to the `Connection` with `bind(c::AbstractConnection, sm::SwipeMap)`
 ```julia
-
+home = route("/") do c::Connection
+    main_body = body("main")
+    sm = ToolipsSession.SwipeMap
+    bind(sm, "left") do cm::ComponentModifier
+        style!(cm, main_body, "background-color" => "green")
+    end
+    # bind to connection
+    bind(c, sm)
+end
 ```
 """
 function bind(c::AbstractConnection, sm::SwipeMap)
@@ -902,7 +892,7 @@ function bind(c::AbstractConnection, sm::SwipeMap)
     swipes = ("left", "right", "up", "down")
     newswipes = Dict([begin
         if swipe in keys(sm.bindings)
-            ref::String = ToolipsSession.gen_ref(5)
+            ref::String = ToolipsSession.gen_ref(8)
             register!(sm.bindings[swipe], c, ref)
             swipe => "sendpage('$ref');"
         else
@@ -962,15 +952,6 @@ function handleTouchMove(evt) {
 end
 
 """
-```julia
-mutable struct KeyMap <: InputMap
-```
-- keys**::Dict{String, Pair{Tuple, Function}}**
-- prevents**::Vector{String}**
-
-
-
-- See also: 
 ```julia
 KeyMap() <: ToolipsSession.InputMap
 ```
@@ -1056,7 +1037,6 @@ function bind(f::Function, km::KeyMap, vs::Vector{String}; prevent_default::Bool
 end
 
 """
-##### KeyMap bindings
 ```julia
 # binding to keymap
 bind(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)
@@ -1073,7 +1053,17 @@ The `KeyMap` is bound by providing it to `ToolipsSession.bind` in place of the `
 and then binding it to the `Connection` all at once with one `Connection`/`ComponentModifier` 
 bindings.
 ```julia
-
+route("/") do c::AbstractConnection
+    km = ToolipsSession.KeyMap()
+    bind(km, "A") do cm::ComponentModifier
+        alert!(cm, "pressed A")
+    end
+    bind(km, "D") do cm::ComponentModifier
+        alert!(cm, "pressed D")
+    end
+    action_box = Components.textdiv("mybox")
+    bind(c, action_box, km, on = :down)
+end
 ```
 """
 function bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
@@ -1091,7 +1081,7 @@ function bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_def
         if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
             default = "event.preventDefault();"
         end
-        ref::String = gen_ref(5)
+        ref::String = gen_ref(8)
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
                 sendpage('$(ref)');
@@ -1118,7 +1108,7 @@ function bind(c::AbstractConnection, comp::Component{<:Any}, km::KeyMap; on::Sym
         if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
             default = "event.preventDefault();"
         end
-        ref::String = gen_ref(5)
+        ref::String = gen_ref(8)
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
                 sendpage('$(ref)');
@@ -1145,7 +1135,7 @@ function bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symb
         if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
             default = "event.preventDefault();"
         end
-        ref::String = gen_ref(5)
+        ref::String = gen_ref(8)
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
                 sendpage('$(ref)');
@@ -1172,7 +1162,7 @@ function bind(c::AbstractConnection, cm::ComponentModifier, comp::Component{<:An
         if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
             default = "event.preventDefault();"
         end
-        ref::String = gen_ref(5)
+        ref::String = gen_ref(8)
         eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
         first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
                 sendpage('$(ref)');
@@ -1195,28 +1185,31 @@ without a triggering event. The `time` is the number of ms between each call, or
 call. `type` is the type of event that should be ran -- `Interval` is the default, and this will 
 create a recurring event call. 
 ```julia
-script!(f::Function, c::AbstractConnection, name::String = gen_ref(5); time::Integer = 500, 
+script!(f::Function, c::AbstractConnection, name::String = gen_ref(8); time::Integer = 500, 
 type::String = "Interval")
 
 script!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier; time::Integer = 1000, type::String = "Timeout")
 ```
----
 ```example
 
 ```
 """
-function script!(f::Function, c::AbstractConnection, name::String = gen_ref(5); time::Integer = 500,
+function script!(f::Function, c::AbstractConnection, name::String = gen_ref(8); time::Integer = 500,
     type::String = "Interval")
     obsscript::Component{:script} = script(name, text = """
     set$(type)(function () { sendpage('$name'); }, $time);
    """)
    register!(f, c, name)
+   @warn "Deprecation warning: In `ToolipsSession` 0.5, `script! will be deprecated in favor of using `on`."
+   @info "e.g. on(f::Function, c::AbstractConnection, time::Int64; recurring::Bool = false)"
    write!(c, obsscript)
 end
 
 function script!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier; time::Integer = 1000, type::String = "Timeout")
-   ref = gen_ref(5)
+   ref = gen_ref(8)
    push!(cm.changes, "set$type(function () { sendpage('$ref'); }, $time);")
+   @warn "Deprecation warning: In `ToolipsSession` 0.5, `script! will be deprecated in favor of using `on`."
+   @info "e.g. on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, time::Int64; recurring::Bool = false)"
    register!(f, c, ref)
 end
 
@@ -1236,22 +1229,34 @@ is made for each peer.
 open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
 open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64 = 500)
 ```
----
 ```example
 
 ```
 """
 function open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
-    ref::String = gen_ref(5)
+    client_events = c[:Session].events[get_ip(c)]
+    found = findfirst(e::AbstractEvent -> typeof(e) <: RPCEvent, client_events)
+    if ~(isnothing(found))
+        ref = client_events[found].ref
+        write!(c,  script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
+        return
+    end
+    ref::String = gen_ref(8)
     event::RPCHost = RPCHost(ref)
-    write!(c, 
-    script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
+    write!(c,  script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
     push!(c[:Session].events[get_ip(c)], event)
     nothing::Nothing
 end
 
 function open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64 = 500)
-    ref::String = gen_ref(5)
+    client_events = c[:Session].events[get_ip(c)]
+    found = findfirst(e::AbstractEvent -> typeof(e) <: RPCEvent, client_events)
+    if ~(isnothing(found))
+        ref = client_events[found].ref
+        push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
+        return
+    end
+    ref::String = gen_ref(8)
     event::RPCHost = RPCHost(ref)
     push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
     push!(c[:Session].events[get_ip(c)], event)
@@ -1265,7 +1270,6 @@ reconnect_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
 Used to reconnect an incoming client who disconnects to an existing RPC session. This 
 just respawns the event that calls the Remote Procedure Calls accumulated by the peers. For 
 example, this function would be called when a peer refreshes the page in an active RPC session.
----
 ```example
 
 ```
@@ -1330,13 +1334,19 @@ be done in both a response and a callback using the appropriate functions.
 join_rpc!(c::AbstractConnection, host::String; tickrate::Int64 = 500)
 join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
 ```
----
 ```example
 
 ```
 """
 function join_rpc!(c::AbstractConnection, host::String; tickrate::Int64 = 500)
-    ref::String = gen_ref(5)
+    client_events = c[:Session].events[get_ip(c)]
+    found = findfirst(e::AbstractEvent -> typeof(e) <: RPCEvent, client_events)
+    if ~(isnothing(found))
+        ref = client_events[found].ref
+        write!(c,  script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
+        return
+    end
+    ref::String = gen_ref(8)
     event::RPCClient = RPCClient(c, host, ref)
     write!(c, 
     script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
@@ -1346,7 +1356,14 @@ function join_rpc!(c::AbstractConnection, host::String; tickrate::Int64 = 500)
 end
 
 function join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
-    ref::String = gen_ref(5)
+    client_events = c[:Session].events[get_ip(c)]
+    found = findfirst(e::AbstractEvent -> typeof(e) <: RPCEvent, client_events)
+    if ~(isnothing(found))
+        ref = client_events[found].ref
+        push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
+        return
+    end
+    ref::String = gen_ref(8)
     event::RPCClient = RPCClient(c, host, ref)
     push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
     push!(c[:Session].events[get_ip(c)], event)

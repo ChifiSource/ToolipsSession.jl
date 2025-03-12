@@ -21,7 +21,7 @@ home_init = route("/") do c::AbstractConnection
     @testset "unauthenticated response" verbose = true begin
         try
             on("event", c, "click")
-            on("event", c, testcomp, "click")
+            on("event", testcomp, "click")
             onran = true
         catch e
             throw(e)

@@ -12,16 +12,16 @@
 - [get started](#get-started)
   - [session](#session)
     - [creating callbacks](#creating-callbacks)
-- [authentication](#authentication)
-  - [clients](#clients)
-  - [authenticating callbacks](#authenticating-callbacks)
-- [modifier functions](#modifier-functions)
+    - [modifier functions](#modifier-functions)
+  - [other features](#more-features)
+  - [contributing](#contributing)
+    - [guidelines](#guidelines)
+  - [changes overview](#changes-overview)
+  
 - [**read before** multi-threading](#multi-threading)
-- [input](#input)
-  - [bind](#bind)
-  - [input maps](#input-maps)
-- [rpc](#rpc)
+
 - [changes overview](#changes-overview)
+---
 ### get started
 To get started with `ToolipsSession`, we will need a [Toolips](https://github.com/ChifiSource/Toolips.jl) project. Either generate a new `Toolips` app with `new_app`, or create a new `Module` in the REPL:
 ```julia
@@ -134,16 +134,36 @@ Callbacks can also be registered by using [ToolipsSession.bind](#bind) to bind k
 ### modifier functions
 ### multi-threading
 There is a major thing to be aware of when using `Toolips` multi-threading alongside `ToolipsSession`... First, a prerequisite; t is recommended to read [toolips' overview on multi-threading](https://github.com/ChifiSource/Toolips.jl#multi-threading) before trying to use multi-threading alongside this package. The main thing to be aware of is that closures will **not** *serialize over threads*. This means that each `Function` provided for a callback must be a defined `Function` inside of a `Module`, not a `Function` provided as an argument -- like in the case of using `do`.
-### input
 
-##### bind
-##### keymap
-##### swipe input
-### rpc
-### auth
+- **we have plans** to *significantly* overhaul `ToolipsSession` multi-threading in `0.4.3`, so multi-threading with this package will soon be even more straightforward than with `Toolips`.
+### more features
+## contributing
+Thank you for helping to develop `ToolipsSession` and/or the rest of the ecosystem! You can contribute to the project in the following ways:
+- simply using toolips and toolips session
+- sharing toolips with your friends
+- starring `Toolips` and/or `ToolipsSession` ⭐
+- forking olive [contributing guidelines](#guidelines)
+- submitting issues [issue guidelines](#guidelines)
+- participating in the community 🔴🟢🟣
 
+I thank you for all of your help with our project, or just for considering contributing! I want to stress further that we are not picky -- allowing us all to express ourselves in different ways is part of the key methodology behind the entire [chifi](https://github.com/ChifiSource) ecosystem. Feel free to contribute, we would **love** to see your art! Issues marked with `good first issue` might be a great place to start!
+#### guidelines
+When submitting issues or pull-requests for chifi projects, it is important to make sure of a few things. We are not super strict, but making sure of these few things will be helpful for maintainers!
+1. You have replicated the issue you are solving or reporting on `ToolipsSession#Unstable` (it may already be fixed)
+2. The issue does not currently exist... or does not have a planned implementation different to your own. In these cases, please collaborate on the issue, express your idea and we will select the best choice.
+3. **Pull Request TO UNSTABLE**
+4. This is an issue with `ToolipsSession`, not a dependency; issues for `Toolips` should be reported to `Toolips`, not `ToolipsSession`. If there is an issue in `Toolips` that needs to be solved, solve it in `Toolips` instead of going around it in `ToolipsSession`.
+5. Be **specific** about your issue -- if you are experiencing multiple issues, open multiple issues. It is better to have a high quantity of issues that specifically describe things than a low quantity of issues that describe multiple things.
+6. If you have a new issue, **open a new issue**. It is not best to comment your new issue under an unrelated issue; even a case where you are experiencing that issue, if you want to mention **another issue**, open a **new issue**.
 ## changes overview
-:)
+###### 0.4.2
+- More updates to RPC functionality, fixed reconnect on reload for response-based open/join
+- changed reference length
+- measured improvements to the included `Auth` extension.
+- replaced `script!` with `on` in accordance to the new `ToolipsServables` version. `script!` is still available but will be deprecated in `ToolipsSession` `0.5`, which is liable to release sometime after the rapidly approaching release of `Olive` `0.1` *beta*.
+- `on` calls now return event references.
+- changed to `ToiletServables` ( ;) )`1.81` singular `htmlcomponent` indexing for linker
+- Binded to `Toolips `3.8` and `ToolipsServables` `2.0`
 ###### 0.4.1
 The first `0.4` patch incoming... Changes are very slight
 - updated permanent event `on` binding for `Components`

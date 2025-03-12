@@ -35,7 +35,6 @@ incoming `Connection`, and will be passed in the `Client` field of our `Authenti
 ```julia
 Client(key::String, ip::String, n_requests::Int64, data::Dict{String, Any}, lastup::Dates.DateTime)
 ```
----
 ```example
 
 ```
@@ -71,11 +70,10 @@ the current client, as well as indexable data for individual clients. Typically,
 authentication process will start by serving on a route with a `Connection`/`AbstractConnection`/`IOConnection` 
 and using `authenticate!` to reload and serve a client through the `AuthenticatedConnection`.
 - `authorize!(c::AbstractConnection)`
-- See also: 
+- See also: `Client`, `Auth`, `auth_redirect!`
 ```julia
 AuthenticatedConnection{T}(c::AbstractConnection) where {T <: AbstractClient}
 ```
----
 ```example
 
 ```
@@ -266,7 +264,7 @@ function route!(c::AbstractConnection, e::Auth)
         cl::AbstractClient = e.clients[get_ip(c)]
         cl.lastup = now()
         cl.n_requests += 1
-        if sum((client.n_requests)) > 10000
+        if sum((cl.n_requests)) > 10000
             gc_routine(auth)
         end
         if cl.n_requests > e.max_requests
@@ -286,7 +284,6 @@ Redirects an incoming `Connection` with an authentication key inside of the argu
 auth_redirect!(c::AbstractConnection, to::String = get_host(c))
 auth_redirect!(c::Abstractonnection cm::AbstractComponentModifier, to::String = get_host(c))
 ```
----
 ```example
 
 ```
@@ -312,7 +309,6 @@ auth_pass!(c::AbstractConnection, url::String) -> ::Nothing
 ```
 Performs an authenticated pass-through to the `url` on the `Connection`. Sends to `url` 
 with an authentication key for this server. (This type of concept is useful is servers share the same `Auth.clients` or `Auth` extension.)
----
 ```example
 
 ```
@@ -331,7 +327,6 @@ authorize!(c::AbstractConnection, data::Pair{String, <:Any} ...)
 ```
 Authorizes a client, making their next load of the page be to the `AuthenticatedConnection`. 
 `data` can optionally be provided to initialize the client with data.
----
 ```example
 
 ```

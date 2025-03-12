@@ -14,7 +14,6 @@ if elements are on the page by using `in` with a conditional.
 ```julia
 ComponentModifier(html::String)
 ```
----
 A `ComponentModifier` is typically going to be used in a callback binding 
 created with `on` or `ToolipsSession.bind`.
 ```example
@@ -32,19 +31,13 @@ end
 
 string(cm::ComponentModifier) = join(cm.changes)::String
 
-getindex(cc::ComponentModifier, s::AbstractComponent) = htmlcomponent(cc.rootc, [s.name])[1]
+getindex(cc::ComponentModifier, s::AbstractComponent) = htmlcomponent(cc.rootc, s.name)::Component{<:Any}
 
-getindex(cc::ComponentModifier, s::String) = begin
-    comps = htmlcomponent(cc.rootc, [s])
-    if length(comps) == 0
-        throw("$s was not found inside of your callback. Is it written to the client's page?")
-    end
-    comps[1]
-end
+getindex(cc::ComponentModifier, s::String) = htmlcomponent(cc.rootc, s)::Component{<:Any}
 
-getindex(cc::ComponentModifier, s::AbstractComponent ...) = htmlcomponent(cc.rootc, [comp.name for comp in s])[1]
+getindex(cc::ComponentModifier, s::AbstractComponent ...) = htmlcomponent(cc.rootc, [comp.name for comp in s])
 
-getindex(cc::ComponentModifier, s::String ...) = htmlcomponent(cc.rootc, [s ...])[1]
+getindex(cc::ComponentModifier, s::String ...) = htmlcomponent(cc.rootc, [s ...])
 
 in(s::String, cm::ComponentModifier) = contains(cm.rootc, s)::Bool
 
@@ -60,7 +53,6 @@ unselected::Vector{Pair{String, String}} = ["background-color" => "blue",
 A unique `Component` provided by `ToolipsSession` for building a selection system with multiple 
 buttons. Will style unselected buttons with `unselected`, and as the user changes the button the styles 
 will change along with the `value` property.
----
 ```example
 
 ```
@@ -90,7 +82,6 @@ set_selection!(cm::ComponentModifier, comp::Any, r::UnitRange{Int64}) -> ::Nothi
 ```
 Sets the focus selection range inside of the element `comp` (provided as the 
 component's `name` (`String`), or the `Component` itself.)
----
 ```example
 
 ```
@@ -107,7 +98,6 @@ end
 pauseanim!(cm::AbstractComponentModifier, name::Any) -> ::Nothing
 ```
 Pauses the animation on the `Component` or `Component` `name`.
----
 ```example
 
 ```
@@ -125,7 +115,6 @@ end
 playanim!(cm::AbstractComponentModifier, name::Any) -> ::Nothing
 ```
 Pauses the animation on the `Component` or `Component` `name`.
----
 ```example
 
 ```
@@ -144,7 +133,6 @@ free_redirects!(cm::AbstractComponentModifier) -> ::Nothing
 ```
 Frees a `confirm_redirects!` " Page may have unsaved changes" call. After calling 
 `confirm_redirects!`, call this to remove that confirmation.
----
 ```example
 
 ```
@@ -159,7 +147,6 @@ confrim_redirects!(cm::AbstractComponentModifier) -> ::Nothing
 ```
 Requires a user to confirm a redirects, providing a " Page may have unsaved changes" 
 alert when the client tries to leave the page. This can be undone with `free_redirects!`
----
 ```example
 
 ```
@@ -175,7 +162,6 @@ end
 scroll_to!(cm::AbstractComponentModifier, ...) -> ::Nothing
 ```
 Scrolls a document window or `Component` **to** `xy`, a `Tuple` of integers.
----
 ```example
 scroll_to!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
 scroll_to!(cm::AbstractComponentModifier, s::String,
@@ -198,7 +184,7 @@ function scroll_to!(cm::AbstractComponentModifier, component::Any; align_top::Bo
     if typeof(component) <: Toolips.AbstractComponent
         component = component.name
     end
-    push!(cm.changes, """document.getElementById('$component').scrollIntoView({ behavior: "smooth", });""")
+    push!(cm.changes, """document.getElementById('$component').scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest"});""")
 end
 
 """
@@ -208,10 +194,8 @@ scroll_by!(cm::AbstractComponentModifier, ...) -> ::Nothing
 Scrolls a document window or `Component` **by** `xy`, a `Tuple` of integers.
 ```julia
 scroll_by!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
-scroll_by!(cm::AbstractComponentModifier, s::String,
-    xy::Tuple{Int64, Int64})
+scroll_by!(cm::AbstractComponentModifier, s::String, xy::Tuple{Int64, Int64})
 ```
----
 ```example
 
 ```
@@ -220,8 +204,7 @@ function scroll_by!(cm::AbstractComponentModifier, xy::Tuple{Int64, Int64})
     push!(cm.changes, """window.scrollBy($(xy[1]), $(xy[2]));""")
 end
 
-function scroll_by!(cm::AbstractComponentModifier, s::String,
-    xy::Tuple{Int64, Int64})
+function scroll_by!(cm::AbstractComponentModifier, s::String, xy::Tuple{Int64, Int64})
     push!(cm.changes,
     """document.getElementById('$s').scrollBy($(xy[1]), $(xy[2]))""")
 end
@@ -237,7 +220,6 @@ in `ms` with `next!(::Function, ::AbstractComponentModifier, ::Integer)` or on t
 next!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, s::Any)
 next!(f::Function, cm::AbstractComponentModifier, time::Integer = 1000)
 ```
----
 ```example
 
 ```
@@ -250,7 +232,7 @@ function next!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier
 end
 
 function next!(f::Function, cm::AbstractComponentModifier, time::Integer = 1000)
-    mod = ClientModifier()
+    mod::ClientModifier = ClientModifier()
     f(mod)
     push!(cm.changes,
     "new Promise(resolve => setTimeout($(Components.funccl(mod, gen_ref(5))), $time));")
