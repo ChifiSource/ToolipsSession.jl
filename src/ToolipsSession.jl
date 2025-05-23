@@ -325,54 +325,48 @@ Provided functions are able to take either a `ComponentModifier`, or a `Connecti
 Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 5)
 ```
 """
-mutable struct Session <: Toolips.AbstractExtension
+mutable struct Session{THREAD <: Any} <: Toolips.AbstractExtension
     active_routes::Vector{String}
     events::Dict{String, Vector{AbstractEvent}}
     invert_active::Bool
     iptable::Dict{String, Dates.DateTime}
     gc::Int64
     timeout::Int64
-    function Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 30, invert_active::Bool = false)
+    function Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 10, invert_active::Bool = false, threaded::Bool = false)
         events = Dict{String, Vector{AbstractEvent}}("GLOBAL" => Vector{AbstractEvent}()) 
         iptable = Dict{String, Dates.DateTime}()
-        new(active_routes, events, invert_active, iptable, 0, timeout)::Session
+        new{threaded}(active_routes, events, invert_active, iptable, 0, timeout)::Session{threaded}
     end
 end
 
-on_start(ext::Session, data::Dict{Symbol, Any}, routes::Vector{<:AbstractRoute}) = begin
+on_start(ext::Session{<:Any}, data::Dict{Symbol, Any}, routes::Vector{<:AbstractRoute}) = begin
     if ~(:Session in keys(data))
         push!(data, :Session => ext)
     end
 end
 
-function route!(c::AbstractConnection, e::Session)
-    if ~ e.invert_active && get_route(c) in e.active_routes || e.invert_active && ~(get_route(c) in e.active_routes)
-        e.gc += 1
-        if e.gc == 1000
-            e.gc = 0
-            [begin
-                time = active_client[2]
-                current_time = now()
-                if hour(current_time) != hour(time)
-                    if ~(minute(current_time) < e.timeout)
-                        delete!(e.events, active_client[1])
-                        delete!(e.iptable, active_client[1])
-                    end
-                elseif minute(current_time) - minute(time) > e.timeout
-                    delete!(e.events, active_client[1])
-                    delete!(e.iptable, active_client[1])
-                end
-                nothing
-            end for active_client in e.iptable]::Vector
-        end
-        if get_method(c) == "POST"
-            document_linker(c)
-            return(false)::Bool
-        elseif ~(get_ip(c) in keys(e.iptable))
-            push!(e.events, get_ip(c) => Vector{AbstractEvent}())
-        end
-        e.iptable[get_ip(c)] = now()
-        write!(c, """<script>
+function session_gc!(e::Session{<:Any})
+    e.gc = 0
+    [begin
+        time = active_client[2]
+        current_time = now()
+        if hour(current_time) != hour(time)
+            if ~(minute(current_time) < e.timeout)
+                delete!(e.events, active_client[1])
+                delete!(e.iptable, active_client[1])
+            end
+            elseif minute(current_time) - minute(time) > e.timeout
+                delete!(e.events, active_client[1])
+                delete!(e.iptable, active_client[1])
+            end
+            nothing
+        end for active_client in e.iptable]::Vector
+    nothing::Nothing
+end
+
+function write_doclinker!(c::AbstractConnection, e::Session{<:Any})
+    e.iptable[get_ip(c)] = now()
+    write!(c, """<script>
         const parser = new DOMParser();
         function sendpage(ref) {
         var bodyHtml = document.getElementsByTagName('body')[0].innerHTML;
@@ -396,7 +390,26 @@ function route!(c::AbstractConnection, e::Session)
         }
         </style>
         """)
+end
+
+function route!(c::AbstractConnection, e::Session{<:Any})
+    if ~ e.invert_active && get_route(c) in e.active_routes || e.invert_active && ~(get_route(c) in e.active_routes)
+        e.gc += 1
+        if e.gc == 500
+            session_gc!(e)
+        end
+        if get_method(c) == "POST"
+            document_linker(c)
+            return(false)::Bool
+        elseif ~(get_ip(c) in keys(e.iptable))
+            push!(e.events, get_ip(c) => Vector{AbstractEvent}())
+        end
+        write_doclinker!(c, e)
     end
+end
+
+function route!(c::AbstractConnection, e::Session{true})
+    @info "routing multithread session router"
 end
 
 register!(f::Function, c::AbstractConnection, name::String; ref::Bool = true) = begin
@@ -1184,14 +1197,19 @@ Spawns a `Component{:script}` on the client, which makes callbacks to the server
 without a triggering event. The `time` is the number of ms between each call, or the first 
 call. `type` is the type of event that should be ran -- `Interval` is the default, and this will 
 create a recurring event call. 
+
+
+- **SCRIPT! IS NOW DEPRECATED, USE ON INSTEAD.
+- The method list below includes `on` equivalents. This will be removed in `Session` `0.5`.
 ```julia
 script!(f::Function, c::AbstractConnection, name::String = gen_ref(8); time::Integer = 500, 
 type::String = "Interval")
+# use this instead:
+on(f::Function, c::AbstractConnection, time::Int64; recurring::Bool = false)
 
 script!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier; time::Integer = 1000, type::String = "Timeout")
-```
-```example
-
+# use this instead:
+on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, time::Int64; recurring::Bool = false)
 ```
 """
 function script!(f::Function, c::AbstractConnection, name::String = gen_ref(8); time::Integer = 500,
