@@ -1,5 +1,6 @@
 <div align = "center"><img src = "https://github.com/ChifiSource/image_dump/blob/main/toolips/toolipssession.png" href = "https://toolips.app"></img>
 
+[documenatio](https://chifidocs.com/toolips/ToolipsSession)  
 [![deps](https://juliahub.com/docs/General/ToolipsSession/stable/deps.svg)](https://juliahub.com/ui/Packages/General/ToolipsSession?t=2)
 [![version](https://juliahub.com/docs/General/ToolipsSession/stable/version.svg)](https://juliahub.com/ui/Packages/General/ToolipsSession)
 [![pkgeval](https://juliahub.com/docs/General/ToolipsSession/stable/pkgeval.svg)](https://juliahub.com/ui/Packages/General/ToolipsSession)
@@ -10,6 +11,7 @@
 `ToolipsSession` provides `Toolips` with the `Session` extension, which registers fullstack callbacks on a client-to-client basis. Alongside this, the module provides InputMaps (swipe and keyboard input), `rpc!` callbacks, Authentication via the `Auth` extension, and `next!` animation callbacks.
 ##### map
 - [get started](#get-started)
+  - [documentation](#documentation)
   - [session](#session)
     - [creating callbacks](#creating-callbacks)
     - [modifier functions](#modifier-functions)
@@ -45,6 +47,26 @@ end
 export home, start!
 end
 ```
+###### documentation
+- **REPL Documentation**: use `?(Toolips)` for a full list of exports.
+- **Documentation Routes**: `Toolips.make_docroute` allows us to quickly make a docstring browser for **any** Julia Module. this includes `Toolips` and `ToolipsServables`. Simply add two new routes to a server and export them.
+```julia
+module DocServer
+using ToolipsSession.Toolips
+using ToolipsSession
+
+base_docs = Toolips.make_docroute(Base)
+toolips_docs = Toolips.make_docroute(Toolips)
+components_docs = Toolips.make_docroute(Toolips.Components)
+session_docs = Toolips.make_docroute(ToolipsSession)
+
+export base_docs, toolips_docs, components_docs, session_docs, start!
+end
+
+using Main.DocServer; start!(Main.DocServer)
+```
+The documentation will then be available at `/docs/(modname)` -- e.g. `/docs/toolipsservables` `/docs/toolips`.
+- **Chifi Docs**: [toolips sesssion](https://chifidocs.com/toolips/ToolipsSession) [ecosystem](https://chifidocs.com/toolips) [source](https://github.com/ChifiSource/ChifiDocs.jl)
 ##### session
 `Session` a `Toolips` server extension (`<:Toolips.AbstractExtension`) which manages clients and their fullstack callbacks. In order to load a server extension into our server, we need to construct and export it.
 ```julia
