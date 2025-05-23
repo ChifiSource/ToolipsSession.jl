@@ -137,7 +137,6 @@ function document_linker(c::AbstractConnection)
 end
 
 get_ref(s::String) = begin
-    @info "ran get ref job"
     reftag::UnitRange{Int64} = findfirst("â•ƒCM", s)
     reftagend::UnitRange{Int64} = findnext("â•ƒ", s, maximum(reftag))
     ref_r::UnitRange{Int64} = maximum(reftag) + 1:minimum(reftagend) - 1
@@ -151,7 +150,6 @@ function document_linker(c::AbstractConnection, threaded::Bool)
     procs = c[:procs]
     put!(procs, Toolips.worker_pids(procs, Toolips.ParametricProcesses.Threaded), ToolipsSession)
     assigned_worker = Toolips.assign_open!(procs, get_ref_job)
-    @info assigned_worker
     ref = waitfor(procs, assigned_worker ...)[1]
     s = replace(s, "â•ƒCM" => "", "â•ƒ" => "")
     cm = ComponentModifier(s)
@@ -243,7 +241,6 @@ function call!(c::AbstractConnection, event::AbstractEvent, cm::ComponentModifie
 end
 
 function call!(event::AbstractEvent, cm::ComponentModifier)
-    @warn "calling"
     event.f(cm)
     cm::ComponentModifier
 end
@@ -376,6 +373,12 @@ mutable struct Session{THREAD <: Any} <: Toolips.AbstractExtension
 end
 
 on_start(ext::Session{<:Any}, data::Dict{Symbol, Any}, routes::Vector{<:AbstractRoute}) = begin
+    if ~(:Session in keys(data))
+        push!(data, :Session => ext)
+    end
+end
+
+on_start(ext::Session{true}, data::Dict{Symbol, Any}, routes::Vector{<:AbstractRoute}) = begin
     if ~(:Session in keys(data))
         push!(data, :Session => ext)
     end
@@ -1552,7 +1555,7 @@ function call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
     call!(c[:Session], find_host(c), cm, get_ip(c), peerip)
 end
 
-export Session, on, script!, ComponentModifier, authorize!, auth_redirect!, auth_pass!
+export Session, on, script!, ComponentModifier, authorize!, auth_redirect!, auth_pass!, call!, get_ref
 export set_selection!, pauseanim!, playanim!, free_redirects!, confirm_redirects!, scroll_to!, scroll_by!, next!
 export rpc!, call!, disconnect_rpc!, find_client, join_rpc!, close_rpc!, open_rpc!, reconnect_rpc!
 end # module
