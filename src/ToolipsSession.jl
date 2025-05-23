@@ -124,10 +124,7 @@ that might help you out:
 function document_linker(c::AbstractConnection)
     s::String = get_post(c)
     ip::String = get_ip(c)
-    reftag::UnitRange{Int64} = findfirst("â•ƒCM", s)
-    reftagend = findnext("â•ƒ", s, maximum(reftag))
-    ref_r::UnitRange{Int64} = maximum(reftag) + 1:minimum(reftagend) - 1
-    ref::String = s[ref_r]
+    ref::String = get_ref(s)
     s = replace(s, "â•ƒCM" => "", "â•ƒ" => "")
     cm = ComponentModifier(s)
     if contains(ref, "GLOBAL")
@@ -137,6 +134,38 @@ function document_linker(c::AbstractConnection)
     write!(c, " ", cm)
     cm = nothing
     nothing::Nothing
+end
+
+get_ref(s::String) = begin
+    @info "ran get ref job"
+    reftag::UnitRange{Int64} = findfirst("â•ƒCM", s)
+    reftagend::UnitRange{Int64} = findnext("â•ƒ", s, maximum(reftag))
+    ref_r::UnitRange{Int64} = maximum(reftag) + 1:minimum(reftagend) - 1
+    s[ref_r]::String
+end
+
+function document_linker(c::AbstractConnection, threaded::Bool)
+    s::String = get_post(c)
+    ip::String = get_ip(c)
+    get_ref_job = Toolips.new_job(get_ref, s)
+    procs = c[:procs]
+    put!(procs, Toolips.worker_pids(procs, Toolips.ParametricProcesses.Threaded), ToolipsSession)
+    assigned_worker = Toolips.assign_open!(procs, get_ref_job)
+    @info assigned_worker
+    ref = waitfor(procs, assigned_worker ...)[1]
+    s = replace(s, "â•ƒCM" => "", "â•ƒ" => "")
+    cm = ComponentModifier(s)
+    if contains(ref, "GLOBAL")
+        ip = "GLOBAL"
+    end
+    @sync begin
+        call_job = new_job(call!, c[:Session].events[ip][ref], cm)
+        assigned_worker = assign_open!(procs, call_job)
+        ret = waitfor(procs, assigned_worker ...)
+        write!(c, " ", ret[1])
+        cm = nothing
+        nothing::Nothing
+    end
 end
 
 """
@@ -210,8 +239,15 @@ function call!(c::AbstractConnection, event::AbstractEvent, cm::ComponentModifie
         return(nothing)::Nothing
     end
     event.f(cm)
-    nothing::Nothing
+    cm::ComponentModifier
 end
+
+function call!(event::AbstractEvent, cm::ComponentModifier)
+    @warn "calling"
+    event.f(cm)
+    cm::ComponentModifier
+end
+
 
 """
 ```julia
@@ -343,6 +379,10 @@ on_start(ext::Session{<:Any}, data::Dict{Symbol, Any}, routes::Vector{<:Abstract
     if ~(:Session in keys(data))
         push!(data, :Session => ext)
     end
+    Main.eval(Meta.parse("""using Toolips: @everywhere; @everywhere begin
+            using ToolipsSession
+            using Dates
+        end"""))
 end
 
 function session_gc!(e::Session{<:Any})
@@ -409,7 +449,19 @@ function route!(c::AbstractConnection, e::Session{<:Any})
 end
 
 function route!(c::AbstractConnection, e::Session{true})
-    @info "routing multithread session router"
+    if ~ e.invert_active && get_route(c) in e.active_routes || e.invert_active && ~(get_route(c) in e.active_routes)
+        e.gc += 1
+        if e.gc == 500
+            session_gc!(e)
+        end
+        if get_method(c) == "POST"
+            document_linker(c, true)
+            return(false)::Bool
+        elseif ~(get_ip(c) in keys(e.iptable))
+            push!(e.events, get_ip(c) => Vector{AbstractEvent}())
+        end
+        write_doclinker!(c, e)
+    end
 end
 
 register!(f::Function, c::AbstractConnection, name::String; ref::Bool = true) = begin
