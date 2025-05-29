@@ -148,22 +148,19 @@ function document_linker(c::AbstractConnection, threaded::Bool)
     ip::String = get_ip(c)
     get_ref_job = Toolips.new_job(get_ref, s)
     procs = c[:procs]
-    put!(procs, Toolips.worker_pids(procs, Toolips.ParametricProcesses.Threaded), ToolipsSession)
-    assigned_worker = Toolips.assign_open!(procs, get_ref_job)
+    assigned_worker = Toolips.assign_open!(procs, get_ref_job, not = Toolips.ParametricProcesses.Async, sync = true)
     ref = waitfor(procs, assigned_worker ...)[1]
     s = replace(s, "â•ƒCM" => "", "â•ƒ" => "")
     cm = ComponentModifier(s)
     if contains(ref, "GLOBAL")
         ip = "GLOBAL"
     end
-    @sync begin
-        call_job = new_job(call!, c[:Session].events[ip][ref], cm)
-        assigned_worker = assign_open!(procs, call_job)
-        ret = waitfor(procs, assigned_worker ...)
-        write!(c, " ", ret[1])
-        cm = nothing
-        nothing::Nothing
-    end
+    call_job = new_job(call!, c[:Session].events[ip][ref], cm)
+    assigned_worker = assign_open!(procs, call_job, sync = true)
+    ret = waitfor(procs, assigned_worker ...)
+    write!(c, " ", ret[1])
+    cm = nothing
+    nothing::Nothing
 end
 
 """
@@ -386,6 +383,8 @@ on_start(ext::Session{true}, data::Dict{Symbol, Any}, routes::Vector{<:AbstractR
             using ToolipsSession
             using Dates
         end"""))
+    @info "put into procs"
+    put!(data[:procs], Toolips.worker_pids(data[:procs], Toolips.ParametricProcesses.Threaded), ToolipsSession)
 end
 
 function session_gc!(e::Session{<:Any})
@@ -1104,6 +1103,28 @@ function bind(f::Function, km::KeyMap, vs::Vector{String}; prevent_default::Bool
     km.keys[key] = event => f
 end
 
+
+function build_inner_str!(c::AbstractConnection, km::KeyMap, first_line::String)
+    for binding in km.keys
+        default::String = ""
+        key = binding[1]
+        if contains(key, ";")
+            key = split(key, ";")[1]
+        end
+        if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
+            default = "event.preventDefault();"
+        end
+        ref::String = gen_ref(8)
+        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
+        first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
+                sendpage('$(ref)');
+                return 0;
+                }"""
+        register!(binding[2][2], c, ref)
+    end
+    return(first_line)::String
+end
+
 """
 ```julia
 # binding to keymap
@@ -1189,54 +1210,21 @@ function bind(c::AbstractConnection, comp::Component{<:Any}, km::KeyMap; on::Sym
 end
 
 function bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symbol = :down, prevent_default::Bool = true)
-    firsbind = first(km.keys)
     first_line::String = """
     setTimeout(function () {
     document.addEventListener('key$on', function (event) { if (1 == 2) {}"""
-    n = 1
-    for binding in km.keys
-        default::String = ""
-        key = binding[1]
-        if contains(key, ";")
-            key = split(key, ";")[1]
-        end
-        if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
-            default = "event.preventDefault();"
-        end
-        ref::String = gen_ref(8)
-        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
-        first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
-                sendpage('$(ref)');
-                }"""
-        register!(binding[2][2], c, ref)
-    end
+    first_line = build_inner_str!(c, km, first_line)
     first_line = first_line * "}.bind(event));}, 500);"
     push!(cm.changes, first_line)
 end
 
 function bind(c::AbstractConnection, cm::ComponentModifier, comp::Component{<:Any},
-    km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
+    km::KeyMap; on::Symbol = :down)
     firsbind = first(km.keys)
     first_line::String = """
     setTimeout(function () {
     document.getElementById('$(comp.name)').addEventListener('key$on', function (event) { if (1 == 2) {}"""
-    n = 1
-    for binding in km.keys
-        default::String = ""
-        key = binding[1]
-        if contains(key, ";")
-            key = split(key, ";")[1]
-        end
-        if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
-            default = "event.preventDefault();"
-        end
-        ref::String = gen_ref(8)
-        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
-        first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
-                sendpage('$(ref)');
-                }"""
-        register!(binding[2][2], c, ref)
-    end
+    first_line = build_inner_str!(c, km, first_line)
     first_line = first_line * "}.bind(event));}, 500);"
     push!(cm.changes, first_line)
 end
@@ -1254,7 +1242,7 @@ call. `type` is the type of event that should be ran -- `Interval` is the defaul
 create a recurring event call. 
 
 
-- **SCRIPT! IS NOW DEPRECATED, USE ON INSTEAD.
+- **SCRIPT! IS NOW DEPRECATED, USE ON INSTEAD.**
 - The method list below includes `on` equivalents. This will be removed in `Session` `0.5`.
 ```julia
 script!(f::Function, c::AbstractConnection, name::String = gen_ref(8); time::Integer = 500, 
