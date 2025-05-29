@@ -1,6 +1,6 @@
 <div align = "center"><img src = "https://github.com/ChifiSource/image_dump/blob/main/toolips/toolipssession.png" href = "https://toolips.app"></img>
 
-[documenation](https://chifidocs.com/toolips/ToolipsSession)  
+[documentation](https://chifidocs.com/toolips/ToolipsSession)  
 [![deps](https://juliahub.com/docs/General/ToolipsSession/stable/deps.svg)](https://juliahub.com/ui/Packages/General/ToolipsSession?t=2)
 [![version](https://juliahub.com/docs/General/ToolipsSession/stable/version.svg)](https://juliahub.com/ui/Packages/General/ToolipsSession)
 [![pkgeval](https://juliahub.com/docs/General/ToolipsSession/stable/pkgeval.svg)](https://juliahub.com/ui/Packages/General/ToolipsSession)
