@@ -99,6 +99,10 @@ using Dates
 include("Modifier.jl")
 include("Auth.jl")
 export authorize!
+
+function get_session_key(c::AbstractConnection)
+    return(get_cookies(c)["key"].value)::String
+end
 #==
 Hello, welcome to the Session source. Here is an overview of the organization
 that might help you out:
@@ -121,16 +125,15 @@ that might help you out:
 --- Auth
 ==#
 
-function document_linker(c::AbstractConnection)
+function document_linker(c::AbstractConnection, client_key::String)
     s::String = get_post(c)
-    ip::String = get_ip(c)
     ref::String = get_ref(s)
     s = replace(s, "â•ƒCM" => "", "â•ƒ" => "")
     cm = ComponentModifier(s)
     if contains(ref, "GLOBAL")
-        ip = "GLOBAL"
+        client_key = "GLOBAL"
     end
-    call!(c, c[:Session].events[ip][ref], cm)
+    call!(c, c[:Session].events[client_key][ref], cm)
     write!(c, " ", cm)
     cm = nothing
     nothing::Nothing
@@ -143,9 +146,8 @@ get_ref(s::String) = begin
     s[ref_r]::String
 end
 
-function document_linker(c::AbstractConnection, threaded::Bool)
+function document_linker(c::AbstractConnection, client_key::String, threaded::Bool)
     s::String = get_post(c)
-    ip::String = get_ip(c)
     get_ref_job = Toolips.new_job(get_ref, s)
     procs = c[:procs]
     assigned_worker = Toolips.assign_open!(procs, get_ref_job, not = Toolips.ParametricProcesses.Async, sync = true)
@@ -155,7 +157,7 @@ function document_linker(c::AbstractConnection, threaded::Bool)
     if contains(ref, "GLOBAL")
         ip = "GLOBAL"
     end
-    call_job = new_job(call!, c[:Session].events[ip][ref], cm)
+    call_job = new_job(call!, c[:Session].events[client_key][ref], cm)
     assigned_worker = assign_open!(procs, call_job, sync = true)
     ret = waitfor(procs, assigned_worker ...)
     write!(c, " ", ret[1])
@@ -407,7 +409,7 @@ function session_gc!(e::Session{<:Any})
 end
 
 function write_doclinker!(c::AbstractConnection, e::Session{<:Any})
-    e.iptable[get_ip(c)] = now()
+    e.iptable[get_session_key(c)] = now()
     write!(c, """<script>
         const parser = new DOMParser();
         function sendpage(ref) {
@@ -440,11 +442,24 @@ function route!(c::AbstractConnection, e::Session{<:Any})
         if e.gc == 500
             session_gc!(e)
         end
+
+        cooks = get_cookies(c)
         if get_method(c) == "POST"
-            document_linker(c)
+            if ~("key" in cooks)
+                return(true)
+            end
+            document_linker(c, cooks["key"].value)
             return(false)::Bool
-        elseif ~(get_ip(c) in keys(e.iptable))
-            push!(e.events, get_ip(c) => Vector{AbstractEvent}())
+        elseif ~("key" in cooks) || ~(haskey(e.events, cooks["key"].value))
+            new_key = gen_ref(10)
+            if "key" in cooks && ~(haskey(e.events, cooks["key"]))
+                Toolips.clear_cookies!(c)
+            end
+            push!(e.events, new_key => Vector{AbstractEvent}())
+            push!(e.iptable, new_key => now())
+            respond!(c, "<script>location.href='$(c.stream.message.target)'</script>", 
+            [Toolips.Cookie("key", new_key)])
+            return(false)
         end
         write_doclinker!(c, e)
     end
@@ -456,18 +471,31 @@ function route!(c::AbstractConnection, e::Session{true})
         if e.gc == 500
             session_gc!(e)
         end
+
+        cooks = get_cookies(c)
         if get_method(c) == "POST"
-            document_linker(c, true)
+            if ~("key" in cooks)
+                return(true)
+            end
+            document_linker(c, true, cooks["key"].value)
             return(false)::Bool
-        elseif ~(get_ip(c) in keys(e.iptable))
-            push!(e.events, get_ip(c) => Vector{AbstractEvent}())
+        elseif ~("key" in cooks) || ~(haskey(e.events, cooks["key"].value))
+            new_key = gen_ref(10)
+            if "key" in cooks && ~(haskey(e.events, cooks["key"]))
+                Toolips.clear_cookies!(c)
+            end
+            push!(e.events, new_key => Vector{AbstractEvent}())
+            push!(e.iptable, new_key => now())
+            respond!(c, "<script>location.href='$(c.stream.message.target)'</script>", 
+            [Toolips.Cookie("key", new_key)])
+            return(false)
         end
         write_doclinker!(c, e)
     end
 end
 
 register!(f::Function, c::AbstractConnection, name::String; ref::Bool = true) = begin
-    client_events = c[:Session].events[get_ip(c)]
+    client_events = c[:Session].events[get_cookies(c)["key"].value]
     found = findfirst(event::AbstractEvent -> event.name == name, client_events)
     if ~(isnothing(found))
         deleteat!(client_events, found)
@@ -502,8 +530,8 @@ end
 ```
 """
 function kill!(c::AbstractConnection)
-    delete!(c[:Session].iptable, get_ip(c))
-    delete!(c[:Session].events, get_ip(c))
+    delete!(c[:Session].iptable, get_session_key(c))
+    delete!(c[:Session].events, get_session_key(c))
 end
 
 """
@@ -516,7 +544,7 @@ call!(c::AbstractConnection, event::AbstractEvent, cm::ComponentModifier)
 ```
 """
 function clear!(c::AbstractConnection)
-    c[:Session].events[get_ip(c)] = Vector{AbstractEvent}()
+    c[:Session].events[get_session_key(c)] = Vector{AbstractEvent}()
 end
 
 """
@@ -645,7 +673,6 @@ end
 function on(f::Function, c::AbstractConnection, event::AbstractString;
     prevent_default::Bool = false)
     ref::String = Toolips.gen_ref(8)
-    ip::String = get_ip(c)
     prevent::String = ""
     if prevent_default
         prevent = "event.preventDefault();"
@@ -693,7 +720,6 @@ end
 
 function on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, event::AbstractString; 
     prevent_default::Bool = false)
-    ip::String = get_ip(c)
     ref::String = gen_ref(8)
     prevent::String = ""
     if prevent_default
@@ -1104,7 +1130,7 @@ function bind(f::Function, km::KeyMap, vs::Vector{String}; prevent_default::Bool
 end
 
 
-function build_inner_str!(c::AbstractConnection, km::KeyMap, first_line::String)
+function build_inner_keymap_str!(c::AbstractConnection, km::KeyMap, first_line::String)
     for binding in km.keys
         default::String = ""
         key = binding[1]
@@ -1156,54 +1182,20 @@ end
 ```
 """
 function bind(c::AbstractConnection, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
-    firsbind = first(km.keys)
     first_line::String = """
     setTimeout(function () {
     document.addEventListener('key$on', function (event) { if (1 == 2) {}"""
-    n = 1
-    for binding in km.keys
-        default::String = ""
-        key = binding[1]
-        if contains(key, ";")
-            key = split(key, ";")[1]
-        end
-        if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
-            default = "event.preventDefault();"
-        end
-        ref::String = gen_ref(8)
-        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
-        first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
-                sendpage('$(ref)');
-                }"""
-        register!(binding[2][2], c, ref)
-    end
+    first_line = build_inner_keymap_str!(c, km, first_line)
     first_line = first_line * "}.bind(event));}, 500);"
     scr::Component{:script} = script(gen_ref(), text = first_line)
     write!(c, scr)
 end
 
 function bind(c::AbstractConnection, comp::Component{<:Any}, km::KeyMap; on::Symbol = :down, prevent_default::Bool = true)
-    firsbind = first(km.keys)
     first_line::String = """
     setTimeout(function () {
     document.getElementById('$(comp.name)').addEventListener('key$on', function (event) { if (1 == 2) {}"""
-    n = 1
-    for binding in km.keys
-        default::String = ""
-        key = binding[1]
-        if contains(key, ";")
-            key = split(key, ";")[1]
-        end
-        if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
-            default = "event.preventDefault();"
-        end
-        ref::String = gen_ref(8)
-        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
-        first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
-                sendpage('$(ref)');
-                }"""
-        register!(binding[2][2], c, ref)
-    end
+    first_line = build_inner_keymap_str!(c, km, first_line)
     first_line = first_line * "}.bind(event));}, 500);"
     scr::Component{:script} = script(gen_ref(), text = first_line)
     write!(c, scr)
@@ -1213,7 +1205,7 @@ function bind(c::AbstractConnection, cm::ComponentModifier, km::KeyMap, on::Symb
     first_line::String = """
     setTimeout(function () {
     document.addEventListener('key$on', function (event) { if (1 == 2) {}"""
-    first_line = build_inner_str!(c, km, first_line)
+    first_line = build_inner_keymap_str!(c, km, first_line)
     first_line = first_line * "}.bind(event));}, 500);"
     push!(cm.changes, first_line)
 end
@@ -1224,7 +1216,7 @@ function bind(c::AbstractConnection, cm::ComponentModifier, comp::Component{<:An
     first_line::String = """
     setTimeout(function () {
     document.getElementById('$(comp.name)').addEventListener('key$on', function (event) { if (1 == 2) {}"""
-    first_line = build_inner_str!(c, km, first_line)
+    first_line = build_inner_keymap_str!(c, km, first_line)
     first_line = first_line * "}.bind(event));}, 500);"
     push!(cm.changes, first_line)
 end
@@ -1295,7 +1287,7 @@ open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64 = 500)
 ```
 """
 function open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
-    client_events = c[:Session].events[get_ip(c)]
+    client_events = c[:Session].events[get_session_key(c)]
     found = findfirst(e::AbstractEvent -> typeof(e) <: RPCEvent, client_events)
     if ~(isnothing(found))
         ref = client_events[found].ref
@@ -1305,12 +1297,12 @@ function open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
     ref::String = gen_ref(8)
     event::RPCHost = RPCHost(ref)
     write!(c,  script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
-    push!(c[:Session].events[get_ip(c)], event)
+    push!(c[:Session].events[get_session_key(c)], event)
     nothing::Nothing
 end
 
 function open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64 = 500)
-    client_events = c[:Session].events[get_ip(c)]
+    client_events = c[:Session].events[get_session_key(c)]
     found = findfirst(e::AbstractEvent -> typeof(e) <: RPCEvent, client_events)
     if ~(isnothing(found))
         ref = client_events[found].ref
@@ -1320,7 +1312,7 @@ function open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64
     ref::String = gen_ref(8)
     event::RPCHost = RPCHost(ref)
     push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
-    push!(c[:Session].events[get_ip(c)], event)
+    push!(c[:Session].events[get_session_key(c)], event)
     nothing::Nothing
 end
 
@@ -1336,7 +1328,7 @@ example, this function would be called when a peer refreshes the page in an acti
 ```
 """
 reconnect_rpc!(c::Connection; tickrate::Int64 = 500) = begin
-    events::Vector{AbstractEvent} = c[:Session].events[get_ip(c)]
+    events::Vector{AbstractEvent} = c[:Session].events[get_session_key(c)]
     found = findfirst(event::AbstractEvent -> typeof(event) <: RPCEvent, events)
     if isnothing(found)
         throw("RPC Error: Trying to reconnect RPC that does not exist.")
@@ -1379,7 +1371,7 @@ If host, all subsequent clients will also have their RPC closed.
 ```
 """
 function close_rpc!(c::AbstractConnection)
-    close_rpc!(c[:Session], get_ip(c))
+    close_rpc!(c[:Session], get_session_key(c))
     nothing
 end
 
@@ -1400,7 +1392,7 @@ join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; tickrate::
 ```
 """
 function join_rpc!(c::AbstractConnection, host::String; tickrate::Int64 = 500)
-    client_events = c[:Session].events[get_ip(c)]
+    client_events = c[:Session].events[get_session_key(c)]
     found = findfirst(e::AbstractEvent -> typeof(e) <: RPCEvent, client_events)
     if ~(isnothing(found))
         ref = client_events[found].ref
@@ -1411,13 +1403,13 @@ function join_rpc!(c::AbstractConnection, host::String; tickrate::Int64 = 500)
     event::RPCClient = RPCClient(c, host, ref)
     write!(c, 
     script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
-    push!(c[:Session].events[get_ip(c)], event)
-    push!(find_host(c).clients, get_ip(c))
+    push!(c[:Session].events[get_session_key(c)], event)
+    push!(find_host(c).clients, get_session_key(c))
     nothing::Nothing
 end
 
 function join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; tickrate::Int64 = 500)
-    client_events = c[:Session].events[get_ip(c)]
+    client_events = c[:Session].events[get_session_key(c)]
     found = findfirst(e::AbstractEvent -> typeof(e) <: RPCEvent, client_events)
     if ~(isnothing(found))
         ref = client_events[found].ref
@@ -1427,8 +1419,8 @@ function join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; t
     ref::String = gen_ref(8)
     event::RPCClient = RPCClient(c, host, ref)
     push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
-    push!(c[:Session].events[get_ip(c)], event)
-    push!(find_host(c).clients, get_ip(c))
+    push!(c[:Session].events[get_session_key(c)], event)
+    push!(find_host(c).clients, get_session_key(c))
     nothing::Nothing
 end
 
@@ -1443,7 +1435,7 @@ Finds the `RPCHost` of an actively connected RPC session.
 """
 function find_host(c::AbstractConnection)
     events = c[:Session].events
-    ip::String = get_ip(c)
+    ip::String = get_session_key(c)
     found = findfirst(event::AbstractEvent -> typeof(event) <: RPCEvent, events[ip])
     if isnothing(found)
         throw("RPC error: unable to find RPC event")
@@ -1530,17 +1522,17 @@ call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
 ```
 """
 function call!(c::AbstractConnection, cm::ComponentModifier)
-    call!(c[:Session], find_host(c), cm, get_ip(c))
+    call!(c[:Session], find_host(c), cm, get_session_key(c))
 end
 
 function call!(f::Function, c::AbstractConnection, cm::ComponentModifier)
     cm2 = ComponentModifier(cm.rootc)
     f(cm2)
-    call!(c[:Session], find_host(c), cm2, get_ip(c))
+    call!(c[:Session], find_host(c), cm2, get_session_key(c))
 end
 
 function call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
-    call!(c[:Session], find_host(c), cm, get_ip(c), peerip)
+    call!(c[:Session], find_host(c), cm, get_session_key(c), peerip)
 end
 
 export Session, on, script!, ComponentModifier, authorize!, auth_redirect!, auth_pass!, call!, get_ref
