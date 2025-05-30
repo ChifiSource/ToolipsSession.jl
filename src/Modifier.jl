@@ -39,7 +39,7 @@ getindex(cc::ComponentModifier, s::AbstractComponent ...) = htmlcomponent(cc.roo
 
 getindex(cc::ComponentModifier, s::String ...) = htmlcomponent(cc.rootc, [s ...])
 
-in(s::String, cm::ComponentModifier) = contains(cm.rootc, s)::Bool
+in(s::String, cm::ComponentModifier) = contains(cm.rootc, "id=\"$s\"")::Bool
 
 # random component
 """
