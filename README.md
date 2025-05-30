@@ -208,7 +208,7 @@ When submitting issues or pull-requests for chifi projects, it is important to m
 - added `get_session_key` (in hopes this will deprecate dependents' private keys)
 - added ***Session** multi-threading* -- `Session{true}` is created by providing `threaded=true`. This will automatically use `Toolips` `ProcessManager` worker PMs.
 - New multi-block update for `KeyMap`
-- 
+- fixed `in` for `cm` by adding id check
 ###### 0.4.2
 - More updates to RPC functionality, fixed reconnect on reload for response-based open/join
 - changed reference length
