@@ -221,6 +221,7 @@ mutable struct Auth{T <: AbstractClient} <: Toolips.AbstractExtension
     clients::Vector{T}
     max_requests::Int64
     Auth{T}(; max_requests::Int64 = 1200) where {T <: AbstractClient} = begin
+        @warn "`Auth` will be deprecated in favor of `Session`-bourne authentication in `ToolipsSession` `0.5`. It is best *not* to build your app around this."
         blacklist::Vector{String} = Vector{String}()
         clients::Vector{T} = Vector{T}()
         new{T}(blacklist, clients, max_requests)::Auth{T}
