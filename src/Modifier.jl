@@ -39,7 +39,7 @@ getindex(cc::ComponentModifier, s::AbstractComponent ...) = htmlcomponent(cc.roo
 
 getindex(cc::ComponentModifier, s::String ...) = htmlcomponent(cc.rootc, [s ...])
 
-in(s::String, cm::ComponentModifier) = contains(cm.rootc, s)::Bool
+in(s::String, cm::ComponentModifier) = contains(cm.rootc, "id=\"$s\"")::Bool
 
 # random component
 """
@@ -62,6 +62,7 @@ function button_select(c::AbstractConnection, name::String, buttons::Vector{<:Se
      "border-width" => 0px],
     selected::Vector{Pair{String, String}} = ["background-color" => "green",
      "border-width" => 2px])
+    @warn "Deprecation warning: `button_select` will be moved to `ToolipsServables` in `0.5"
     selector_window = div(name, value = first(buttons)[:text])
     document.getElementById("xyz").style = "";
     [begin
@@ -143,7 +144,7 @@ end
 
 """
 ```julia
-confrim_redirects!(cm::AbstractComponentModifier) -> ::Nothing
+confirm_redirects!(cm::AbstractComponentModifier) -> ::Nothing
 ```
 Requires a user to confirm a redirects, providing a " Page may have unsaved changes" 
 alert when the client tries to leave the page. This can be undone with `free_redirects!`
