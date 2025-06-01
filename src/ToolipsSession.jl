@@ -385,7 +385,6 @@ on_start(ext::Session{true}, data::Dict{Symbol, Any}, routes::Vector{<:AbstractR
             using ToolipsSession
             using Dates
         end"""))
-    @info "put into procs"
     put!(data[:procs], Toolips.worker_pids(data[:procs], Toolips.ParametricProcesses.Threaded), ToolipsSession)
 end
 
@@ -477,7 +476,7 @@ function route!(c::AbstractConnection, e::Session{true})
             if ~("key" in cooks)
                 return(true)
             end
-            document_linker(c, true, cooks["key"].value)
+            document_linker(c, cooks["key"].value, true)
             return(false)::Bool
         elseif ~("key" in cooks) || ~(haskey(e.events, cooks["key"].value))
             new_key = gen_ref(10)
@@ -1290,7 +1289,7 @@ function open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
     client_events = c[:Session].events[get_session_key(c)]
     found = findfirst(e::AbstractEvent -> typeof(e) <: RPCEvent, client_events)
     if ~(isnothing(found))
-        ref = client_events[found].ref
+        ref = client_events[found].name
         write!(c,  script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
         return
     end
@@ -1305,7 +1304,7 @@ function open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64
     client_events = c[:Session].events[get_session_key(c)]
     found = findfirst(e::AbstractEvent -> typeof(e) <: RPCEvent, client_events)
     if ~(isnothing(found))
-        ref = client_events[found].ref
+        ref = client_events[found].name
         push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
         return
     end
@@ -1395,7 +1394,7 @@ function join_rpc!(c::AbstractConnection, host::String; tickrate::Int64 = 500)
     client_events = c[:Session].events[get_session_key(c)]
     found = findfirst(e::AbstractEvent -> typeof(e) <: RPCEvent, client_events)
     if ~(isnothing(found))
-        ref = client_events[found].ref
+        ref = client_events[found].name
         write!(c,  script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
         return
     end
@@ -1412,7 +1411,7 @@ function join_rpc!(c::AbstractConnection, cm::ComponentModifier, host::String; t
     client_events = c[:Session].events[get_session_key(c)]
     found = findfirst(e::AbstractEvent -> typeof(e) <: RPCEvent, client_events)
     if ~(isnothing(found))
-        ref = client_events[found].ref
+        ref = client_events[found].name
         push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
         return
     end
