@@ -68,14 +68,6 @@ the `Function` provided to `route` takes an `AbstractConnection`.
 - `reconnect_rpc!`
 - `close_rpc!`
 - `rpc!`
-###### authentication
-- `AbstractClient`
-- `Client`
-- `AuthenticatedConnection`
-- `Auth`
-- `authorize!`
-- `auth_redirect!`
-- `auth_pass!`
 ###### component modifier
 - `ComponentModifier`
 - `button_select` <- random prebuilt component
@@ -97,8 +89,6 @@ import Base: setindex!, getindex, push!, iterate, string, in
 using Dates
 # using WebSockets: serve, writeguarded, readguarded, @wslog, open, HTTP, Response, ServerWS
 include("Modifier.jl")
-include("Auth.jl")
-export authorize!
 
 function get_session_key(c::AbstractConnection)
     return(get_cookies(c)["key"].value)::String
@@ -1534,7 +1524,6 @@ function call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
     call!(c[:Session], find_host(c), cm, get_session_key(c), peerip)
 end
 
-export Session, on, script!, ComponentModifier, authorize!, auth_redirect!, auth_pass!, call!, get_ref
-export set_selection!, pauseanim!, playanim!, free_redirects!, confirm_redirects!, scroll_to!, scroll_by!, next!
+export Session, on, script!, ComponentModifier, call!, get_ref
 export rpc!, call!, disconnect_rpc!, find_client, join_rpc!, close_rpc!, open_rpc!, reconnect_rpc!
 end # module
