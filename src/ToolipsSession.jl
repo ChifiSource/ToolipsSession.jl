@@ -117,6 +117,10 @@ that might help you out:
 
 function document_linker(c::AbstractConnection, client_key::String)
     s::String = get_post(c)
+    if s == "DIS"
+        delete!(c[:Session].events, get_session_key(c))
+        return
+    end
     ref::String = get_ref(s)
     s = replace(s, "â•ƒCM" => "", "â•ƒ" => "")
     cm = ComponentModifier(s)
@@ -351,13 +355,9 @@ mutable struct Session{THREAD <: Any} <: Toolips.AbstractExtension
     active_routes::Vector{String}
     events::Dict{String, Vector{AbstractEvent}}
     invert_active::Bool
-    iptable::Dict{String, Dates.DateTime}
-    gc::Int64
-    timeout::Int64
     function Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 10, invert_active::Bool = false, threaded::Bool = false)
         events = Dict{String, Vector{AbstractEvent}}("GLOBAL" => Vector{AbstractEvent}()) 
-        iptable = Dict{String, Dates.DateTime}()
-        new{threaded}(active_routes, events, invert_active, iptable, 0, timeout)::Session{threaded}
+        new{threaded}(active_routes, events, invert_active)::Session{threaded}
     end
 end
 
@@ -378,27 +378,7 @@ on_start(ext::Session{true}, data::Dict{Symbol, Any}, routes::Vector{<:AbstractR
     put!(data[:procs], Toolips.worker_pids(data[:procs], Toolips.ParametricProcesses.Threaded), ToolipsSession)
 end
 
-function session_gc!(e::Session{<:Any})
-    e.gc = 0
-    [begin
-        time = active_client[2]
-        current_time = now()
-        if hour(current_time) != hour(time)
-            if ~(minute(current_time) < e.timeout)
-                delete!(e.events, active_client[1])
-                delete!(e.iptable, active_client[1])
-            end
-            elseif minute(current_time) - minute(time) > e.timeout
-                delete!(e.events, active_client[1])
-                delete!(e.iptable, active_client[1])
-            end
-            nothing
-        end for active_client in e.iptable]::Vector
-    nothing::Nothing
-end
-
 function write_doclinker!(c::AbstractConnection, e::Session{<:Any})
-    e.iptable[get_session_key(c)] = now()
     write!(c, """<script>
         const parser = new DOMParser();
         function sendpage(ref) {
@@ -414,6 +394,12 @@ function write_doclinker!(c::AbstractConnection, e::Session{<:Any})
         xhr.send(txt);
         }
         </script>
+        <script>
+        window.addEventListener('unload', function (e) {
+            e.preventDefault()
+            sendinfo('DIS')
+        })
+        </script>
         <style type="text/css">
         #div {
         -webkit-transition: 1s ease-in-out;
@@ -427,11 +413,6 @@ end
 
 function route!(c::AbstractConnection, e::Session{<:Any})
     if ~ e.invert_active && get_route(c) in e.active_routes || e.invert_active && ~(get_route(c) in e.active_routes)
-        e.gc += 1
-        if e.gc == 500
-            session_gc!(e)
-        end
-
         cooks = get_cookies(c)
         if get_method(c) == "POST"
             if ~("key" in cooks)
@@ -445,7 +426,6 @@ function route!(c::AbstractConnection, e::Session{<:Any})
                 Toolips.clear_cookies!(c)
             end
             push!(e.events, new_key => Vector{AbstractEvent}())
-            push!(e.iptable, new_key => now())
             respond!(c, "<script>location.href='$(c.stream.message.target)'</script>", 
             [Toolips.Cookie("key", new_key)])
             return(false)
@@ -456,11 +436,6 @@ end
 
 function route!(c::AbstractConnection, e::Session{true})
     if ~ e.invert_active && get_route(c) in e.active_routes || e.invert_active && ~(get_route(c) in e.active_routes)
-        e.gc += 1
-        if e.gc == 500
-            session_gc!(e)
-        end
-
         cooks = get_cookies(c)
         if get_method(c) == "POST"
             if ~("key" in cooks)
@@ -474,7 +449,6 @@ function route!(c::AbstractConnection, e::Session{true})
                 Toolips.clear_cookies!(c)
             end
             push!(e.events, new_key => Vector{AbstractEvent}())
-            push!(e.iptable, new_key => now())
             respond!(c, "<script>location.href='$(c.stream.message.target)'</script>", 
             [Toolips.Cookie("key", new_key)])
             return(false)
@@ -519,7 +493,6 @@ end
 ```
 """
 function kill!(c::AbstractConnection)
-    delete!(c[:Session].iptable, get_session_key(c))
     delete!(c[:Session].events, get_session_key(c))
 end
 
