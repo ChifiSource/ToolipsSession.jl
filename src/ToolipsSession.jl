@@ -115,10 +115,16 @@ that might help you out:
 --- Auth
 ==#
 
+abstract type SessionCommand{T} end
+
+function do_session_command(c::AbstractConnection, command::Type{SessionCommand{<:Any}}, raw::String)
+    delete!(c[:Session].events, get_session_key(c))
+end
+
 function document_linker(c::AbstractConnection, client_key::String)
     s::String = get_post(c)
-    if s == "DIS"
-        delete!(c[:Session].events, get_session_key(c))
+    if contains(s, "|!|") && length(s) > 3
+        do_session_command(c, SessionCommand{Symbol(s[1:3])}, s)
         return
     end
     ref::String = get_ref(s)
@@ -397,7 +403,7 @@ function write_doclinker!(c::AbstractConnection, e::Session{<:Any})
         <script>
         window.addEventListener('unload', function (e) {
             e.preventDefault()
-            sendinfo('DIS')
+            sendinfo('DIS|!|')
         })
         </script>
         <style type="text/css">
