@@ -114,10 +114,33 @@ that might help you out:
 - Auth.jl
 --- Auth
 ==#
+"""
+```julia
+abstract SessionCommand{T} <: Any
+```
+The `SessionCommand` is an abstract parametric type that can be used to extend session to 
+transmit other types of data. For instance, `Session` is sent `DIS|!|` and this will clean the 
+current client's data using the following dispatch:
+```julia
+do_session_command(c::AbstractConnection, command::Type{SessionCommand{:DIS}}, raw::String)
+```
 
+- See also: `do_session_command`, `get_ref`, `Session`
+"""
 abstract type SessionCommand{T} end
 
-function do_session_command(c::AbstractConnection, command::Type{SessionCommand{<:Any}}, raw::String)
+"""
+```julia
+do_session_command(c::AbstractConnection, command::Type{SessionCommand{<:Any}}, raw::String) -> ::Nothing
+```
+Performs a `SessionCommand`, allowing `Session` to do more than just transmit `Component` 
+callbacks.
+```julia
+do_session_command(c::AbstractConnection, command::Type{SessionCommand{:DIS}}, raw::String) -> ::Nothing
+```
+- See also: `SessionCommand`, `Session`, `call!`, `AbstractEvent`
+"""
+function do_session_command(c::AbstractConnection, command::Type{SessionCommand{:DIS}}, raw::String)
     delete!(c[:Session].events, get_session_key(c))
 end
 
@@ -152,6 +175,10 @@ function document_linker(c::AbstractConnection, client_key::String, threaded::Bo
     procs = c[:procs]
     assigned_worker = Toolips.assign_open!(procs, get_ref_job, not = Toolips.ParametricProcesses.Async, sync = true)
     ref = waitfor(procs, assigned_worker ...)[1]
+    if contains(s, "|!|") && length(s) > 3
+        do_session_command(c, SessionCommand{Symbol(s[1:3])}, s)
+        return
+    end
     s = replace(s, "â•ƒCM" => "", "â•ƒ" => "")
     cm = ComponentModifier(s)
     if contains(ref, "GLOBAL")
