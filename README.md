@@ -208,6 +208,7 @@ When submitting issues or pull-requests for chifi projects, it is important to m
 - Added unload GC call
 - removed GC from `route!`
 - moved `select_button` component and final modifier functions to `ToolipsServables`
+- added `SessionCommand` parametric command system
 ###### 0.4.3
 - More significant upgrades to `Session`, in preparation for a jump to `Session` `0.5`.
 - Switched client key authorization technique (moving `Auth` to `Session`, cooks)
