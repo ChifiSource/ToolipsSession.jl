@@ -147,8 +147,12 @@ end
 function document_linker(c::AbstractConnection, client_key::String)
     s::String = get_post(c)
     if contains(s, "|!|") && length(s) > 3
-        do_session_command(c, SessionCommand{Symbol(s[1:3])}, s)
-        return
+        try
+            do_session_command(c, SessionCommand{Symbol(s[1:3])}, s)
+            return
+        catch
+
+        end
     end
     ref::String = get_ref(s)
     s = replace(s, "â•ƒCM" => "", "â•ƒ" => "")
@@ -176,8 +180,12 @@ function document_linker(c::AbstractConnection, client_key::String, threaded::Bo
     assigned_worker = Toolips.assign_open!(procs, get_ref_job, not = Toolips.ParametricProcesses.Async, sync = true)
     ref = waitfor(procs, assigned_worker ...)[1]
     if contains(s, "|!|") && length(s) > 3
-        do_session_command(c, SessionCommand{Symbol(s[1:3])}, s)
-        return
+        try
+            do_session_command(c, SessionCommand{Symbol(s[1:3])}, s)
+            return
+        catch
+
+        end
     end
     s = replace(s, "â•ƒCM" => "", "â•ƒ" => "")
     cm = ComponentModifier(s)
