@@ -202,6 +202,13 @@ When submitting issues or pull-requests for chifi projects, it is important to m
 5. Be **specific** about your issue -- if you are experiencing multiple issues, open multiple issues. It is better to have a high quantity of issues that specifically describe things than a low quantity of issues that describe multiple things.
 6. If you have a new issue, **open a new issue**. It is not best to comment your new issue under an unrelated issue; even a case where you are experiencing that issue, if you want to mention **another issue**, open a **new issue**.
 ## changes overview
+###### new in 0.5
+- Deprecated `Auth` extension
+- Removed ip table, GC tracking, and sessiongc
+- Added unload GC call
+- removed GC from `route!`
+- moved `select_button` component and final modifier functions to `ToolipsServables`
+- added `SessionCommand` parametric command system
 ###### 0.4.3
 - More significant upgrades to `Session`, in preparation for a jump to `Session` `0.5`.
 - Switched client key authorization technique (moving `Auth` to `Session`, cooks)
