@@ -141,7 +141,11 @@ do_session_command(c::AbstractConnection, command::Type{SessionCommand{:DIS}}, r
 - See also: `SessionCommand`, `Session`, `call!`, `AbstractEvent`
 """
 function do_session_command(c::AbstractConnection, command::Type{SessionCommand{:DIS}}, raw::String)
-    delete!(c[:Session].events, get_session_key(c))
+    key = get_session_key(c)
+    if key in keys(c[:Session].events)
+        delete!(c[:Session].events, get_session_key(c))
+    end
+    write!(c, "disconnected")
 end
 
 function document_linker(c::AbstractConnection, client_key::String)
@@ -461,7 +465,8 @@ function route!(c::AbstractConnection, e::Session{<:Any})
             end
             document_linker(c, cooks["key"].value)
             return(false)::Bool
-        elseif ~("key" in cooks) || ~(haskey(e.events, cooks["key"].value))
+        elseif ~("key" in cooks)
+            args = get_args(c)
             new_key = gen_ref(10)
             if "key" in cooks && ~(haskey(e.events, cooks["key"]))
                 Toolips.clear_cookies!(c)
@@ -470,6 +475,9 @@ function route!(c::AbstractConnection, e::Session{<:Any})
             respond!(c, "<script>location.href='$(c.stream.message.target)'</script>", 
             [Toolips.Cookie("key", new_key)])
             return(false)
+        elseif ~(haskey(e.events, cooks["key"].value))
+            key = get_session_key(c)
+            push!(e.events, key => Vector{AbstractEvent}())
         end
         write_doclinker!(c, e)
     end
@@ -499,7 +507,11 @@ function route!(c::AbstractConnection, e::Session{true})
 end
 
 register!(f::Function, c::AbstractConnection, name::String; ref::Bool = true) = begin
-    client_events = c[:Session].events[get_cookies(c)["key"].value]
+    key = get_cookies(c)["key"].value
+    if ~(haskey(c[:Session].events, key))
+        push!(c[:Session].events, key => Vector{AbstractEvent}())
+    end
+    client_events = c[:Session].events[key]
     found = findfirst(event::AbstractEvent -> event.name == name, client_events)
     if ~(isnothing(found))
         deleteat!(client_events, found)
