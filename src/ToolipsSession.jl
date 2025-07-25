@@ -158,7 +158,7 @@ function document_linker(c::AbstractConnection, client_key::String)
 
         end
     end
-    if ~(contains(ref, "â•ƒCM"))
+    if ~(contains(s, "â•ƒCM"))
         return
     end
     ref::String = get_ref(s)
