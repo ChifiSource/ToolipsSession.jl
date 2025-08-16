@@ -828,8 +828,8 @@ function bind(f::Function, c::AbstractConnection, key::String, eventkeys::Symbol
     if prevent_default
         prevent = "event.preventDefault();"
     end
-    eventstr::String = join([begin " event.$(event)Key && "
-                            end for event in eventkeys])
+    eventstr::String = join(begin " event.$(event)Key && "
+                            end for event in eventkeys)
     ref::String = gen_ref(8)
     write!(c, """<script>
 document.addEventListener('key$on', function(event) {
@@ -844,8 +844,8 @@ end
 
 function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, key::String,
     eventkeys::Symbol ...; on::Symbol = :down, mark::String = "none", prevent_default::Bool = false)
-    eventstr::String = join([begin " event.$(event)Key && "
-                            end for event in eventkeys])
+    eventstr::String = join(begin " event.$(event)Key && "
+                            end for event in eventkeys)
     ref = gen_ref(8)
     prevent::String = ""
     if prevent_default
@@ -893,8 +893,8 @@ function bind(f::Function, c::AbstractConnection, cm::AbstractComponentModifier,
     if prevent_default
         prevent = "event.preventDefault();"
     end
-    eventstr::String = join([begin " event.$(event)Key && "
-                            end for event in eventkeys])
+    eventstr::String = join(begin " event.$(event)Key && "
+                            end for event in eventkeys)
 push!(cm.changes, """setTimeout(function () {
 document.getElementById('$(name)').onkeydown = function(event){
         if ($eventstr event.key == '$(key)') {
@@ -1062,6 +1062,11 @@ function handleTouchMove(evt) {
     write!(c, sc)
 end
 
+struct KeyInput
+    name::String
+    eventkeys::Vector{Symbol}
+end
+
 """
 ```julia
 KeyMap() <: ToolipsSession.InputMap
@@ -1113,58 +1118,50 @@ end
 - See also: `ToolipsSession.bind`, `on`, `ToolipsSession`, `Session`, `InputMap`, `SwipeMap`
 """
 mutable struct KeyMap <: InputMap
-    keys::Dict{String, Pair{Tuple, Function}}
+    keys::Vector{Pair{KeyInput, Function}}
     prevents::Vector{String}
-    KeyMap() = new(Dict{String, Pair{Tuple, Function}}(), Vector{String}())
+    KeyMap() = new(Vector{Pair{KeyInput, Function}}(), Vector{String}())
 end
 
 function bind(f::Function, km::KeyMap, key::String, event::Symbol ...; prevent_default::Bool = true)
     if prevent_default == true
-        push!(km.prevents, key * join([string(ev) for ev in event]))
+        push!(km.prevents, key * join(string(ev) for ev in event))
     end
-    if key in keys(km.keys)
-        l = length(findall(k -> k == key, collect(keys(km.keys))))
-        km.keys["$key;$l"] = event => f
-        return
-    end
-    km.keys[key] = event => f
+    push!(km.keys, KeyInput(key, Symbol[event ...]) => f)
 end
 
 function bind(f::Function, km::KeyMap, vs::Vector{String}; prevent_default::Bool = true)
-    if length(vs) > 1
-        event = Tuple(vs[2:length(vs)])
+    n = length(vs)
+    if n == 2
+        event = event = [Symbol(x) for x in vs[2:end]]
+    elseif n > 1
+        event = [Symbol(x) for x in vs[2:end]]
     else
         event = Tuple()
     end
     key = vs[1]
     if prevent_default == true
-        push!(km.prevents, key * join([string(ev) for ev in event]))
+        push!(km.prevents, key * join(string(ev) for ev in event))
     end
-    if key in keys(km.keys)
-        l = length(findall(k -> k == key, collect(keys(km.keys))))
-        key ="$key;$l"
-    end
-    km.keys[key] = event => f
+    push!(km.keys, KeyInput(key, Symbol[event ...]) => f)
 end
 
 
 function build_inner_keymap_str!(c::AbstractConnection, km::KeyMap, first_line::String)
     for binding in km.keys
         default::String = ""
-        key = binding[1]
-        if contains(key, ";")
-            key = split(key, ";")[1]
-        end
-        if (key * join([string(ev) for ev in binding[2][1]])) in km.prevents
+        ki = binding[1]
+        key = ki.name
+        if (key * join(string(ev) for ev in ki.eventkeys)) in km.prevents
             default = "event.preventDefault();"
         end
         ref::String = gen_ref(8)
-        eventstr::String = join([" event.$(event)Key && " for event in binding[2][1]])
+        eventstr::String = join(" event.$(event)Key && " for event in ki.eventkeys)
         first_line = first_line * """ else if ($eventstr event.key == "$key") {$default
                 sendpage('$(ref)');
                 return 0;
                 }"""
-        register!(binding[2][2], c, ref)
+        register!(binding[2], c, ref)
     end
     return(first_line)::String
 end
@@ -1237,51 +1234,6 @@ function bind(c::AbstractConnection, cm::ComponentModifier, comp::Component{<:An
     first_line = build_inner_keymap_str!(c, km, first_line)
     first_line = first_line * "}.bind(event));}, 500);"
     push!(cm.changes, first_line)
-end
-
-#==
-script!
-==#
-"""
-```julia
-script!(f::Function, c::AbstractConnection, ...; time::Integer = 500, type::String = "Interval")
-```
-Spawns a `Component{:script}` on the client, which makes callbacks to the server 
-without a triggering event. The `time` is the number of ms between each call, or the first 
-call. `type` is the type of event that should be ran -- `Interval` is the default, and this will 
-create a recurring event call. 
-
-
-- **SCRIPT! IS NOW DEPRECATED, USE ON INSTEAD.**
-- The method list below includes `on` equivalents. This will be removed in `Session` `0.5`.
-```julia
-script!(f::Function, c::AbstractConnection, name::String = gen_ref(8); time::Integer = 500, 
-type::String = "Interval")
-# use this instead:
-on(f::Function, c::AbstractConnection, time::Int64; recurring::Bool = false)
-
-script!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier; time::Integer = 1000, type::String = "Timeout")
-# use this instead:
-on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, time::Int64; recurring::Bool = false)
-```
-"""
-function script!(f::Function, c::AbstractConnection, name::String = gen_ref(8); time::Integer = 500,
-    type::String = "Interval")
-    obsscript::Component{:script} = script(name, text = """
-    set$(type)(function () { sendpage('$name'); }, $time);
-   """)
-   register!(f, c, name)
-   @warn "Deprecation warning: In `ToolipsSession` 0.5, `script! will be deprecated in favor of using `on`."
-   @info "e.g. on(f::Function, c::AbstractConnection, time::Int64; recurring::Bool = false)"
-   write!(c, obsscript)
-end
-
-function script!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier; time::Integer = 1000, type::String = "Timeout")
-   ref = gen_ref(8)
-   push!(cm.changes, "set$type(function () { sendpage('$ref'); }, $time);")
-   @warn "Deprecation warning: In `ToolipsSession` 0.5, `script! will be deprecated in favor of using `on`."
-   @info "e.g. on(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, time::Int64; recurring::Bool = false)"
-   register!(f, c, ref)
 end
 
 #==
