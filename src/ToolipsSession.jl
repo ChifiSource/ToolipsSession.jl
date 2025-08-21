@@ -150,13 +150,9 @@ end
 
 function document_linker(c::AbstractConnection, client_key::String)
     s::String = get_post(c)
-    if contains(s, "|!|") && length(s) > 3
-        try
-            do_session_command(c, SessionCommand{Symbol(s[1:3])}, s)
-            return
-        catch
-
-        end
+    if contains(s, "|!|") && findfirst("|!|", s) == 4:6
+        do_session_command(c, SessionCommand{Symbol(s[1:3])}, s)
+        return
     end
     if ~(contains(s, "â•ƒCM"))
         return
