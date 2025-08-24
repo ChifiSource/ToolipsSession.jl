@@ -91,6 +91,9 @@ using Dates
 include("Modifier.jl")
 
 function get_session_key(c::AbstractConnection)
+    if haskey(c.data, :SESSIONKEY)
+        return(c.data[:SESSIONKEY])
+    end
     return(get_cookies(c)["key"].value)::String
 end
 #==
@@ -141,10 +144,10 @@ do_session_command(c::AbstractConnection, command::Type{SessionCommand{:DIS}}, r
 - See also: `SessionCommand`, `Session`, `call!`, `AbstractEvent`
 """
 function do_session_command(c::AbstractConnection, command::Type{SessionCommand{:DIS}}, raw::String)
-    key = get_session_key(c)
+  #==  key = get_session_key(c)
     if key in keys(c[:Session].events)
         delete!(c[:Session].events, get_session_key(c))
-    end
+    end ==#
     write!(c, "disconnected")
 end
 
@@ -352,6 +355,8 @@ function call!(c::AbstractConnection, event::RPCEvent, cm::ComponentModifier)
     nothing::Nothing
 end
 
+abstract type AbstractSession <: Toolips.AbstractExtension end
+
 """
 ```julia
 mutable struct Session <: Toolips.AbstractExtension
@@ -395,13 +400,29 @@ Provided functions are able to take either a `ComponentModifier`, or a `Connecti
 Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 5)
 ```
 """
-mutable struct Session{THREAD <: Any} <: Toolips.AbstractExtension
+mutable struct Session{THREAD <: Any} <: AbstractSession
     active_routes::Vector{String}
     events::Dict{String, Vector{AbstractEvent}}
     invert_active::Bool
     function Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 10, invert_active::Bool = false, threaded::Bool = false)
         events = Dict{String, Vector{AbstractEvent}}("GLOBAL" => Vector{AbstractEvent}()) 
         new{threaded}(active_routes, events, invert_active)::Session{threaded}
+    end
+end
+
+mutable struct MockSession <: AbstractSession
+    events::Dict{String, Vector{AbstractEvent}}
+    new_events::Dict{String, Vector{AbstractEvent}}
+    MockSession(events::Dict{String, Vector{AbstractEvent}}) = begin
+        new(events, Dict{String, Vector{AbstractEvent}}())
+    end
+end
+
+MockSession(session::Session{<:Any}) = MockSession(session.events)
+
+append_events!(session::Session{<:Any}, mock::MockSession) = begin
+    for regevnt in pairs(mock.new_events)
+        push!(session.events[regevnt[1]], regevnt[2] ...)
     end
 end
 
@@ -458,10 +479,7 @@ end
 function route!(c::AbstractConnection, e::Session{<:Any})
     if ~ e.invert_active && get_route(c) in e.active_routes || e.invert_active && ~(get_route(c) in e.active_routes)
         cooks = get_cookies(c)
-        if get_method(c) == "POST"
-            if ~("key" in cooks)
-                return(true)
-            end
+        if get_method(c) == "POST" && "key" in cooks
             document_linker(c, cooks["key"].value)
             return(false)::Bool
         elseif ~("key" in cooks)
@@ -505,22 +523,39 @@ function route!(c::AbstractConnection, e::Session{true})
     end
 end
 
-register!(f::Function, c::AbstractConnection, name::String; ref::Bool = true) = begin
-    key = get_cookies(c)["key"].value
-    if ~(haskey(c[:Session].events, key))
-        push!(c[:Session].events, key => Vector{AbstractEvent}())
-    end
-    client_events = c[:Session].events[key]
+inner_register!(session::AbstractSession, key::String, event::AbstractEvent) = begin
+    client_events = session.events[key]
+    name = event.name
     found = findfirst(event::AbstractEvent -> event.name == name, client_events)
     if ~(isnothing(found))
         deleteat!(client_events, found)
     end
-    push!(client_events, Event(f, name))
+    push!(client_events, event)
+    nothing::Nothing
 end
 
-getindex(m::Session, s::AbstractString) = m.events[s]
+inner_register!(session::MockSession, key::String, event::AbstractEvent) = begin
+    if ~(haskey(session.new_events, key))
+        push!(session.new_events, key => Vector{AbstractEvent}([event]))
+    else
+        push!(session.new_events[key], event)
+    end
+    nothing::Nothing
+end
 
-setindex!(m::Session, d::Any, s::AbstractString) = m.events[s] = d
+register!(f::Function, c::AbstractConnection, name::String; ref::Bool = true) = begin
+    key::String = get_session_key(c)
+    session::AbstractSession = c[:Session]
+    if ~(haskey(session.events, key))
+        push!(session.events, key => Vector{AbstractEvent}())
+    end
+    inner_register!(session, key, Event(f, name))
+    nothing::Nothing
+end
+
+getindex(m::AbstractSession, s::AbstractString) = m.events[s]
+
+setindex!(m::AbstractSession, d::Any, s::AbstractString) = m.events[s] = d
 
 """
 ```julia
@@ -1413,7 +1448,7 @@ function find_host(c::AbstractConnection)
     return(events[ip][found])::RPCEvent
 end
 
-function rpc!(session::Session, event::RPCHost, cm::ComponentModifier)
+function rpc!(session::AbstractSession, event::RPCHost, cm::ComponentModifier)
     changes::String = join(cm.changes)
     push!(event.changes, changes)
     [begin 
@@ -1451,7 +1486,7 @@ function rpc!(f::Function, c::AbstractConnection, cm::ComponentModifier)
     rpc!(c[:Session], find_host(c), cm2)
 end
 
-function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::String)
+function call!(session::AbstractSession, event::RPCHost, cm::ComponentModifier, ip::String)
     changes::String = join(cm.changes)
     if ip in event.clients
         push!(event.changes, changes)
@@ -1465,7 +1500,7 @@ function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::Stri
     nothing::Nothing
 end
 
-function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::String, target::String)
+function call!(session::AbstractSession, event::RPCHost, cm::ComponentModifier, ip::String, target::String)
     changes::String = join(cm.changes)
     found = findfirst(e -> typeof(e) <: RPCEvent, session.events[target])
     push!(session.events[target][found].changes, changes)
