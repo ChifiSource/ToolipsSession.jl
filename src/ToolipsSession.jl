@@ -1288,7 +1288,8 @@ open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64 = 500)
 ```
 """
 function open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
-    client_events = c[:Session].events[get_session_key(c)]
+    key = get_session_key(c)
+    client_events = c[:Session].events[key]
     found = findfirst(e::AbstractEvent -> typeof(e) <: RPCEvent, client_events)
     if ~(isnothing(found))
         ref = client_events[found].name
@@ -1298,12 +1299,13 @@ function open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
     ref::String = gen_ref(8)
     event::RPCHost = RPCHost(ref)
     write!(c,  script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
-    push!(c[:Session].events[get_session_key(c)], event)
+    push!(c[:Session].events[key], event)
     nothing::Nothing
 end
 
 function open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64 = 500)
-    client_events = c[:Session].events[get_session_key(c)]
+    key = get_session_key(c)
+    client_events = c[:Session].events[key]
     found = findfirst(e::AbstractEvent -> typeof(e) <: RPCEvent, client_events)
     if ~(isnothing(found))
         ref = client_events[found].name
@@ -1313,7 +1315,7 @@ function open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64
     ref::String = gen_ref(8)
     event::RPCHost = RPCHost(ref)
     push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
-    push!(c[:Session].events[get_session_key(c)], event)
+    push!(c[:Session].events[key], event)
     nothing::Nothing
 end
 
@@ -1434,18 +1436,24 @@ Finds the `RPCHost` of an actively connected RPC session.
 
 ```
 """
-function find_host(c::AbstractConnection)
+function find_host(c::AbstractConnection, id::Bool = false)
     events = c[:Session].events
     ip::String = get_session_key(c)
     found = findfirst(event::AbstractEvent -> typeof(event) <: RPCEvent, events[ip])
-    if isnothing(found)
+    selected_event::RPCHost, host::String = if isnothing(found)
         throw("RPC error: unable to find RPC event")
     elseif typeof(events[ip][found]) == RPCClient
         host = events[ip][found].host
         found = findfirst(event::AbstractEvent -> typeof(event) == RPCHost, events[host])
-        return(events[host][found])::RPCHost
+        (events[host][found], host)
+    else
+        (events[ip][found], ip)
     end
-    return(events[ip][found])::RPCEvent
+    if id
+        return((host, selected_event))
+    else
+        return(selected_event)::RPCEvent
+    end
 end
 
 function rpc!(session::AbstractSession, event::RPCHost, cm::ComponentModifier)
@@ -1488,10 +1496,10 @@ end
 
 function call!(session::AbstractSession, event::RPCHost, cm::ComponentModifier, ip::String)
     changes::String = join(cm.changes)
+    filt = filter(e -> e != ip, event.clients)
     if ip in event.clients
         push!(event.changes, changes)
     end
-    filt = filter(e -> e != ip, event.clients)
     [begin 
         found = findfirst(e -> typeof(e) == RPCClient, session.events[client])
         push!(session.events[client][found].changes, changes)
@@ -1529,7 +1537,8 @@ end
 function call!(f::Function, c::AbstractConnection, cm::ComponentModifier)
     cm2 = ComponentModifier(cm.rootc)
     f(cm2)
-    call!(c[:Session], find_host(c), cm2, get_session_key(c))
+    host, host_event = find_host(c, true)
+    call!(c[:Session], host_event, cm2, get_session_key(c))
 end
 
 function call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
