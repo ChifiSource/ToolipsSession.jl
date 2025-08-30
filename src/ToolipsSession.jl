@@ -90,6 +90,9 @@ using Dates
 # using WebSockets: serve, writeguarded, readguarded, @wslog, open, HTTP, Response, ServerWS
 include("Modifier.jl")
 
+
+GLOBAL_GC::Int64 = 0
+
 function get_session_key(c::AbstractConnection)
     if haskey(c.data, :SESSIONKEY)
         return(c.data[:SESSIONKEY])
@@ -144,15 +147,33 @@ do_session_command(c::AbstractConnection, command::Type{SessionCommand{:DIS}}, r
 - See also: `SessionCommand`, `Session`, `call!`, `AbstractEvent`
 """
 function do_session_command(c::AbstractConnection, command::Type{SessionCommand{:DIS}}, raw::String)
-  #==  key = get_session_key(c)
-    if key in keys(c[:Session].events)
-        delete!(c[:Session].events, get_session_key(c))
-    end ==#
+    key = get_session_key(c)
+    if ~(key in c[:Session].garbage)
+        push!(c[:Session].garbage, key)
+    end
     write!(c, "disconnected")
+end
+
+perform_session_gc!(c::AbstractConnection) = begin
+    session = c[:Session]
+    events = session.events
+    @async for client in session.garbage
+        if haskey(session.events, client)
+            delete!(events, client)
+        end
+    end
+    session.garbage = Vector{String}()
+    nothing::Nothing
 end
 
 function document_linker(c::AbstractConnection, client_key::String)
     s::String = get_post(c)
+    if ToolipsSession.GLOBAL_GC > 500
+        perform_session_gc!(c)
+        ToolipsSession.GLOBAL_GC = 0
+    else
+        ToolipsSession.GLOBAL_GC += 1
+    end
     if contains(s, "|!|") && findfirst("|!|", s) == 4:6
         do_session_command(c, SessionCommand{Symbol(s[1:3])}, s)
         return
@@ -404,9 +425,10 @@ mutable struct Session{THREAD <: Any} <: AbstractSession
     active_routes::Vector{String}
     events::Dict{String, Vector{AbstractEvent}}
     invert_active::Bool
+    garbage::Vector{String}
     function Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 10, invert_active::Bool = false, threaded::Bool = false)
         events = Dict{String, Vector{AbstractEvent}}("GLOBAL" => Vector{AbstractEvent}()) 
-        new{threaded}(active_routes, events, invert_active)::Session{threaded}
+        new{threaded}(active_routes, events, invert_active, Vector{String}())::Session{threaded}
     end
 end
 
@@ -480,7 +502,13 @@ function route!(c::AbstractConnection, e::Session{<:Any})
     if ~ e.invert_active && get_route(c) in e.active_routes || e.invert_active && ~(get_route(c) in e.active_routes)
         cooks = get_cookies(c)
         if get_method(c) == "POST" && "key" in cooks
-            document_linker(c, cooks["key"].value)
+            seskey = cooks["key"].value
+            if seskey in c[:Session].garbage
+                deletes = c[:Session].garbage
+                found = findfirst(x -> x == seskey, deletes)
+                deleteat!(deletes, found)
+            end
+            document_linker(c, seskey)
             return(false)::Bool
         elseif ~("key" in cooks)
             args = get_args(c)
