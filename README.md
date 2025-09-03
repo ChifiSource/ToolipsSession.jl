@@ -202,6 +202,13 @@ When submitting issues or pull-requests for chifi projects, it is important to m
 5. Be **specific** about your issue -- if you are experiencing multiple issues, open multiple issues. It is better to have a high quantity of issues that specifically describe things than a low quantity of issues that describe multiple things.
 6. If you have a new issue, **open a new issue**. It is not best to comment your new issue under an unrelated issue; even a case where you are experiencing that issue, if you want to mention **another issue**, open a **new issue**.
 ## changes overview
+###### 0.5.3
+- Added possible `id` return to `find_client`.
+- Completion for new GC based on `Session.garbage`.
+- Added force key with `:SESSIONKEY` in `Connection` (useful for multi-event RPC)
+- Adjusted Disconnect + session command system
+- Slight updates to docs
+- Added expiremental edge-case mock session system
 ###### 0.5.1
 - Minor adjustments to DIS command
 - GC  adjustments

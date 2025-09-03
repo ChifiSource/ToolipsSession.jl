@@ -41,10 +41,6 @@ multiple threads, you will need to define each callback as a `Function` within y
 Provided functions can take either a `ComponentModifier`, as is usually seen with `do`, 
 or a `Connection` and `ComponentModifier`. Not relevant to `ToolipsSession`, but also make sure 
 the `Function` provided to `route` takes an `AbstractConnection`.
-```julia
-
-```
-### provides
 ###### session
 - `AbstractEvent`
 - `Event`
@@ -70,15 +66,7 @@ the `Function` provided to `route` takes an `AbstractConnection`.
 - `rpc!`
 ###### component modifier
 - `ComponentModifier`
-- `button_select` <- random prebuilt component
-- `set_selection!`
-- `pauseanim!`
-- `playanim!`
-- `free_redirects!`
-- `confirm_redirects!`
-- `scroll_to!`
-- `scroll_by!`
-- `next!`
+- `next!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, s::Any)`
 """
 module ToolipsSession
 using Toolips
@@ -90,9 +78,16 @@ using Dates
 # using WebSockets: serve, writeguarded, readguarded, @wslog, open, HTTP, Response, ServerWS
 include("Modifier.jl")
 
+
+GLOBAL_GC::Int64 = 0
+
 function get_session_key(c::AbstractConnection)
+    if haskey(c.data, :SESSIONKEY)
+        return(c.data[:SESSIONKEY])
+    end
     return(get_cookies(c)["key"].value)::String
 end
+
 #==
 Hello, welcome to the Session source. Here is an overview of the organization
 that might help you out:
@@ -124,7 +119,7 @@ current client's data using the following dispatch:
 ```julia
 do_session_command(c::AbstractConnection, command::Type{SessionCommand{:DIS}}, raw::String)
 ```
-
+NOTE that this only works with 3-character symbol combinations. `:DI` would not work, `:DISE` would not work, but `:DIS` or `:DEW` would work, for example.
 - See also: `do_session_command`, `get_ref`, `Session`
 """
 abstract type SessionCommand{T} end
@@ -142,21 +137,53 @@ do_session_command(c::AbstractConnection, command::Type{SessionCommand{:DIS}}, r
 """
 function do_session_command(c::AbstractConnection, command::Type{SessionCommand{:DIS}}, raw::String)
     key = get_session_key(c)
-    if key in keys(c[:Session].events)
-        delete!(c[:Session].events, get_session_key(c))
+    if ~(key in c[:Session].garbage)
+        push!(c[:Session].garbage, key)
     end
     write!(c, "disconnected")
 end
 
+"""
+```julia
+perform_session_gc!(c::AbstractConnection) -> ::Nothing
+```
+Performs a garbage collection routine, emptying the `garbage` from `Session`. This deletes the events for each client contained within `garbage`.
+- See also: `SessionCommand`, `Session`, `call!`, `AbstractEvent`
+"""
+perform_session_gc!(c::AbstractConnection) = begin
+    session = c[:Session]
+    events = session.events
+    @async for client in session.garbage
+        if haskey(session.events, client)
+            delete!(events, client)
+        end
+    end
+    session.garbage = Vector{String}()
+    nothing::Nothing
+end
+
+"""
+```julia
+document_linker(c::AbstractConnection, client_key::String) -> ::Nothing
+
+# (multi-threaded linker)
+
+document_linker(c::AbstractConnection, client_key::String, threaded::Bool)
+```
+The `document_linker` is the back-end that provides incoming posts to a given event handler. 
+- See also: `SessionCommand`, `Session`, `call!`, `AbstractEvent`
+"""
 function document_linker(c::AbstractConnection, client_key::String)
     s::String = get_post(c)
-    if contains(s, "|!|") && length(s) > 3
-        try
-            do_session_command(c, SessionCommand{Symbol(s[1:3])}, s)
-            return
-        catch
-
-        end
+    if ToolipsSession.GLOBAL_GC > 500
+        perform_session_gc!(c)
+        ToolipsSession.GLOBAL_GC = 0
+    else
+        ToolipsSession.GLOBAL_GC += 1
+    end
+    if contains(s, "|!|") && findfirst("|!|", s) == 4:6
+        do_session_command(c, SessionCommand{Symbol(s[1:3])}, s)
+        return
     end
     if ~(contains(s, "â•ƒCM"))
         return
@@ -173,7 +200,14 @@ function document_linker(c::AbstractConnection, client_key::String)
     nothing::Nothing
 end
 
-get_ref(s::String) = begin
+"""
+```julia
+get_ref(s::AbstractString)
+```
+Extracts an event reference tag from a `doument_linker` call.
+- See also: `SessionCommand`, `Session`, `document_linker`, `AbstractEvent`, `on`
+"""
+get_ref(s::AbstractString) = begin
     reftag::UnitRange{Int64} = findfirst("â•ƒCM", s)
     reftagend::UnitRange{Int64} = findnext("â•ƒ", s, maximum(reftag))
     ref_r::UnitRange{Int64} = maximum(reftag) + 1:minimum(reftagend) - 1
@@ -356,6 +390,8 @@ function call!(c::AbstractConnection, event::RPCEvent, cm::ComponentModifier)
     nothing::Nothing
 end
 
+abstract type AbstractSession <: Toolips.AbstractExtension end
+
 """
 ```julia
 mutable struct Session <: Toolips.AbstractExtension
@@ -396,16 +432,33 @@ end
 Provided functions are able to take either a `ComponentModifier`, or a `Connection` and a `ComponentModifier` as arguments.
 - See also: `open_rpc!`, `script!`, `on`, `ToolipsSession.bind`, `ComponentModifier`
 ```julia
-Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 5)
+Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 10, invert_active::Bool = false, threaded::Bool = false)
 ```
 """
-mutable struct Session{THREAD <: Any} <: Toolips.AbstractExtension
+mutable struct Session{THREAD <: Any} <: AbstractSession
     active_routes::Vector{String}
     events::Dict{String, Vector{AbstractEvent}}
     invert_active::Bool
+    garbage::Vector{String}
     function Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 10, invert_active::Bool = false, threaded::Bool = false)
         events = Dict{String, Vector{AbstractEvent}}("GLOBAL" => Vector{AbstractEvent}()) 
-        new{threaded}(active_routes, events, invert_active)::Session{threaded}
+        new{threaded}(active_routes, events, invert_active, Vector{String}())::Session{threaded}
+    end
+end
+
+mutable struct MockSession <: AbstractSession
+    events::Dict{String, Vector{AbstractEvent}}
+    new_events::Dict{String, Vector{AbstractEvent}}
+    MockSession(events::Dict{String, Vector{AbstractEvent}}) = begin
+        new(events, Dict{String, Vector{AbstractEvent}}())
+    end
+end
+
+MockSession(session::Session{<:Any}) = MockSession(session.events)
+
+append_events!(session::Session{<:Any}, mock::MockSession) = begin
+    for regevnt in pairs(mock.new_events)
+        push!(session.events[regevnt[1]], regevnt[2] ...)
     end
 end
 
@@ -462,11 +515,14 @@ end
 function route!(c::AbstractConnection, e::Session{<:Any})
     if ~ e.invert_active && get_route(c) in e.active_routes || e.invert_active && ~(get_route(c) in e.active_routes)
         cooks = get_cookies(c)
-        if get_method(c) == "POST"
-            if ~("key" in cooks)
-                return(true)
+        if get_method(c) == "POST" && "key" in cooks
+            seskey = cooks["key"].value
+            if seskey in c[:Session].garbage
+                deletes = c[:Session].garbage
+                found = findfirst(x -> x == seskey, deletes)
+                deleteat!(deletes, found)
             end
-            document_linker(c, cooks["key"].value)
+            document_linker(c, seskey)
             return(false)::Bool
         elseif ~("key" in cooks)
             args = get_args(c)
@@ -509,22 +565,39 @@ function route!(c::AbstractConnection, e::Session{true})
     end
 end
 
-register!(f::Function, c::AbstractConnection, name::String; ref::Bool = true) = begin
-    key = get_cookies(c)["key"].value
-    if ~(haskey(c[:Session].events, key))
-        push!(c[:Session].events, key => Vector{AbstractEvent}())
-    end
-    client_events = c[:Session].events[key]
+inner_register!(session::AbstractSession, key::String, event::AbstractEvent) = begin
+    client_events = session.events[key]
+    name = event.name
     found = findfirst(event::AbstractEvent -> event.name == name, client_events)
     if ~(isnothing(found))
         deleteat!(client_events, found)
     end
-    push!(client_events, Event(f, name))
+    push!(client_events, event)
+    nothing::Nothing
 end
 
-getindex(m::Session, s::AbstractString) = m.events[s]
+inner_register!(session::MockSession, key::String, event::AbstractEvent) = begin
+    if ~(haskey(session.new_events, key))
+        push!(session.new_events, key => Vector{AbstractEvent}([event]))
+    else
+        push!(session.new_events[key], event)
+    end
+    nothing::Nothing
+end
 
-setindex!(m::Session, d::Any, s::AbstractString) = m.events[s] = d
+register!(f::Function, c::AbstractConnection, name::String; ref::Bool = true) = begin
+    key::String = get_session_key(c)
+    session::AbstractSession = c[:Session]
+    if ~(haskey(session.events, key))
+        push!(session.events, key => Vector{AbstractEvent}())
+    end
+    inner_register!(session, key, Event(f, name))
+    nothing::Nothing
+end
+
+getindex(m::AbstractSession, s::AbstractString) = m.events[s]
+
+setindex!(m::AbstractSession, d::Any, s::AbstractString) = m.events[s] = d
 
 """
 ```julia
@@ -1257,7 +1330,8 @@ open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64 = 500)
 ```
 """
 function open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
-    client_events = c[:Session].events[get_session_key(c)]
+    key = get_session_key(c)
+    client_events = c[:Session].events[key]
     found = findfirst(e::AbstractEvent -> typeof(e) <: RPCEvent, client_events)
     if ~(isnothing(found))
         ref = client_events[found].name
@@ -1267,12 +1341,13 @@ function open_rpc!(c::AbstractConnection; tickrate::Int64 = 500)
     ref::String = gen_ref(8)
     event::RPCHost = RPCHost(ref)
     write!(c,  script(ref, text = """setInterval(function () { sendpage('$ref'); }, $tickrate);"""))
-    push!(c[:Session].events[get_session_key(c)], event)
+    push!(c[:Session].events[key], event)
     nothing::Nothing
 end
 
 function open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64 = 500)
-    client_events = c[:Session].events[get_session_key(c)]
+    key = get_session_key(c)
+    client_events = c[:Session].events[key]
     found = findfirst(e::AbstractEvent -> typeof(e) <: RPCEvent, client_events)
     if ~(isnothing(found))
         ref = client_events[found].name
@@ -1282,7 +1357,7 @@ function open_rpc!(c::AbstractConnection, cm::ComponentModifier; tickrate::Int64
     ref::String = gen_ref(8)
     event::RPCHost = RPCHost(ref)
     push!(cm.changes, "setInterval(function () { sendpage('$ref'); }, $tickrate);")
-    push!(c[:Session].events[get_session_key(c)], event)
+    push!(c[:Session].events[key], event)
     nothing::Nothing
 end
 
@@ -1396,28 +1471,34 @@ end
 
 """
 ```julia
-find_host(c::AbstractConnection) -> ::RPCEvent
+find_host(c::AbstractConnection, id::Bool = false) -> ::RPCEvent
 ```
 Finds the `RPCHost` of an actively connected RPC session.
 ```example
 
 ```
 """
-function find_host(c::AbstractConnection)
+function find_host(c::AbstractConnection, id::Bool = false)
     events = c[:Session].events
     ip::String = get_session_key(c)
     found = findfirst(event::AbstractEvent -> typeof(event) <: RPCEvent, events[ip])
-    if isnothing(found)
+    selected_event::RPCHost, host::String = if isnothing(found)
         throw("RPC error: unable to find RPC event")
     elseif typeof(events[ip][found]) == RPCClient
         host = events[ip][found].host
         found = findfirst(event::AbstractEvent -> typeof(event) == RPCHost, events[host])
-        return(events[host][found])::RPCHost
+        (events[host][found], host)
+    else
+        (events[ip][found], ip)
     end
-    return(events[ip][found])::RPCEvent
+    if id
+        return((host, selected_event))
+    else
+        return(selected_event)::RPCEvent
+    end
 end
 
-function rpc!(session::Session, event::RPCHost, cm::ComponentModifier)
+function rpc!(session::AbstractSession, event::RPCHost, cm::ComponentModifier)
     changes::String = join(cm.changes)
     push!(event.changes, changes)
     [begin 
@@ -1455,12 +1536,12 @@ function rpc!(f::Function, c::AbstractConnection, cm::ComponentModifier)
     rpc!(c[:Session], find_host(c), cm2)
 end
 
-function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::String)
+function call!(session::AbstractSession, event::RPCHost, cm::ComponentModifier, ip::String)
     changes::String = join(cm.changes)
+    filt = filter(e -> e != ip, event.clients)
     if ip in event.clients
         push!(event.changes, changes)
     end
-    filt = filter(e -> e != ip, event.clients)
     [begin 
         found = findfirst(e -> typeof(e) == RPCClient, session.events[client])
         push!(session.events[client][found].changes, changes)
@@ -1469,7 +1550,7 @@ function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::Stri
     nothing::Nothing
 end
 
-function call!(session::Session, event::RPCHost, cm::ComponentModifier, ip::String, target::String)
+function call!(session::AbstractSession, event::RPCHost, cm::ComponentModifier, ip::String, target::String)
     changes::String = join(cm.changes)
     found = findfirst(e -> typeof(e) <: RPCEvent, session.events[target])
     push!(session.events[target][found].changes, changes)
@@ -1498,7 +1579,8 @@ end
 function call!(f::Function, c::AbstractConnection, cm::ComponentModifier)
     cm2 = ComponentModifier(cm.rootc)
     f(cm2)
-    call!(c[:Session], find_host(c), cm2, get_session_key(c))
+    host, host_event = find_host(c, true)
+    call!(c[:Session], host_event, cm2, get_session_key(c))
 end
 
 function call!(c::AbstractConnection, cm::ComponentModifier, peerip::String)
