@@ -41,10 +41,6 @@ multiple threads, you will need to define each callback as a `Function` within y
 Provided functions can take either a `ComponentModifier`, as is usually seen with `do`, 
 or a `Connection` and `ComponentModifier`. Not relevant to `ToolipsSession`, but also make sure 
 the `Function` provided to `route` takes an `AbstractConnection`.
-```julia
-
-```
-### provides
 ###### session
 - `AbstractEvent`
 - `Event`
@@ -70,15 +66,7 @@ the `Function` provided to `route` takes an `AbstractConnection`.
 - `rpc!`
 ###### component modifier
 - `ComponentModifier`
-- `button_select` <- random prebuilt component
-- `set_selection!`
-- `pauseanim!`
-- `playanim!`
-- `free_redirects!`
-- `confirm_redirects!`
-- `scroll_to!`
-- `scroll_by!`
-- `next!`
+- `next!(f::Function, c::AbstractConnection, cm::AbstractComponentModifier, s::Any)`
 """
 module ToolipsSession
 using Toolips
@@ -99,6 +87,7 @@ function get_session_key(c::AbstractConnection)
     end
     return(get_cookies(c)["key"].value)::String
 end
+
 #==
 Hello, welcome to the Session source. Here is an overview of the organization
 that might help you out:
@@ -130,7 +119,7 @@ current client's data using the following dispatch:
 ```julia
 do_session_command(c::AbstractConnection, command::Type{SessionCommand{:DIS}}, raw::String)
 ```
-
+NOTE that this only works with 3-character symbol combinations. `:DI` would not work, `:DISE` would not work, but `:DIS` or `:DEW` would work, for example.
 - See also: `do_session_command`, `get_ref`, `Session`
 """
 abstract type SessionCommand{T} end
@@ -154,6 +143,13 @@ function do_session_command(c::AbstractConnection, command::Type{SessionCommand{
     write!(c, "disconnected")
 end
 
+"""
+```julia
+perform_session_gc!(c::AbstractConnection) -> ::Nothing
+```
+Performs a garbage collection routine, emptying the `garbage` from `Session`. This deletes the events for each client contained within `garbage`.
+- See also: `SessionCommand`, `Session`, `call!`, `AbstractEvent`
+"""
 perform_session_gc!(c::AbstractConnection) = begin
     session = c[:Session]
     events = session.events
@@ -166,6 +162,17 @@ perform_session_gc!(c::AbstractConnection) = begin
     nothing::Nothing
 end
 
+"""
+```julia
+document_linker(c::AbstractConnection, client_key::String) -> ::Nothing
+
+# (multi-threaded linker)
+
+document_linker(c::AbstractConnection, client_key::String, threaded::Bool)
+```
+The `document_linker` is the back-end that provides incoming posts to a given event handler. 
+- See also: `SessionCommand`, `Session`, `call!`, `AbstractEvent`
+"""
 function document_linker(c::AbstractConnection, client_key::String)
     s::String = get_post(c)
     if ToolipsSession.GLOBAL_GC > 500
@@ -193,7 +200,14 @@ function document_linker(c::AbstractConnection, client_key::String)
     nothing::Nothing
 end
 
-get_ref(s::String) = begin
+"""
+```julia
+get_ref(s::AbstractString)
+```
+Extracts an event reference tag from a `doument_linker` call.
+- See also: `SessionCommand`, `Session`, `document_linker`, `AbstractEvent`, `on`
+"""
+get_ref(s::AbstractString) = begin
     reftag::UnitRange{Int64} = findfirst("â•ƒCM", s)
     reftagend::UnitRange{Int64} = findnext("â•ƒ", s, maximum(reftag))
     ref_r::UnitRange{Int64} = maximum(reftag) + 1:minimum(reftagend) - 1
@@ -418,7 +432,7 @@ end
 Provided functions are able to take either a `ComponentModifier`, or a `Connection` and a `ComponentModifier` as arguments.
 - See also: `open_rpc!`, `script!`, `on`, `ToolipsSession.bind`, `ComponentModifier`
 ```julia
-Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 5)
+Session(active_routes::Vector{String} = ["/"]; timeout::Int64 = 10, invert_active::Bool = false, threaded::Bool = false)
 ```
 """
 mutable struct Session{THREAD <: Any} <: AbstractSession
@@ -1457,7 +1471,7 @@ end
 
 """
 ```julia
-find_host(c::AbstractConnection) -> ::RPCEvent
+find_host(c::AbstractConnection, id::Bool = false) -> ::RPCEvent
 ```
 Finds the `RPCHost` of an actively connected RPC session.
 ```example
